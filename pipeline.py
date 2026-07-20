@@ -38,6 +38,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import latex
+
 
 # ── Config ─────────────────────────────────────
 
@@ -549,7 +551,8 @@ def llm_generate_resume(client: LLMClient, name: str, data: dict) -> Optional[st
 
 
 def llm_process_all(bundles: dict[str, PersonBundle], output_dir: str, client: LLMClient,
-                    skip_consolidate: bool = False, skip_resume: bool = False) -> None:
+                    skip_consolidate: bool = False, skip_resume: bool = False,
+                    resume_format: str = "markdown") -> None:
     consolidated_dir = os.path.join(output_dir, "consolidated")
     resume_dir = os.path.join(output_dir, "resumes")
     os.makedirs(consolidated_dir, exist_ok=True)
@@ -588,6 +591,18 @@ def llm_process_all(bundles: dict[str, PersonBundle], output_dir: str, client: L
                     f.write(resume_text)
                 print(f"  → {rpath}")
 
+            if resume_format == "latex":
+                latex_dir = os.path.join(output_dir, "latex")
+                os.makedirs(latex_dir, exist_ok=True)
+                tex_content = latex.render_latex(data, person)
+                tex_path = os.path.join(latex_dir, f"{slug(person)}_resume.tex")
+                with open(tex_path, "w") as f:
+                    f.write(tex_content)
+                print(f"  → {tex_path}")
+                pdf_path = latex.compile_pdf(tex_path, latex_dir)
+                if pdf_path:
+                    print(f"  → {pdf_path}")
+
 
 # ── Summary ────────────────────────────────────
 
@@ -618,7 +633,8 @@ def summary_report(bundles: dict[str, PersonBundle], output_dir: str, elapsed: f
 def run(search_dirs: list[str], output_dir: str, dry_run: bool = False,
         extract: bool = True, llm_enabled: bool = False,
         llm_client: Optional[LLMClient] = None,
-        skip_consolidate: bool = False, skip_resume: bool = False) -> None:
+        skip_consolidate: bool = False, skip_resume: bool = False,
+        resume_format: str = "markdown") -> None:
     t0 = time.time()
     os.makedirs(output_dir, exist_ok=True)
     print(f"Output: {output_dir}")
@@ -638,7 +654,8 @@ def run(search_dirs: list[str], output_dir: str, dry_run: bool = False,
 
     if llm_enabled and llm_client:
         print("\n=== STEP 3: LLM Processing ===")
-        llm_process_all(bundles, output_dir, llm_client, skip_consolidate, skip_resume)
+        llm_process_all(bundles, output_dir, llm_client, skip_consolidate, skip_resume,
+                        resume_format=resume_format)
     elif extract:
         # Fallback: hard-coded raw text dump
         print("\n=== STEP 3: Saving Raw Extracts ===")
@@ -683,6 +700,9 @@ Examples:
     scan.add_argument("--model", default=None, help="LLM model override (e.g. gpt-4o, claude-3-opus)")
     scan.add_argument("--skip-consolidate", action="store_true", help="Skip LLM consolidation, use cached JSON")
     scan.add_argument("--skip-resume", action="store_true", help="Skip LLM resume generation")
+    scan.add_argument("--format", default="markdown", choices=["markdown", "latex"],
+                      help="Resume output format. 'latex' additionally renders a .tex file "
+                           "(and attempts PDF compilation) from the structured JSON into latex/")
     scan.add_argument("--set-key", nargs=2, metavar=("PROVIDER", "API_KEY"),
                       help="Save an API key to config and exit")
 
@@ -707,7 +727,8 @@ Examples:
     run(search_dirs=dirs, output_dir=os.path.abspath(args.output),
         dry_run=args.dry_run, extract=not args.no_extract,
         llm_enabled=llm_enabled, llm_client=llm_client,
-        skip_consolidate=args.skip_consolidate, skip_resume=args.skip_resume)
+        skip_consolidate=args.skip_consolidate, skip_resume=args.skip_resume,
+        resume_format=args.format)
 
 
 if __name__ == "__main__":

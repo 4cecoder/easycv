@@ -33,6 +33,8 @@ from unittest.mock import MagicMock, PropertyMock, patch, mock_open
 # ── Import the pipeline module ──────────────────────────────────────────────
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pipeline
+import latex
+from latex import escape_latex, render_latex, compile_pdf
 from pipeline import (
     # Helpers
     slug,
@@ -1291,6 +1293,325 @@ class TestIntegration(unittest.TestCase):
         self.assertEqual(len(files), 2)
         self.assertIn("alice smith_cv.txt", files)
         self.assertIn("alice smith_cv_dup.txt", files)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 8.  test_latex
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestEscapeLatex(unittest.TestCase):
+    """escape_latex() must neutralize every LaTeX special character."""
+
+    def test_backslash(self):
+        self.assertEqual(escape_latex("a\\b"), r"a\textbackslash{}b")
+
+    def test_ampersand(self):
+        self.assertEqual(escape_latex("Foo & Bar"), r"Foo \& Bar")
+
+    def test_percent(self):
+        self.assertEqual(escape_latex("100%"), r"100\%")
+
+    def test_dollar(self):
+        self.assertEqual(escape_latex("$cool$"), r"\$cool\$")
+
+    def test_hash(self):
+        self.assertEqual(escape_latex("#1"), r"\#1")
+
+    def test_underscore(self):
+        self.assertEqual(escape_latex("a_b"), r"a\_b")
+
+    def test_open_brace(self):
+        self.assertEqual(escape_latex("a{b"), r"a\{b")
+
+    def test_close_brace(self):
+        self.assertEqual(escape_latex("a}b"), r"a\}b")
+
+    def test_tilde(self):
+        self.assertEqual(escape_latex("a~b"), r"a\textasciitilde{}b")
+
+    def test_caret(self):
+        self.assertEqual(escape_latex("a^b"), r"a\textasciicircum{}b")
+
+    def test_none_returns_empty_string(self):
+        self.assertEqual(escape_latex(None), "")
+
+    def test_non_string_is_stringified(self):
+        self.assertEqual(escape_latex(42), "42")
+
+    def test_plain_text_unchanged(self):
+        self.assertEqual(escape_latex("Senior Engineer"), "Senior Engineer")
+
+    def test_no_double_escaping(self):
+        """A literal backslash must not have its escaped braces re-escaped."""
+        result = escape_latex("\\")
+        self.assertEqual(result, r"\textbackslash{}")
+        # The braces introduced by the replacement itself must not be
+        # escaped a second time (that would produce \textbackslash\{\}).
+        self.assertNotIn(r"\{\}", result)
+
+    def test_injection_attempt_neutralized(self):
+        malicious = "\\input{/etc/passwd}"
+        result = escape_latex(malicious)
+        # No raw backslash-command sequence should survive.
+        self.assertNotIn("\\input{", result)
+        self.assertIn(r"\textbackslash{}", result)
+        self.assertIn(r"\{", result)
+        self.assertIn(r"\}", result)
+
+    def test_combined_special_chars(self):
+        result = escape_latex("50% off $100 & #1 pick_of {the} ~top^tier")
+        self.assertIn(r"\%", result)
+        self.assertIn(r"\$", result)
+        self.assertIn(r"\&", result)
+        self.assertIn(r"\#", result)
+        self.assertIn(r"\_", result)
+        self.assertIn(r"\{", result)
+        self.assertIn(r"\}", result)
+        self.assertIn(r"\textasciitilde{}", result)
+        self.assertIn(r"\textasciicircum{}", result)
+
+
+class TestRenderLatex(unittest.TestCase):
+    """render_latex() with full data and with missing/partial data."""
+
+    def test_full_data_structure(self):
+        data = {
+            "name": "Alice Smith",
+            "contact": {"email": "alice@example.com", "phone": "555-1234",
+                       "location": "NYC", "linkedin": "linkedin.com/in/alice",
+                       "website": "alice.dev"},
+            "titles": ["Senior Backend Engineer"],
+            "summary": "Backend engineer focused on distributed systems.",
+            "skills": {
+                "languages": ["Python", "Go"],
+                "frameworks": ["Django"],
+                "cloud_devops": ["AWS"],
+                "databases": ["Postgres"],
+                "tools": ["Docker"],
+            },
+            "experience": [
+                {"title": "Staff Engineer", "company": "Acme Corp",
+                 "start": "2021", "end": "Present", "location": "Remote",
+                 "bullets": ["Built a distributed queue in Go", "Led migration to Kubernetes"]},
+            ],
+            "education": [{"degree": "B.S. Computer Science", "school": "MIT", "years": "2016-2020"}],
+            "certifications": ["AWS Certified Solutions Architect"],
+            "languages_spoken": ["English", "French"],
+        }
+        tex = render_latex(data, "Alice Smith")
+
+        self.assertTrue(tex.startswith(r"\documentclass"))
+        self.assertIn(r"\begin{document}", tex)
+        self.assertIn(r"\end{document}", tex)
+        self.assertIn("Alice Smith", tex)
+        self.assertIn("Staff Engineer", tex)
+        self.assertIn("Acme Corp", tex)
+        self.assertIn("Built a distributed queue in Go", tex)
+        self.assertIn("MIT", tex)
+        self.assertIn("AWS Certified Solutions Architect", tex)
+        self.assertIn("English", tex)
+        self.assertIn("Python", tex)
+        self.assertIn(r"\begin{itemize}", tex)
+
+    def test_special_characters_are_escaped(self):
+        data = {
+            "name": "Al\\ice & Co",
+            "contact": {"location": "NYC & Co", "website": "http://x.com/~alice"},
+            "titles": ["Senior Eng #1"],
+            "summary": "Built 100% $cool$ systems # rock",
+            "skills": {"languages": ["C#", "Python_3"], "frameworks": ["Django & Co"]},
+            "experience": [{
+                "title": "Eng & Lead", "company": "Foo_Bar {Inc}",
+                "start": "2020", "end": "2022", "location": "Remote ~HQ",
+                "bullets": ["Handled \\command{x}", "Grew perf by 2^10x"],
+            }],
+            "education": [{"degree": "B.S. CS #1", "school": "MIT & Co", "years": "2016"}],
+            "certifications": ["AWS_Cert & Co"],
+            "languages_spoken": ["English & French"],
+        }
+        tex = render_latex(data, "Alice")
+
+        # Escaped forms must be present...
+        self.assertIn(r"\&", tex)
+        self.assertIn(r"\#", tex)
+        self.assertIn(r"\%", tex)
+        self.assertIn(r"\$", tex)
+        self.assertIn(r"\_", tex)
+        self.assertIn(r"\{", tex)
+        self.assertIn(r"\}", tex)
+        self.assertIn(r"\textasciitilde{}", tex)
+        self.assertIn(r"\textasciicircum{}", tex)
+        self.assertIn(r"\textbackslash{}", tex)
+        # ...and the raw dangerous sequence must never survive unescaped.
+        self.assertNotIn("\\command{x}", tex)
+        self.assertNotIn("Foo_Bar {Inc}", tex)
+
+    def test_empty_data_does_not_crash(self):
+        tex = render_latex({}, "Bob Jones")
+        self.assertIsInstance(tex, str)
+        self.assertIn(r"\documentclass", tex)
+        self.assertIn(r"\end{document}", tex)
+        self.assertIn("Bob Jones", tex)  # falls back to the `name` arg
+
+    def test_none_data_does_not_crash(self):
+        tex = render_latex(None, "Carol")
+        self.assertIsInstance(tex, str)
+        self.assertIn("Carol", tex)
+
+    def test_missing_and_null_nested_fields_do_not_crash(self):
+        data = {
+            "name": "Dave",
+            "contact": None,
+            "titles": None,
+            "summary": None,
+            "skills": {"languages": None, "frameworks": []},
+            "experience": [{"bullets": None}, None, {"title": "Eng"}],
+            "education": [{}, {"degree": "B.S."}],
+            "certifications": None,
+            "languages_spoken": [],
+        }
+        tex = render_latex(data, "Dave")
+        self.assertIsInstance(tex, str)
+        self.assertIn("Dave", tex)
+        self.assertIn(r"\end{document}", tex)
+
+    def test_no_experience_section_when_empty(self):
+        tex = render_latex({"name": "Eve", "skills": {}, "experience": []}, "Eve")
+        self.assertNotIn(r"\textbf{Experience}", tex)
+
+    def test_name_falls_back_to_arg_when_data_name_blank(self):
+        tex = render_latex({"name": "  "}, "Fallback Name")
+        self.assertIn("Fallback Name", tex)
+
+
+class TestCompilePdf(unittest.TestCase):
+    """compile_pdf() with pdflatex mocked / unavailable."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def _write_tex(self, name="resume.tex"):
+        tex_path = os.path.join(self.tmp.name, name)
+        with open(tex_path, "w") as f:
+            f.write(r"\documentclass{article}\begin{document}x\end{document}")
+        return tex_path
+
+    @patch("latex.subprocess.run")
+    def test_compile_success(self, mock_run):
+        tex_path = self._write_tex()
+        pdf_path = os.path.join(self.tmp.name, "resume.pdf")
+        with open(pdf_path, "w") as f:
+            f.write("%PDF-1.4 fake")
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+        result = compile_pdf(tex_path, self.tmp.name)
+
+        self.assertEqual(result, pdf_path)
+        args, kwargs = mock_run.call_args
+        called_args = args[0]
+        self.assertIsInstance(called_args, list)
+        self.assertEqual(called_args[0], "pdflatex")
+        self.assertIn("-interaction=nonstopmode", called_args)
+        self.assertIn("-halt-on-error", called_args)
+        self.assertIn("-no-shell-escape", called_args)
+        self.assertNotIn("shell", kwargs)  # never shell=True
+
+    @patch("latex.subprocess.run")
+    def test_compile_pdflatex_not_installed(self, mock_run):
+        mock_run.side_effect = FileNotFoundError()
+        tex_path = self._write_tex()
+
+        result = compile_pdf(tex_path, self.tmp.name)
+
+        self.assertIsNone(result)
+
+    @patch("latex.subprocess.run")
+    def test_compile_timeout(self, mock_run):
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="pdflatex", timeout=30)
+        tex_path = self._write_tex()
+
+        result = compile_pdf(tex_path, self.tmp.name)
+
+        self.assertIsNone(result)
+
+    @patch("latex.subprocess.run")
+    def test_compile_nonzero_exit_returns_none(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="! Undefined control sequence")
+        tex_path = self._write_tex()
+
+        result = compile_pdf(tex_path, self.tmp.name)
+
+        self.assertIsNone(result)
+
+    @patch("latex.subprocess.run")
+    def test_compile_uses_timeout_kwarg(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        tex_path = self._write_tex()
+        pdf_path = os.path.join(self.tmp.name, "resume.pdf")
+        with open(pdf_path, "w") as f:
+            f.write("%PDF-1.4 fake")
+
+        compile_pdf(tex_path, self.tmp.name)
+
+        _, kwargs = mock_run.call_args
+        self.assertEqual(kwargs.get("timeout"), 30)
+
+
+class TestPipelineLatexWiring(unittest.TestCase):
+    """--format latex wiring: llm_process_all renders a .tex via latex.py."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_llm_process_all_latex_format_renders_tex(self):
+        output = os.path.join(self.tmp.name, "output")
+
+        bundle = PersonBundle(name="Alice Smith")
+        bundle.extracted_texts = {"alice_cv.txt": "Alice Smith is an engineer."}
+
+        mock_client = MagicMock(spec=LLMClient)
+        mock_client.provider = "ollama"
+        mock_client.model = "llama3.2"
+        mock_client.chat.side_effect = [
+            json.dumps({"name": "Alice Smith", "skills": {"languages": ["Python"]}, "experience": []}),
+            "# Alice Resume\n\nSkills: Python",
+        ]
+
+        with patch("latex.compile_pdf", return_value=None) as mock_compile:
+            llm_process_all({"Alice Smith": bundle}, output, mock_client, resume_format="latex")
+
+        tex_path = os.path.join(output, "latex", "alice-smith_resume.tex")
+        self.assertTrue(os.path.isfile(tex_path))
+        with open(tex_path) as f:
+            content = f.read()
+        self.assertIn("Alice Smith", content)
+        mock_compile.assert_called_once()
+
+        # markdown resume still generated (format=latex is additive, not exclusive)
+        md_path = os.path.join(output, "resumes", "alice-smith_resume.md")
+        self.assertTrue(os.path.isfile(md_path))
+
+    def test_llm_process_all_markdown_format_no_tex(self):
+        """Default format=markdown must not create a latex/ dir."""
+        output = os.path.join(self.tmp.name, "output")
+
+        bundle = PersonBundle(name="Bob Jones")
+        bundle.extracted_texts = {"bob_cv.txt": "Bob Jones is an engineer."}
+
+        mock_client = MagicMock(spec=LLMClient)
+        mock_client.provider = "ollama"
+        mock_client.model = "llama3.2"
+        mock_client.chat.side_effect = [
+            json.dumps({"name": "Bob Jones", "skills": {}, "experience": []}),
+            "# Bob Resume",
+        ]
+
+        llm_process_all({"Bob Jones": bundle}, output, mock_client)
+
+        latex_dir = os.path.join(output, "latex")
+        self.assertFalse(os.path.isdir(latex_dir))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
