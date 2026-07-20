@@ -5,14 +5,24 @@
   "description": "Web/Convex backend for easyCV (root for eventual Next.js frontend).",
   "type": "module",
   "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
     "test": "vitest run",
     "dev:convex": "convex dev",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "convex": "^1.42.3"
+    "convex": "^1.42.3",
+    "next": "^16.2.10",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "stripe": "^22.3.2"
   },
   "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
     "convex-test": "^0.0.54",
     "vitest": "^4.1.10",
     "typescript": "^5.9.3"

@@ -77,6 +77,8 @@ from pipeline import (
     redetect_command,
     stats_command,
     _unique_dest,
+    # Web-layer bridge
+    consolidate_stdin_command,
 )
 
 
@@ -2208,6 +2210,120 @@ class TestStatsCommand(unittest.TestCase):
         out = buf.getvalue()
         self.assertEqual(rc, 0)
         self.assertIn("[error] could not read", out)
+
+
+class TestConsolidateStdinCommand(unittest.TestCase):
+    """consolidate_stdin_command(): the web-layer bridge. Builds a single
+    PersonBundle from already-saved paths, reuses extract_text/llm_consolidate/
+    score_structured_data/latex exactly as scan/rescore do, and prints EXACTLY
+    one line of JSON to stdout with all internal progress output redirected to
+    stderr."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.cv_path = _make_file(self.tmp.name, "alice_cv.txt", "Alice Smith\nSoftware Engineer\nPython, Go")
+
+    def _mock_client(self, chat_return):
+        mock_client = MagicMock(spec=LLMClient)
+        mock_client.provider = "anthropic"
+        mock_client.model = "claude-sonnet-4-20250514"
+        mock_client.chat.return_value = chat_return
+        return mock_client
+
+    @patch("latex.compile_pdf")
+    def test_stdout_is_exactly_one_json_line_with_expected_keys(self, mock_compile):
+        mock_compile.return_value = "/tmp/fake/alice-smith_resume.pdf"
+        mock_client = self._mock_client(json.dumps({
+            "name": "Alice Smith",
+            "skills": {"languages": ["Python", "Go"]},
+            "experience": [{"title": "Engineer", "company": "Acme", "bullets": ["Built X"]}],
+        }))
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = consolidate_stdin_command([self.cv_path], mock_client)
+        out = buf.getvalue()
+
+        self.assertEqual(rc, 0)
+        lines = out.splitlines()
+        self.assertEqual(len(lines), 1, f"expected exactly one stdout line, got: {out!r}")
+
+        payload = json.loads(lines[0])
+        self.assertEqual(set(payload.keys()), {"profile", "score", "pdf_path"})
+        self.assertEqual(payload["profile"]["name"], "Alice Smith")
+        self.assertEqual(payload["score"]["critical"], False)
+        self.assertIn("score", payload["score"])
+        self.assertIn("max_score", payload["score"])
+        self.assertIn("warnings", payload["score"])
+        self.assertEqual(payload["pdf_path"], "/tmp/fake/alice-smith_resume.pdf")
+
+        # No progress/log lines (e.g. "[llm] sending...") leaked onto stdout.
+        self.assertNotIn("[llm]", out)
+        self.assertNotIn("[warn]", out)
+
+    @patch("latex.compile_pdf", return_value=None)
+    def test_pdf_path_null_when_compile_fails(self, mock_compile):
+        mock_client = self._mock_client(json.dumps({
+            "name": "Alice Smith", "skills": {"languages": ["Python"]}, "experience": [],
+        }))
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = consolidate_stdin_command([self.cv_path], mock_client)
+        payload = json.loads(buf.getvalue().splitlines()[0])
+        self.assertEqual(rc, 0)
+        self.assertIsNone(payload["pdf_path"])
+
+    @patch("latex.compile_pdf", return_value=None)
+    def test_non_json_llm_response_falls_back_to_raw(self, mock_compile):
+        mock_client = self._mock_client("not valid json at all")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = consolidate_stdin_command([self.cv_path], mock_client)
+        payload = json.loads(buf.getvalue().splitlines()[0])
+        self.assertEqual(rc, 0)
+        self.assertIn("_raw", payload["profile"])
+        self.assertTrue(payload["score"]["critical"])
+
+    @patch("latex.compile_pdf", return_value=None)
+    def test_no_extractable_text_falls_back_to_raw_without_calling_llm(self, mock_compile):
+        # A .txt file with an unreadable path would still extract fine, so
+        # simulate "no extractable text" via an unsupported extension instead.
+        bad_path = _make_file(self.tmp.name, "resume.docx", "binary-ish content")
+        mock_client = self._mock_client("should never be called")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = consolidate_stdin_command([bad_path], mock_client)
+        payload = json.loads(buf.getvalue().splitlines()[0])
+        self.assertEqual(rc, 0)
+        self.assertIn("_raw", payload["profile"])
+        mock_client.chat.assert_not_called()
+
+    @patch("latex.compile_pdf", return_value=None)
+    def test_cli_wiring(self, mock_compile):
+        mock_client = MagicMock(spec=LLMClient)
+        mock_client.provider = "anthropic"
+        mock_client.model = "claude-sonnet-4-20250514"
+        mock_client.chat.return_value = json.dumps({
+            "name": "Alice Smith", "skills": {"languages": ["Python"]}, "experience": [],
+        })
+        buf = io.StringIO()
+        with patch("pipeline.LLMClient", return_value=mock_client):
+            with patch.object(sys, "argv", ["pipeline.py", "consolidate-stdin", self.cv_path, "--llm", "anthropic"]):
+                with redirect_stdout(buf):
+                    with self.assertRaises(SystemExit) as ctx:
+                        pipeline.main()
+        self.assertEqual(ctx.exception.code, 0)
+        lines = buf.getvalue().splitlines()
+        self.assertEqual(len(lines), 1)
+        payload = json.loads(lines[0])
+        self.assertEqual(set(payload.keys()), {"profile", "score", "pdf_path"})
+
+    def test_cli_requires_llm(self):
+        with patch.object(sys, "argv", ["pipeline.py", "consolidate-stdin", self.cv_path]):
+            with self.assertRaises(SystemExit) as ctx:
+                pipeline.main()
+        self.assertNotEqual(ctx.exception.code, 0)
 
 
 class TestRescoreRedetectStatsCLI(unittest.TestCase):

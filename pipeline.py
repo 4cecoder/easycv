@@ -25,12 +25,14 @@ Config:
 """
 
 import argparse
+import contextlib
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -970,6 +972,48 @@ def summary_report(bundles: dict[str, PersonBundle], output_dir: str, elapsed: f
 # ── Main ───────────────────────────────────────
 
 
+def consolidate_stdin_command(paths: list[str], llm_client: LLMClient) -> int:
+    """Consolidate one or more already-saved file paths for a single person and
+    print EXACTLY one line of JSON to stdout:
+    ``{"profile": <dict>, "score": <dict>, "pdf_path": <str-or-null>}``.
+
+    This is the bridge the web layer (`consolidate-stdin`) calls into: it
+    reuses extract_text() / llm_consolidate() / score_structured_data() /
+    latex.render_latex() / latex.compile_pdf() exactly as `scan`/`rescore` do,
+    rather than reimplementing extraction, consolidation, or scoring in
+    TypeScript. Every one of those functions normally prints progress straight
+    to stdout -- that's redirected to stderr here so stdout carries only the
+    final JSON line.
+    """
+    with contextlib.redirect_stdout(sys.stderr):
+        display_name = (paths and extract_person(os.path.basename(paths[0]))) or "Candidate"
+
+        bundle = PersonBundle(name=display_name)
+        for path in paths:
+            filename = os.path.basename(path)
+            bundle.files.append(FoundFile(
+                path=path, filename=filename, ext=os.path.splitext(filename)[1].lower(),
+                size_kb=fmt_size(path), person=display_name, category=classify(filename),
+            ))
+            text = extract_text(path)
+            if text:
+                bundle.extracted_texts[filename] = text
+
+        data = llm_consolidate(llm_client, bundle) if bundle.extracted_texts else None
+        profile = data if isinstance(data, dict) else {"_raw": "no extractable text or empty LLM response"}
+
+        score = score_structured_data(profile)
+
+        tmp_dir = tempfile.mkdtemp(prefix="cv-consolidate-")
+        tex_path = os.path.join(tmp_dir, f"{slug(display_name)}_resume.tex")
+        with open(tex_path, "w") as f:
+            f.write(latex.render_latex(profile, display_name))
+        pdf_path = latex.compile_pdf(tex_path, tmp_dir)
+
+    print(json.dumps({"profile": profile, "score": score, "pdf_path": pdf_path}))
+    return 0
+
+
 def run(search_dirs: list[str], output_dir: str, dry_run: bool = False,
         extract: bool = True, llm_enabled: bool = False,
         llm_client: Optional[LLMClient] = None,
@@ -1033,6 +1077,7 @@ Examples:
   python pipeline.py redetect --output ./cv_pipeline_output                   # preview renames
   python pipeline.py redetect --output ./cv_pipeline_output --apply          # apply them
   python pipeline.py stats --output ./cv_pipeline_output                     # summarize output dir
+  python pipeline.py consolidate-stdin file1.pdf file2.txt --llm anthropic   # web-layer bridge: one JSON line on stdout
         """)
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -1084,6 +1129,16 @@ Examples:
     stats.add_argument("--output", "-o", default="./cv_pipeline_output",
                        help="Existing output dir to summarize")
 
+    consolidate_stdin = sub.add_parser(
+        "consolidate-stdin",
+        help="Consolidate already-saved file paths for one person and print a single "
+             "JSON line to stdout (the bridge the web layer calls into)")
+    consolidate_stdin.add_argument("paths", nargs="+", help="Paths to files already saved to disk")
+    consolidate_stdin.add_argument("--llm", required=True, choices=["openai", "anthropic", "ollama"],
+                                   help="LLM provider to use (required)")
+    consolidate_stdin.add_argument("--model", default=None,
+                                   help="LLM model override (e.g. gpt-4o, claude-3-opus)")
+
     args = parser.parse_args()
 
     if args.command == "validate":
@@ -1102,6 +1157,10 @@ Examples:
 
     if args.command == "stats":
         sys.exit(stats_command(args.output))
+
+    if args.command == "consolidate-stdin":
+        llm_client = LLMClient(provider=args.llm, model=args.model)
+        sys.exit(consolidate_stdin_command(args.paths, llm_client))
 
     if args.set_key:
         provider, key = args.set_key

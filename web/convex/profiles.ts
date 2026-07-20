@@ -70,3 +70,21 @@ export const getStructuredProfile = query({
       .first();
   },
 });
+
+// The download route (app/api/download/[token]/route.ts) needs actual PDF
+// bytes, not just a storageId -- Convex file storage is fetched via a signed
+// URL, never returned as raw bytes from a query. Returns null if there's no
+// profile yet or no PDF has been compiled for it.
+export const getProfilePdfUrl = query({
+  args: {
+    uploadId: v.id("uploads"),
+  },
+  handler: async (ctx, { uploadId }) => {
+    const profile = await ctx.db
+      .query("structuredProfiles")
+      .filter((q) => q.eq(q.field("uploadId"), uploadId))
+      .first();
+    if (!profile?.pdfStorageId) return null;
+    return await ctx.storage.getUrl(profile.pdfStorageId);
+  },
+});

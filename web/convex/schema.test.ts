@@ -201,3 +201,42 @@ describe("download gate", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("file storage helpers", () => {
+  test("generateUploadUrl returns a URL usable to upload bytes", async () => {
+    const t = convexTest(schema);
+    const url = await t.mutation(api.files.generateUploadUrl, {});
+    expect(typeof url).toBe("string");
+    expect(url.length).toBeGreaterThan(0);
+  });
+
+  test("getProfilePdfUrl is null before a PDF is set, then resolves after setProfilePdf", async () => {
+    const t = convexTest(schema);
+    const uploadId = await t.mutation(api.uploads.createUpload, {
+      sessionId: "sess-pdf",
+    });
+    await t.mutation(api.profiles.saveStructuredProfile, {
+      uploadId,
+      name: "Jane Doe",
+      ...sampleQuality,
+    });
+
+    const before = await t.query(api.profiles.getProfilePdfUrl, { uploadId });
+    expect(before).toBeNull();
+
+    const pdfStorageId = await storeFakeFile(t);
+    await t.mutation(api.profiles.setProfilePdf, { uploadId, pdfStorageId });
+
+    const after = await t.query(api.profiles.getProfilePdfUrl, { uploadId });
+    expect(typeof after).toBe("string");
+  });
+
+  test("getProfilePdfUrl is null when there is no structuredProfile at all", async () => {
+    const t = convexTest(schema);
+    const uploadId = await t.mutation(api.uploads.createUpload, {
+      sessionId: "sess-no-profile",
+    });
+    const url = await t.query(api.profiles.getProfilePdfUrl, { uploadId });
+    expect(url).toBeNull();
+  });
+});

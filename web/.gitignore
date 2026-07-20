@@ -1,6 +1,12 @@
 node_modules/
 dist/
+.next/
+*.tsbuildinfo
 
 # Convex local dev state and secrets — never commit
 .env.local
 .convex/
+
+# Real secrets for the Next.js app — only .env.example is committed
+.env
+.env*.local
