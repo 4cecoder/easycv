@@ -604,6 +604,159 @@ def llm_process_all(bundles: dict[str, PersonBundle], output_dir: str, client: L
                     print(f"  → {pdf_path}")
 
 
+# ── Data Quality ───────────────────────────────
+
+
+SKILL_CATEGORIES = ("languages", "frameworks", "cloud_devops", "databases", "tools")
+
+
+def score_structured_data(data: dict) -> dict:
+    """Score a consolidated structured-JSON record for completeness.
+
+    Returns {"score": int, "max_score": int, "warnings": [...], "critical": bool}.
+    ``critical`` is True iff the record fails REQUIRED_STRUCTURED_KEYS (name/skills/
+    experience missing or empty) or is raw/unparsed LLM output — i.e. unusable as a
+    resume source. All other checks only add warnings and reduce the score.
+    """
+    warnings: list[str] = []
+    score = 0
+    max_score = 0
+    critical = False
+
+    if not isinstance(data, dict):
+        return {"score": 0, "max_score": 0, "warnings": ["data is not a JSON object"], "critical": True}
+
+    if "_raw" in data:
+        critical = True
+        warnings.append("data is raw/unparsed LLM output (structured extraction failed)")
+
+    for key in sorted(REQUIRED_STRUCTURED_KEYS):
+        max_score += 1
+        if data.get(key):
+            score += 1
+        else:
+            critical = True
+            warnings.append(f"missing required field: {key}")
+
+    contact = data.get("contact")
+    contact = contact if isinstance(contact, dict) else {}
+    for field_name in ("email", "phone", "location"):
+        max_score += 1
+        if contact.get(field_name):
+            score += 1
+        else:
+            warnings.append(f"no contact {field_name}")
+
+    max_score += 1
+    if data.get("summary"):
+        score += 1
+    else:
+        warnings.append("no professional summary")
+
+    max_score += 1
+    if data.get("titles"):
+        score += 1
+    else:
+        warnings.append("no titles listed")
+
+    skills = data.get("skills")
+    if isinstance(skills, dict):
+        for cat in SKILL_CATEGORIES:
+            max_score += 1
+            if skills.get(cat):
+                score += 1
+            else:
+                warnings.append(f"skills.{cat} is empty")
+    else:
+        max_score += len(SKILL_CATEGORIES)
+        warnings.append("skills is missing or not an object")
+
+    experience = data.get("experience")
+    if isinstance(experience, list):
+        for i, entry in enumerate(experience, start=1):
+            if not isinstance(entry, dict):
+                warnings.append(f"experience entry {i} is not a valid object")
+                continue
+            label = entry.get("title") or entry.get("company") or f"entry {i}"
+            max_score += 1
+            if entry.get("title") and entry.get("company"):
+                score += 1
+            else:
+                warnings.append(f"experience entry {i} ({label}) missing title/company")
+            max_score += 1
+            if entry.get("bullets"):
+                score += 1
+            else:
+                warnings.append(f"experience entry {i} ({label}) missing bullets")
+
+    for optional_key, label in (("education", "education"), ("certifications", "certifications"),
+                                 ("languages_spoken", "spoken languages")):
+        max_score += 1
+        if data.get(optional_key):
+            score += 1
+        else:
+            warnings.append(f"no {label} listed")
+
+    return {"score": score, "max_score": max_score, "warnings": warnings, "critical": critical}
+
+
+def _find_structured_json_files(path: str) -> list[str]:
+    """Locate *_structured.json files to validate, given a file or a directory.
+
+    If *path* is a directory, prefer a `consolidated/` subdirectory (the standard
+    pipeline output layout); otherwise scan *path* itself.
+    """
+    if os.path.isfile(path):
+        return [path]
+    consolidated_dir = os.path.join(path, "consolidated")
+    search_dir = consolidated_dir if os.path.isdir(consolidated_dir) else path
+    if not os.path.isdir(search_dir):
+        return []
+    return [
+        os.path.join(search_dir, fname)
+        for fname in sorted(os.listdir(search_dir))
+        if fname.endswith("_structured.json")
+    ]
+
+
+def validate_command(path: str) -> int:
+    """Run the data-quality gate over one JSON file or a directory of them.
+
+    Prints a human-readable per-person report and returns a process exit code:
+    0 if every file passes REQUIRED_STRUCTURED_KEYS, 1 if any file is critically
+    incomplete (or couldn't be read at all) — suitable for use as a CI gate.
+    """
+    files = _find_structured_json_files(path)
+    if not files:
+        print(f"  [error] no *_structured.json files found at: {path}")
+        return 1
+
+    print("\n=== Data Quality Report ===")
+    exit_code = 0
+    for fpath in files:
+        name = os.path.basename(fpath)
+        if name.endswith("_structured.json"):
+            name = name[: -len("_structured.json")]
+        try:
+            with open(fpath) as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"\n  [{name}] [error] could not read/parse {fpath}: {e}")
+            exit_code = 1
+            continue
+
+        result = score_structured_data(data)
+        status = "CRITICAL" if result["critical"] else "OK"
+        print(f"\n  [{name}] score: {result['score']}/{result['max_score']}  status: {status}")
+        for w in result["warnings"]:
+            print(f"    - {w}")
+        if result["critical"]:
+            exit_code = 1
+
+    print()
+    return exit_code
+
+
 # ── Summary ────────────────────────────────────
 
 
@@ -686,6 +839,8 @@ Examples:
   python pipeline.py scan ~/Downloads --llm anthropic
   python pipeline.py scan --auto --dry-run                    # preview only
   python pipeline.py scan --auto --llm openai --skip-resume   # structured data only
+  python pipeline.py validate ./cv_pipeline_output            # data-quality gate (CI-friendly)
+  python pipeline.py validate ./cv_pipeline_output/consolidated/john-doe_structured.json
         """)
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -706,7 +861,14 @@ Examples:
     scan.add_argument("--set-key", nargs=2, metavar=("PROVIDER", "API_KEY"),
                       help="Save an API key to config and exit")
 
+    validate = sub.add_parser("validate", help="Data-quality gate: score consolidated structured JSON for completeness")
+    validate.add_argument("path", help="Path to a *_structured.json file, or a directory containing "
+                                        "consolidated/*_structured.json files")
+
     args = parser.parse_args()
+
+    if args.command == "validate":
+        sys.exit(validate_command(args.path))
 
     if args.set_key:
         provider, key = args.set_key

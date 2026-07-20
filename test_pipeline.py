@@ -64,6 +64,11 @@ from pipeline import (
     _load_config,
     LLM_CONSOLIDATE_SYSTEM,
     LLM_RESUME_SYSTEM,
+    # Data quality
+    score_structured_data,
+    validate_command,
+    _find_structured_json_files,
+    REQUIRED_STRUCTURED_KEYS,
 )
 
 
@@ -1556,6 +1561,249 @@ class TestCompilePdf(unittest.TestCase):
 
         _, kwargs = mock_run.call_args
         self.assertEqual(kwargs.get("timeout"), 30)
+
+
+class TestScoreStructuredData(unittest.TestCase):
+    """score_structured_data(): completeness scoring + warnings for consolidated JSON."""
+
+    def _complete_data(self) -> dict:
+        return {
+            "name": "Jane Doe",
+            "contact": {
+                "email": "jane@example.com", "phone": "555-1234", "location": "NYC",
+                "linkedin": "linkedin.com/in/janedoe", "website": "janedoe.dev",
+            },
+            "titles": ["Software Engineer"],
+            "summary": "Experienced backend engineer specializing in distributed systems.",
+            "skills": {
+                "languages": ["Python", "Go"],
+                "frameworks": ["Django"],
+                "cloud_devops": ["AWS", "Docker"],
+                "databases": ["Postgres"],
+                "tools": ["Git"],
+            },
+            "experience": [
+                {"title": "Engineer", "company": "Acme", "start": "2020", "end": "2022",
+                 "location": "NYC", "bullets": ["Built X", "Designed Y"]},
+            ],
+            "education": [{"degree": "BS", "school": "MIT", "years": "2016-2020"}],
+            "certifications": ["AWS Certified"],
+            "languages_spoken": ["English"],
+        }
+
+    def test_complete_data_scores_full_with_no_warnings(self):
+        result = score_structured_data(self._complete_data())
+        self.assertEqual(result["warnings"], [])
+        self.assertFalse(result["critical"])
+        self.assertEqual(result["score"], result["max_score"])
+        self.assertGreater(result["max_score"], 0)
+
+    def test_missing_optional_fields_produces_warnings_not_critical(self):
+        data = self._complete_data()
+        del data["contact"]["email"]
+        data["summary"] = ""
+        data["skills"]["languages"] = []
+        del data["experience"][0]["bullets"]
+        del data["certifications"]
+
+        result = score_structured_data(data)
+
+        self.assertFalse(result["critical"])
+        self.assertLess(result["score"], result["max_score"])
+        self.assertIn("no contact email", result["warnings"])
+        self.assertIn("no professional summary", result["warnings"])
+        self.assertIn("skills.languages is empty", result["warnings"])
+        self.assertIn("no certifications listed", result["warnings"])
+        self.assertTrue(any("missing bullets" in w for w in result["warnings"]))
+
+    def test_missing_required_key_is_critical(self):
+        data = self._complete_data()
+        del data["skills"]
+
+        result = score_structured_data(data)
+
+        self.assertTrue(result["critical"])
+        self.assertIn("missing required field: skills", result["warnings"])
+
+    def test_empty_required_value_is_critical(self):
+        """An empty list/dict for a required key counts as missing, not just an absent key."""
+        data = self._complete_data()
+        data["experience"] = []
+
+        result = score_structured_data(data)
+
+        self.assertTrue(result["critical"])
+        self.assertIn("missing required field: experience", result["warnings"])
+
+    def test_raw_fallback_data_is_critical(self):
+        result = score_structured_data({"_raw": "not json, sorry"})
+        self.assertTrue(result["critical"])
+        self.assertTrue(any("raw" in w.lower() for w in result["warnings"]))
+
+    def test_non_dict_input_is_critical(self):
+        result = score_structured_data(["not", "a", "dict"])
+        self.assertTrue(result["critical"])
+        self.assertEqual(result["score"], 0)
+
+    def test_skills_not_a_dict_warns_without_crashing(self):
+        data = self._complete_data()
+        data["skills"] = ["Python", "Go"]  # required key present (truthy) but malformed shape
+        result = score_structured_data(data)
+        self.assertIn("skills is missing or not an object", result["warnings"])
+
+    def test_experience_entry_missing_title_and_company(self):
+        data = self._complete_data()
+        data["experience"] = [{"bullets": ["Did stuff"]}]
+        result = score_structured_data(data)
+        self.assertTrue(any("missing title/company" in w for w in result["warnings"]))
+
+    def test_experience_non_dict_entry_does_not_crash(self):
+        data = self._complete_data()
+        data["experience"] = ["just a string, not an object"]
+        result = score_structured_data(data)
+        self.assertTrue(any("not a valid object" in w for w in result["warnings"]))
+
+    def test_minimal_valid_data_not_critical(self):
+        """Only REQUIRED_STRUCTURED_KEYS present: passes the gate, but many warnings."""
+        data = {"name": "Jane Doe", "skills": {"languages": ["Python"]}, "experience": [
+            {"title": "Engineer", "company": "Acme", "bullets": ["Built things"]},
+        ]}
+        result = score_structured_data(data)
+        self.assertFalse(result["critical"])
+        self.assertTrue(len(result["warnings"]) > 0)
+
+
+class TestFindStructuredJsonFiles(unittest.TestCase):
+    """_find_structured_json_files(): locate *_structured.json given a file or dir."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_single_file_path(self):
+        path = os.path.join(self.tmp.name, "jane-doe_structured.json")
+        with open(path, "w") as f:
+            json.dump({"name": "Jane"}, f)
+        self.assertEqual(_find_structured_json_files(path), [path])
+
+    def test_directory_with_consolidated_subdir(self):
+        consolidated = os.path.join(self.tmp.name, "consolidated")
+        os.makedirs(consolidated)
+        p1 = os.path.join(consolidated, "alice_structured.json")
+        p2 = os.path.join(consolidated, "bob_structured.json")
+        other = os.path.join(consolidated, "alice_extracted.md")
+        for p in (p1, p2):
+            with open(p, "w") as f: json.dump({}, f)
+        with open(other, "w") as f: f.write("not relevant")
+
+        found = _find_structured_json_files(self.tmp.name)
+        self.assertEqual(sorted(found), sorted([p1, p2]))
+
+    def test_directory_without_consolidated_subdir_scans_directly(self):
+        p1 = os.path.join(self.tmp.name, "alice_structured.json")
+        with open(p1, "w") as f: json.dump({}, f)
+        found = _find_structured_json_files(self.tmp.name)
+        self.assertEqual(found, [p1])
+
+    def test_nonexistent_path_returns_empty(self):
+        self.assertEqual(_find_structured_json_files(os.path.join(self.tmp.name, "nope")), [])
+
+
+class TestValidateCommand(unittest.TestCase):
+    """validate_command(): end-to-end report + exit-code semantics."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.consolidated = os.path.join(self.tmp.name, "consolidated")
+        os.makedirs(self.consolidated)
+
+    def _write(self, name: str, data: dict) -> str:
+        path = os.path.join(self.consolidated, f"{name}_structured.json")
+        with open(path, "w") as f:
+            json.dump(data, f)
+        return path
+
+    def test_all_complete_returns_zero(self):
+        self._write("jane-doe", {
+            "name": "Jane Doe",
+            "skills": {"languages": ["Python"]},
+            "experience": [{"title": "Engineer", "company": "Acme", "bullets": ["Built X"]}],
+        })
+        self.assertEqual(validate_command(self.tmp.name), 0)
+
+    def test_one_critical_returns_nonzero(self):
+        self._write("jane-doe", {
+            "name": "Jane Doe",
+            "skills": {"languages": ["Python"]},
+            "experience": [{"title": "Engineer", "company": "Acme", "bullets": ["Built X"]}],
+        })
+        self._write("bob-jones", {"name": "Bob Jones"})  # missing skills + experience
+        self.assertEqual(validate_command(self.tmp.name), 1)
+
+    def test_unparseable_json_is_treated_as_failure(self):
+        bad_path = os.path.join(self.consolidated, "broken_structured.json")
+        with open(bad_path, "w") as f:
+            f.write("{ this is not valid json")
+        self.assertEqual(validate_command(self.tmp.name), 1)
+
+    def test_no_files_found_returns_nonzero(self):
+        empty_dir = os.path.join(self.tmp.name, "nothing_here")
+        os.makedirs(empty_dir)
+        self.assertEqual(validate_command(empty_dir), 1)
+
+    def test_single_file_path_complete(self):
+        path = self._write("jane-doe", {
+            "name": "Jane Doe",
+            "skills": {"languages": ["Python"]},
+            "experience": [{"title": "Engineer", "company": "Acme", "bullets": ["Built X"]}],
+        })
+        self.assertEqual(validate_command(path), 0)
+
+
+class TestValidateCLI(unittest.TestCase):
+    """CLI wiring: `pipeline.py validate <path>` exits with the score-derived code."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.consolidated = os.path.join(self.tmp.name, "consolidated")
+        os.makedirs(self.consolidated)
+
+    def _write(self, name: str, data: dict) -> str:
+        path = os.path.join(self.consolidated, f"{name}_structured.json")
+        with open(path, "w") as f:
+            json.dump(data, f)
+        return path
+
+    def test_cli_validate_exits_zero_on_success(self):
+        self._write("jane-doe", {
+            "name": "Jane Doe",
+            "skills": {"languages": ["Python"]},
+            "experience": [{"title": "Engineer", "company": "Acme", "bullets": ["Built X"]}],
+        })
+        with patch.object(sys, "argv", ["pipeline.py", "validate", self.tmp.name]):
+            with self.assertRaises(SystemExit) as ctx:
+                pipeline.main()
+        self.assertEqual(ctx.exception.code, 0)
+
+    def test_cli_validate_exits_nonzero_on_critical_failure(self):
+        self._write("bob-jones", {"name": "Bob Jones"})
+        with patch.object(sys, "argv", ["pipeline.py", "validate", self.tmp.name]):
+            with self.assertRaises(SystemExit) as ctx:
+                pipeline.main()
+        self.assertNotEqual(ctx.exception.code, 0)
+
+    def test_cli_validate_single_file_arg(self):
+        path = self._write("jane-doe", {
+            "name": "Jane Doe",
+            "skills": {"languages": ["Python"]},
+            "experience": [{"title": "Engineer", "company": "Acme", "bullets": ["Built X"]}],
+        })
+        with patch.object(sys, "argv", ["pipeline.py", "validate", path]):
+            with self.assertRaises(SystemExit) as ctx:
+                pipeline.main()
+        self.assertEqual(ctx.exception.code, 0)
 
 
 class TestPipelineLatexWiring(unittest.TestCase):
