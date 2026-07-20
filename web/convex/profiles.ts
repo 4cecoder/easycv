@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { contact, skills, experienceEntry, educationEntry } from "./schema";
+import { ownedUpload } from "./authz";
 
 // All structuredProfiles fields except uploadId (the lookup key) and
 // pdfStorageId (set separately by setProfilePdf once a PDF has been compiled).
@@ -33,7 +34,25 @@ export const saveStructuredProfile = mutation({
       .first();
 
     if (existing) {
-      await ctx.db.patch(existing._id, fields);
+      // Full replace, not patch: `fields` comes from the caller's spread of
+      // profileFieldsFrom() (lib/profileMapping.ts), which returns `undefined`
+      // for any field it couldn't extract this time around. Over the real
+      // HTTP path (app/api/upload/route.ts -> Convex client), those
+      // undefined-valued keys are dropped entirely by JSON serialization
+      // before reaching this handler -- so a `patch` (shallow merge, only
+      // clears keys explicitly present with value `undefined`) would leave
+      // whatever was saved for that field on a *previous* consolidation,
+      // silently stale and inconsistent with the freshly computed quality
+      // warnings/score. `replace` overwrites the whole document instead, so
+      // a re-consolidation always reflects exactly what this call provided.
+      // pdfStorageId is excluded from `profileFields` on purpose (it's set
+      // later by setProfilePdf once a PDF has been compiled) -- carry the
+      // existing value forward explicitly so replace() doesn't drop it.
+      await ctx.db.replace(existing._id, {
+        uploadId,
+        pdfStorageId: existing.pdfStorageId,
+        ...fields,
+      });
       return existing._id;
     }
 
@@ -62,8 +81,12 @@ export const setProfilePdf = mutation({
 export const getStructuredProfile = query({
   args: {
     uploadId: v.id("uploads"),
+    sessionId: v.string(),
   },
-  handler: async (ctx, { uploadId }) => {
+  handler: async (ctx, { uploadId, sessionId }) => {
+    const upload = await ownedUpload(ctx.db, uploadId, sessionId);
+    if (!upload) return null;
+
     return await ctx.db
       .query("structuredProfiles")
       .filter((q) => q.eq(q.field("uploadId"), uploadId))
@@ -71,15 +94,23 @@ export const getStructuredProfile = query({
   },
 });
 
-// The download route (app/api/download/[token]/route.ts) needs actual PDF
-// bytes, not just a storageId -- Convex file storage is fetched via a signed
-// URL, never returned as raw bytes from a query. Returns null if there's no
-// profile yet or no PDF has been compiled for it.
+// Convex file storage is fetched via a signed URL, never returned as raw
+// bytes from a query. Requires the caller's sessionId to own the upload --
+// the payment-gated download path (app/api/download/[token]/route.ts) does
+// NOT use this; it gets its PDF URL from payments.getByDownloadToken instead,
+// which is authorized by a paid downloadToken rather than a sessionId. This
+// export exists for session-scoped callers (e.g. a future "my uploads" page)
+// and defense in depth. Returns null if there's no profile yet, no PDF has
+// been compiled for it, or the caller doesn't own the upload.
 export const getProfilePdfUrl = query({
   args: {
     uploadId: v.id("uploads"),
+    sessionId: v.string(),
   },
-  handler: async (ctx, { uploadId }) => {
+  handler: async (ctx, { uploadId, sessionId }) => {
+    const upload = await ownedUpload(ctx.db, uploadId, sessionId);
+    if (!upload) return null;
+
     const profile = await ctx.db
       .query("structuredProfiles")
       .filter((q) => q.eq(q.field("uploadId"), uploadId))

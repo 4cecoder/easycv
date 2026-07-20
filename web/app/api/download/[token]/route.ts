@@ -12,15 +12,17 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   // The gate is entirely server-side via getByDownloadToken -- it returns
   // null for anything that isn't backed by a payment whose status is
   // "paid" (convex/payments.ts). Never trust a client-supplied "paid" flag
-  // instead of this lookup.
+  // instead of this lookup. getByDownloadToken also resolves the signed PDF
+  // URL itself (rather than this route making a second, separately
+  // -authorized call to profiles.getProfilePdfUrl): there is no sessionId
+  // available here to check ownership with -- the downloadToken itself is
+  // the authorization for this whole flow (see convex/payments.ts).
   const gated = await convex.query(api.payments.getByDownloadToken, { downloadToken: token });
   if (!gated || !gated.upload) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const pdfUrl = await convex.query(api.profiles.getProfilePdfUrl, {
-    uploadId: gated.upload._id,
-  });
+  const pdfUrl = gated.pdfUrl;
   if (!pdfUrl) {
     return NextResponse.json({ error: "PDF not available yet" }, { status: 404 });
   }

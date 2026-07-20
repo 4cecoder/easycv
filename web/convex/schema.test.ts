@@ -41,6 +41,7 @@ describe("resume bundle lifecycle", () => {
 
     const files = await t.query(api.resumeFiles.listResumeFiles, {
       uploadId,
+      sessionId: "sess-abc123",
     });
     expect(files).toHaveLength(1);
     expect(files[0].filename).toBe("resume.pdf");
@@ -69,6 +70,7 @@ describe("resume bundle lifecycle", () => {
 
     const profile = await t.query(api.profiles.getStructuredProfile, {
       uploadId,
+      sessionId: "sess-abc123",
     });
     expect(profile?.name).toBe("Jane Doe");
     expect(profile?.qualityScore).toBe(10);
@@ -82,6 +84,7 @@ describe("resume bundle lifecycle", () => {
     expect(profileId2).toBe(profileId);
     const patched = await t.query(api.profiles.getStructuredProfile, {
       uploadId,
+      sessionId: "sess-abc123",
     });
     expect(patched?.name).toBe("Jane A. Doe");
 
@@ -89,6 +92,7 @@ describe("resume bundle lifecycle", () => {
     await t.mutation(api.profiles.setProfilePdf, { uploadId, pdfStorageId });
     const withPdf = await t.query(api.profiles.getStructuredProfile, {
       uploadId,
+      sessionId: "sess-abc123",
     });
     expect(withPdf?.pdfStorageId).toBe(pdfStorageId);
 
@@ -102,6 +106,7 @@ describe("resume bundle lifecycle", () => {
     // Before payment: not paid, no download token yet.
     const statusBefore = await t.query(api.payments.getPaymentStatus, {
       uploadId,
+      sessionId: "sess-abc123",
     });
     expect(statusBefore).toEqual({ paid: false, downloadToken: null });
 
@@ -113,6 +118,7 @@ describe("resume bundle lifecycle", () => {
 
     const statusAfter = await t.query(api.payments.getPaymentStatus, {
       uploadId,
+      sessionId: "sess-abc123",
     });
     expect(statusAfter).toEqual({ paid: true, downloadToken });
 
@@ -135,13 +141,74 @@ describe("resume bundle lifecycle", () => {
     expect(gatedAgain?.payment.downloadCount).toBe(1);
   });
 
+  // Regression coverage for the stale-field bug: a re-consolidation whose
+  // caller-supplied fields omit a previously-set field (as profileFieldsFrom()
+  // does whenever it can't extract that section this time -- see
+  // lib/profileMapping.ts) must not leave the old value in place. The real
+  // HTTP path (app/api/upload/route.ts) sends this over JSON, which drops
+  // `undefined`-valued keys entirely before they reach the mutation --
+  // convexTest's in-process transport does the same key-dropping for a
+  // plain object spread, so omitting the key here is the faithful
+  // reproduction of that path (unlike explicitly passing `skills: undefined`,
+  // which convex would reject as a validator mismatch anyway).
+  test("saveStructuredProfile clears a field omitted on re-save, not just patches", async () => {
+    const t = convexTest(schema);
+    const uploadId = await t.mutation(api.uploads.createUpload, {
+      sessionId: "sess-restale",
+    });
+
+    await t.mutation(api.profiles.saveStructuredProfile, {
+      uploadId,
+      name: "Jane Doe",
+      skills: {
+        languages: ["Python"],
+        frameworks: [],
+        cloud_devops: [],
+        databases: [],
+        tools: [],
+      },
+      qualityScore: 12,
+      qualityMaxScore: 15,
+      qualityWarnings: [],
+      qualityCritical: false,
+    });
+
+    const firstSave = await t.query(api.profiles.getStructuredProfile, {
+      uploadId,
+      sessionId: "sess-restale",
+    });
+    expect(firstSave?.skills?.languages).toEqual(["Python"]);
+
+    // Re-consolidation that couldn't extract skills this time -- `skills`
+    // is simply absent from the payload, exactly as profileFieldsFrom()
+    // would produce after undefined-dropping JSON serialization.
+    await t.mutation(api.profiles.saveStructuredProfile, {
+      uploadId,
+      name: "Jane Doe",
+      qualityScore: 5,
+      qualityMaxScore: 15,
+      qualityWarnings: ["skills missing"],
+      qualityCritical: false,
+    });
+
+    const secondSave = await t.query(api.profiles.getStructuredProfile, {
+      uploadId,
+      sessionId: "sess-restale",
+    });
+    expect(secondSave?.skills).toBeUndefined();
+    expect(secondSave?.qualityWarnings).toEqual(["skills missing"]);
+  });
+
   test("getUpload joins files, profile, and payment (null-safe)", async () => {
     const t = convexTest(schema);
     const uploadId = await t.mutation(api.uploads.createUpload, {
       sessionId: "sess-lonely",
     });
 
-    const bare = await t.query(api.uploads.getUpload, { uploadId });
+    const bare = await t.query(api.uploads.getUpload, {
+      uploadId,
+      sessionId: "sess-lonely",
+    });
     expect(bare?.status).toBe("scanning");
     expect(bare?.resumeFiles).toEqual([]);
     expect(bare?.structuredProfile).toBeNull();
@@ -159,8 +226,70 @@ describe("resume bundle lifecycle", () => {
     });
     const result = await t.query(api.uploads.getUpload, {
       uploadId: uploadIdA,
+      sessionId: "sess-a",
     });
     expect(result).toBeNull();
+  });
+});
+
+// Regression coverage for the IDOR fix: every uploadId-scoped read must
+// reject a sessionId that doesn't match the sessionId the upload was
+// created with (convex/authz.ts's ownedUpload), returning the same
+// null/empty/unpaid shape as "doesn't exist" rather than leaking data to a
+// caller who merely knows another user's uploadId.
+describe("cross-session authorization", () => {
+  test("owner's session can read; a different session gets nothing", async () => {
+    const t = convexTest(schema);
+    const uploadId = await t.mutation(api.uploads.createUpload, {
+      sessionId: "owner-session",
+    });
+    const storageId = await storeFakeFile(t);
+    await t.mutation(api.resumeFiles.addResumeFile, {
+      uploadId,
+      filename: "resume.pdf",
+      storageId,
+      ext: "pdf",
+      sizeKb: 10,
+      category: "resume",
+    });
+    await t.mutation(api.profiles.saveStructuredProfile, {
+      uploadId,
+      name: "Victim Name",
+      ...sampleQuality,
+    });
+    await t.mutation(api.payments.createPaymentRecord, {
+      uploadId,
+      stripeSessionId: "cs_attacker_test",
+      amountCents: 1500,
+      currency: "usd",
+    });
+
+    const attackerSession = "attacker-session";
+
+    // Owner sees real data.
+    expect(
+      (await t.query(api.uploads.getUpload, { uploadId, sessionId: "owner-session" }))?.status,
+    ).toBe("scanning");
+    expect(
+      (await t.query(api.profiles.getStructuredProfile, { uploadId, sessionId: "owner-session" }))
+        ?.name,
+    ).toBe("Victim Name");
+
+    // Attacker, holding only the uploadId, gets nothing back for any of the
+    // uploadId-scoped reads -- not an error, not a distinguishable shape.
+    expect(await t.query(api.uploads.getUpload, { uploadId, sessionId: attackerSession })).toBeNull();
+    expect(
+      await t.query(api.profiles.getStructuredProfile, { uploadId, sessionId: attackerSession }),
+    ).toBeNull();
+    expect(
+      await t.query(api.resumeFiles.listResumeFiles, { uploadId, sessionId: attackerSession }),
+    ).toEqual([]);
+    expect(
+      await t.query(api.payments.getPaymentStatus, { uploadId, sessionId: attackerSession }),
+    ).toEqual({ paid: false, downloadToken: null });
+    expect(
+      await t.query(api.profiles.getProfilePdfUrl, { uploadId, sessionId: attackerSession }),
+    ).toBeNull();
   });
 });
 
@@ -187,6 +316,7 @@ describe("download gate", () => {
 
     const status = await t.query(api.payments.getPaymentStatus, {
       uploadId,
+      sessionId: "sess-pending",
     });
     expect(status.downloadToken).toBeNull();
     expect(status.paid).toBe(false);
@@ -221,13 +351,19 @@ describe("file storage helpers", () => {
       ...sampleQuality,
     });
 
-    const before = await t.query(api.profiles.getProfilePdfUrl, { uploadId });
+    const before = await t.query(api.profiles.getProfilePdfUrl, {
+      uploadId,
+      sessionId: "sess-pdf",
+    });
     expect(before).toBeNull();
 
     const pdfStorageId = await storeFakeFile(t);
     await t.mutation(api.profiles.setProfilePdf, { uploadId, pdfStorageId });
 
-    const after = await t.query(api.profiles.getProfilePdfUrl, { uploadId });
+    const after = await t.query(api.profiles.getProfilePdfUrl, {
+      uploadId,
+      sessionId: "sess-pdf",
+    });
     expect(typeof after).toBe("string");
   });
 
@@ -236,7 +372,10 @@ describe("file storage helpers", () => {
     const uploadId = await t.mutation(api.uploads.createUpload, {
       sessionId: "sess-no-profile",
     });
-    const url = await t.query(api.profiles.getProfilePdfUrl, { uploadId });
+    const url = await t.query(api.profiles.getProfilePdfUrl, {
+      uploadId,
+      sessionId: "sess-no-profile",
+    });
     expect(url).toBeNull();
   });
 });

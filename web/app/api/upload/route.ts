@@ -11,6 +11,7 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { getConvexClient } from "../../../lib/convexServer";
 import { profileFieldsFrom } from "../../../lib/profileMapping";
+import { SESSION_COOKIE } from "../../../lib/session";
 
 const execFileAsync = promisify(execFile);
 
@@ -18,8 +19,6 @@ const execFileAsync = promisify(execFile);
 // extractable subset of VALID_EXT. Deliberately NOT .docx/.doc/.pages:
 // extract_text() silently returns None for those today.
 const ALLOWED_EXTENSIONS = new Set([".pdf", ".txt", ".md"]);
-
-const SESSION_COOKIE = "cv_session";
 
 // pipeline.py lives one directory up from web/ in this monorepo layout.
 // Overridable via env for deployments that lay the repo out differently.

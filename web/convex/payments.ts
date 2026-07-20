@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { ownedUpload } from "./authz";
 
 export const createPaymentRecord = mutation({
   args: {
@@ -69,11 +70,18 @@ export const incrementDownloadCount = mutation({
   },
 });
 
+// Unauthorized callers (wrong/missing sessionId) get the exact same shape as
+// "no payment found yet" — never a distinguishable response — so the
+// response can't be used to probe whether an uploadId exists or is paid.
 export const getPaymentStatus = query({
   args: {
     uploadId: v.id("uploads"),
+    sessionId: v.string(),
   },
-  handler: async (ctx, { uploadId }) => {
+  handler: async (ctx, { uploadId, sessionId }) => {
+    const upload = await ownedUpload(ctx.db, uploadId, sessionId);
+    if (!upload) return { paid: false, downloadToken: null };
+
     const payment = await ctx.db
       .query("payments")
       .filter((q) => q.eq(q.field("uploadId"), uploadId))
@@ -89,6 +97,13 @@ export const getPaymentStatus = query({
 // The download gate: returns null unless the payment backing this token is
 // actually "paid". Callers (web-mvp-payment-gate) must treat null as a hard
 // 404/402 — never trust a client-supplied "paid" flag instead of this lookup.
+//
+// Also resolves the signed PDF URL here (rather than making the caller do a
+// second, separately-authorized lookup via profiles.getProfilePdfUrl): a
+// downloadToken is the authorization for this whole flow, and there is no
+// sessionId available to the download route to check ownership with instead
+// (see app/api/download/[token]/route.ts) — so the PDF URL for a given
+// upload must only ever be handed out from behind this same paid-status gate.
 export const getByDownloadToken = query({
   args: {
     downloadToken: v.string(),
@@ -103,6 +118,16 @@ export const getByDownloadToken = query({
     if (!payment || payment.status !== "paid") return null;
 
     const upload = await ctx.db.get(payment.uploadId);
-    return { payment, upload: upload ?? null };
+    if (!upload) return { payment, upload: null, pdfUrl: null };
+
+    const profile = await ctx.db
+      .query("structuredProfiles")
+      .filter((q) => q.eq(q.field("uploadId"), payment.uploadId))
+      .first();
+    const pdfUrl = profile?.pdfStorageId
+      ? await ctx.storage.getUrl(profile.pdfStorageId)
+      : null;
+
+    return { payment, upload, pdfUrl };
   },
 });

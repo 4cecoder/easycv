@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { ownedUpload } from "./authz";
 
 export const addResumeFile = mutation({
   args: {
@@ -19,8 +20,12 @@ export const addResumeFile = mutation({
 export const listResumeFiles = query({
   args: {
     uploadId: v.id("uploads"),
+    sessionId: v.string(),
   },
-  handler: async (ctx, { uploadId }) => {
+  handler: async (ctx, { uploadId, sessionId }) => {
+    const upload = await ownedUpload(ctx.db, uploadId, sessionId);
+    if (!upload) return [];
+
     return await ctx.db
       .query("resumeFiles")
       .filter((q) => q.eq(q.field("uploadId"), uploadId))

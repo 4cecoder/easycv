@@ -1,7 +1,9 @@
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { getConvexClient } from "../../../lib/convexServer";
+import { SESSION_COOKIE } from "../../../lib/session";
 import { CheckoutButton } from "./CheckoutButton";
 
 export const dynamic = "force-dynamic";
@@ -28,12 +30,19 @@ export default async function PreviewPage({ params }: PageProps) {
   const uploadId = uploadIdParam as Id<"uploads">;
   const convex = getConvexClient();
 
+  // Ownership check: getStructuredProfile/getPaymentStatus both verify this
+  // sessionId against the sessionId stored on the upload (see
+  // convex/authz.ts) and return null/unpaid for anyone else's uploadId --
+  // no cookie at all is treated the same as the wrong cookie.
+  const cookieStore = await cookies();
+  const sessionId = cookieStore.get(SESSION_COOKIE)?.value ?? "";
+
   let profile: Awaited<ReturnType<typeof convex.query<typeof api.profiles.getStructuredProfile>>>;
   let paymentStatus: Awaited<ReturnType<typeof convex.query<typeof api.payments.getPaymentStatus>>>;
   try {
     [profile, paymentStatus] = await Promise.all([
-      convex.query(api.profiles.getStructuredProfile, { uploadId }),
-      convex.query(api.payments.getPaymentStatus, { uploadId }),
+      convex.query(api.profiles.getStructuredProfile, { uploadId, sessionId }),
+      convex.query(api.payments.getPaymentStatus, { uploadId, sessionId }),
     ]);
   } catch {
     // Malformed/nonexistent uploadId -- Convex throws on a bad Id string.

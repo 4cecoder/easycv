@@ -37,18 +37,25 @@ describe("GET /api/download/[token] -- server-side payment gate", () => {
   });
 
   test("404s when a paid token's upload has no compiled PDF yet", async () => {
-    queryMock
-      .mockResolvedValueOnce({ payment: { status: "paid" }, upload: { _id: "up1" } }) // getByDownloadToken
-      .mockResolvedValueOnce(null); // getProfilePdfUrl
+    // getByDownloadToken now resolves the pdfUrl itself (see convex/payments.ts)
+    // -- no separate getProfilePdfUrl call from this route.
+    queryMock.mockResolvedValueOnce({
+      payment: { status: "paid" },
+      upload: { _id: "up1" },
+      pdfUrl: null,
+    }); // getByDownloadToken
     const res = await GET(new NextRequest("http://localhost/api/download/paid-no-pdf"), ctx("paid-no-pdf"));
     expect(res.status).toBe(404);
     expect(mutationMock).not.toHaveBeenCalled();
+    expect(queryMock).toHaveBeenCalledTimes(1);
   });
 
   test("streams PDF bytes and increments the download count for a genuinely paid token", async () => {
-    queryMock
-      .mockResolvedValueOnce({ payment: { status: "paid" }, upload: { _id: "up1" } })
-      .mockResolvedValueOnce("https://fake-storage.example/resume.pdf");
+    queryMock.mockResolvedValueOnce({
+      payment: { status: "paid" },
+      upload: { _id: "up1" },
+      pdfUrl: "https://fake-storage.example/resume.pdf",
+    });
 
     const fakePdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]); // "%PDF"
     const fetchSpy = vi
