@@ -854,6 +854,9 @@ def redetect_command(output_dir: str, apply: bool = False) -> int:
         for fname in sorted(os.listdir(person_dir)):
             if not os.path.isfile(os.path.join(person_dir, fname)):
                 continue
+            ext = os.path.splitext(fname)[1].lower()
+            if ext not in VALID_EXT or not is_cv_related(fname):
+                continue  # skip stray non-CV files (.DS_Store, README.md, ...) — same gate as scan_directories
             detected = extract_person(fname)
             new_slug = slug(detected) if detected else dirname
             if new_slug != dirname:

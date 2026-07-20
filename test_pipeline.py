@@ -2086,6 +2086,48 @@ class TestRedetectCommand(unittest.TestCase):
         files = sorted(os.listdir(alice_dir))
         self.assertEqual(files, ["alice_cv.txt", "alice_cv_dup.txt"])
 
+    @patch("pipeline._load_aliases", return_value={})
+    def test_stray_non_cv_file_ignored(self, _):
+        # Non-CV junk (e.g. a stray .DS_Store or README.md) sitting inside a
+        # person's resources/ dir must never be treated as a filename to
+        # detect a person from -- it should be left exactly where it is,
+        # both in dry-run reporting and under --apply.
+        _make_file(self.output, os.path.join("resources", "weird-person", ".DS_Store"), "junk")
+        _make_file(self.output, os.path.join("resources", "weird-person", "README.md"), "notes")
+        _make_file(self.output, os.path.join("resources", "weird-person", "notes.txt"), "not a cv")
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = redetect_command(self.output, apply=False)
+        out = buf.getvalue()
+        self.assertEqual(rc, 0)
+        self.assertIn("no changes", out)
+        self.assertNotIn("hidden", out)
+        self.assertNotIn("README", out)
+
+        rc = redetect_command(self.output, apply=True)
+        self.assertEqual(rc, 0)
+        weird_dir = os.path.join(self.output, "resources", "weird-person")
+        self.assertTrue(os.path.isfile(os.path.join(weird_dir, ".DS_Store")))
+        self.assertTrue(os.path.isfile(os.path.join(weird_dir, "README.md")))
+        self.assertTrue(os.path.isfile(os.path.join(weird_dir, "notes.txt")))
+        # No bogus new person dirs were created from the junk files.
+        self.assertFalse(os.path.isdir(os.path.join(self.output, "resources", "hidden-txt")))
+        self.assertFalse(os.path.isdir(os.path.join(self.output, "resources", "readme")))
+
+    @patch("pipeline._load_aliases", return_value={})
+    def test_stray_file_alongside_real_mismatch_only_moves_the_real_one(self, _):
+        # A directory mixing a legitimately mis-detected CV file with junk:
+        # only the CV file should move.
+        _make_file(self.output, os.path.join("resources", "wrongname", "alice_cv.txt"), "content")
+        _make_file(self.output, os.path.join("resources", "wrongname", ".DS_Store"), "junk")
+
+        rc = redetect_command(self.output, apply=True)
+        self.assertEqual(rc, 0)
+        self.assertTrue(os.path.isfile(os.path.join(self.output, "resources", "alice", "alice_cv.txt")))
+        # wrongname/ still exists (not pruned) because .DS_Store is still in it.
+        self.assertTrue(os.path.isfile(os.path.join(self.output, "resources", "wrongname", ".DS_Store")))
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 13. test_stats_command
