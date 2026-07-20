@@ -1,0 +1,115 @@
+{
+  "product_goal": "Dead-simple microSaaS: user uploads their messy resume/CV history, gets one clean consolidated resume typeset in LaTeX ('Overleaf but simpler'), free on-screen preview, PDF download gated behind a one-time Stripe payment. Eventual: Next.js frontend deployed on Netlify, Convex backend, Google OAuth. CLI (pipeline.py) is the reusable core engine underneath all of that.",
+  "sequencing_constraints": [
+    "CLI maturity (this repo) comes before the fullstack web layer.",
+    "Convex backend and Google OAuth are explicitly deferred by the user — do not build them until the user asks.",
+    "Deploy target is Netlify; frontend will eventually be Next.js.",
+    "Never build competitor features with no proven willingness-to-pay signal — check research_findings before adding scope."
+  ],
+  "research_findings": [
+    {
+      "id": "rf-1",
+      "date": "2026-07-20",
+      "summary": "Across 8 resume-tool competitors (Zety, Resume.io/LiveCareer, Teal, Rezi, Kickresume, Enhancv, Resume Worded, Jobscan, Careerflow), the single most common paywall is gating the FINAL DOWNLOAD/EXPORT (PDF/Word), not the building/editing itself.",
+      "implication": "v1 monetization should gate PDF download, keep on-screen preview + consolidation free."
+    },
+    {
+      "id": "rf-2",
+      "date": "2026-07-20",
+      "summary": "One-time pricing ($9-19, Rezi-style) converts a cold single-session visitor far better than subscriptions; the trial-then-autorenew dark pattern (Zety/LiveCareer) is the #1 source of negative reviews in the category.",
+      "implication": "Use Stripe one-time Checkout for v1, not a subscription. This is also a differentiator, not just a shortcut."
+    },
+    {
+      "id": "rf-3",
+      "date": "2026-07-20",
+      "summary": "Job-description-paste -> tailored keyword match/highlight is the proven 'wow' hook for Teal and Jobscan, and is cheap here: just another LLM call against the already-structured JSON profile.",
+      "implication": "Good candidate for a paid add-on once the core download-gate MVP ships, not required for v1."
+    },
+    {
+      "id": "rf-4",
+      "date": "2026-07-20",
+      "summary": "ATS keyword-scoring engines, LinkedIn optimizers, auto-apply/job-tracker features, template marketplaces, and human expert review are all commoditized, out of scope for this tool's 'consolidate my resume mess' angle, or too service-heavy to ship fast.",
+      "implication": "Do NOT build these for v1 even though competitors monetize them — no evidence they fit this product's wedge."
+    }
+  ],
+  "backlog": [
+    {
+      "id": "cli-latex-gen",
+      "title": "LaTeX resume generation (latex.py: structured JSON -> .tex -> PDF via pdflatex)",
+      "rationale": "Foundation of the 'Overleaf but simpler' product angle; also the artifact that eventually sits behind the payment gate.",
+      "source": "user",
+      "priority": "critical",
+      "status": "in_progress",
+      "note": "Being built now by workflow run wf_26587f6c-a9b."
+    },
+    {
+      "id": "cli-quality-gate",
+      "title": "validate/quality-check subcommand scoring structured JSON completeness",
+      "rationale": "Prevents shipping a garbage resume to a paying customer; needed before a payment gate can be trusted.",
+      "source": "user",
+      "priority": "high",
+      "status": "in_progress",
+      "note": "Being built now by workflow run wf_26587f6c-a9b."
+    },
+    {
+      "id": "cli-subcommands",
+      "title": "rescore / redetect / stats CLI subcommands",
+      "rationale": "CLI maturity requested explicitly by user before fullstack work begins.",
+      "source": "user",
+      "priority": "medium",
+      "status": "in_progress",
+      "note": "Being built now by workflow run wf_26587f6c-a9b."
+    },
+    {
+      "id": "web-mvp-payment-gate",
+      "title": "Thin hosted web MVP: upload -> consolidate -> free preview -> Stripe one-time Checkout -> PDF download",
+      "rationale": "This is the actual money-making surface. rf-1 and rf-2 directly support this exact shape. Nothing else in the backlog produces revenue on its own.",
+      "source": "user+research",
+      "priority": "critical",
+      "status": "pending"
+    },
+    {
+      "id": "web-frontend-scaffold",
+      "title": "Next.js frontend scaffold, deployable to Netlify",
+      "rationale": "User's stated eventual frontend/deploy target.",
+      "source": "user",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "id": "job-match-hook",
+      "title": "Job-description paste -> tailored keyword match/highlight",
+      "rationale": "rf-3: proven paid hook feature (Teal/Jobscan pattern), cheap to build on top of existing structured JSON.",
+      "source": "research",
+      "priority": "medium",
+      "status": "pending"
+    },
+    {
+      "id": "convex-backend",
+      "title": "Convex backend integration",
+      "rationale": "User wants this for dev speed, but explicitly said not initially.",
+      "source": "user",
+      "priority": "low",
+      "status": "deferred"
+    },
+    {
+      "id": "google-oauth",
+      "title": "Google OAuth for customers",
+      "rationale": "User explicitly said future rollout, not initial.",
+      "source": "user",
+      "priority": "low",
+      "status": "deferred"
+    }
+  ],
+  "open_issues": [],
+  "completed_cycles": [
+    {
+      "cycle_id": "manual-1",
+      "date": "2026-07-20",
+      "description": "Manual bug-fix pass (not via workflow): fixed invalid regex character class in extract_person, unified _dup/_dup1 naming convention, fixed isinstance(TextBlock) crash in Anthropic mock path. 78/78 tests green.",
+      "tasks_done": [],
+      "issues_found": 6,
+      "issues_fixed": 6
+    }
+  ]
+}
