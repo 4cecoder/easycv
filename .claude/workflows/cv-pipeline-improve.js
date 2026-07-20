@@ -13,6 +13,8 @@ export const meta = {
 const REPO = '/Users/fource/bytecats/easycv'
 const BACKLOG = `${REPO}/backlog.json`
 const maxTasks = (args && args.maxTasks) || 2
+const focusIds = (args && args.focusIds) || null
+const excludeIds = (args && args.excludeIds) || null
 
 const COMMON = `Repo: ${REPO}, a git repo. Python env via uv (Python 3.13 pinned) — uv only, never pip or bare python3. Tests: uv run python -m unittest test_pipeline -v (currently green — keep it green; add unittest-style tests for whatever you add, matching test_pipeline.py's existing conventions: TestCase classes, @patch for mocking I/O/subprocess/LLM calls, tempfile.TemporaryDirectory, no real network/pdflatex calls in tests). Commit your own finished work with a clear message (do not amend or push). Never touch resources/, consolidated_info.md, resume_2026.md, or any other personal data files — those are gitignored on purpose.`
 
@@ -44,7 +46,8 @@ research_findings[] (evidence of what customers actually pay for), backlog[] (it
 id/title/rationale/source/priority/status), open_issues[], completed_cycles[].
 
 Pick up to ${maxTasks} items with status "pending" (never "done" or "deferred" — deferred items are
-explicitly off-limits until a human un-defers them). Prioritize in this order: (1) priority:"critical",
+explicitly off-limits until a human un-defers them).${focusIds ? ` This cycle is scoped to ONLY these backlog ids, in this order of preference: ${JSON.stringify(focusIds)}. Ignore all other pending items even if higher priority — the human running this cycle deliberately restricted scope (usually to avoid file conflicts with other concurrent work).` : ''}${excludeIds ? ` Do NOT pick any of these ids this cycle, regardless of priority: ${JSON.stringify(excludeIds)}.` : ''}
+Otherwise prioritize in this order: (1) priority:"critical",
 (2) items whose rationale is directly backed by a research_findings entry, (3) everything else by
 priority. If a chosen item's rationale looks like internal polish with no line back to product_goal or
 research_findings, either skip it or say so in its brief and pick something better instead — be
