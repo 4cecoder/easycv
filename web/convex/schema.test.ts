@@ -332,6 +332,44 @@ describe("download gate", () => {
   });
 });
 
+describe("duplicate payment rows", () => {
+  // Regression coverage: a customer can abandon an earlier Checkout session
+  // (row stays "pending", no downloadToken) and then complete a later one
+  // for the same upload. getPaymentStatus must surface the paid row, not
+  // whichever row happens to be returned first.
+  test("getPaymentStatus finds the paid row even when an earlier pending row exists", async () => {
+    const t = convexTest(schema);
+    const uploadId = await t.mutation(api.uploads.createUpload, {
+      sessionId: "sess-retry",
+    });
+
+    // First (abandoned) checkout attempt.
+    await t.mutation(api.payments.createPaymentRecord, {
+      uploadId,
+      stripeSessionId: "cs_abandoned",
+      amountCents: 1500,
+      currency: "usd",
+    });
+
+    // Second checkout attempt, which the customer actually completes.
+    await t.mutation(api.payments.createPaymentRecord, {
+      uploadId,
+      stripeSessionId: "cs_completed",
+      amountCents: 1500,
+      currency: "usd",
+    });
+    const downloadToken = await t.mutation(api.payments.markPaymentPaid, {
+      stripeSessionId: "cs_completed",
+    });
+
+    const status = await t.query(api.payments.getPaymentStatus, {
+      uploadId,
+      sessionId: "sess-retry",
+    });
+    expect(status).toEqual({ paid: true, downloadToken });
+  });
+});
+
 describe("file storage helpers", () => {
   test("generateUploadUrl returns a URL usable to upload bytes", async () => {
     const t = convexTest(schema);

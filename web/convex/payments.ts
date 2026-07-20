@@ -82,15 +82,21 @@ export const getPaymentStatus = query({
     const upload = await ownedUpload(ctx.db, uploadId, sessionId);
     if (!upload) return { paid: false, downloadToken: null };
 
-    const payment = await ctx.db
+    // An upload can end up with more than one payments row — e.g. a customer
+    // abandons an earlier Checkout session (left "pending") and then
+    // completes a later one. An unindexed `.first()` has no recency
+    // guarantee, so it could return the abandoned row forever and never
+    // surface the real, paid one. Collect every row for this upload and
+    // explicitly prefer a paid one over any pending/failed/expired rows.
+    const payments = await ctx.db
       .query("payments")
-      .filter((q) => q.eq(q.field("uploadId"), uploadId))
-      .first();
-    if (!payment) return { paid: false, downloadToken: null };
-    return {
-      paid: payment.status === "paid",
-      downloadToken: payment.downloadToken ?? null,
-    };
+      .withIndex("by_upload", (q) => q.eq("uploadId", uploadId))
+      .collect();
+    const paid = payments.find((p) => p.status === "paid");
+    if (paid) {
+      return { paid: true, downloadToken: paid.downloadToken ?? null };
+    }
+    return { paid: false, downloadToken: null };
   },
 });
 

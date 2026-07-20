@@ -11,6 +11,18 @@ function getStripe(): Stripe {
   return new Stripe(key);
 }
 
+// The client-supplied `Origin` header is attacker-controlled (this route has
+// no CORS/session gate and no ownership check on uploadId), so success_url /
+// cancel_url must NEVER be derived from it -- a forged Origin would let an
+// attacker redirect a victim's browser to an attacker-controlled domain right
+// after a real Stripe payment. Always derive the base URL from a trusted
+// server-side env var instead.
+function getAppOrigin(): string {
+  const configured = process.env.APP_URL;
+  if (!configured) throw new Error("Server is not configured with APP_URL");
+  return configured.replace(/\/+$/, "");
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json().catch(() => ({}))) as { uploadId?: string };
@@ -28,7 +40,7 @@ export async function POST(request: NextRequest) {
     }
 
     const stripe = getStripe();
-    const origin = request.headers.get("origin") ?? new URL(request.url).origin;
+    const origin = getAppOrigin();
 
     const session = await stripe.checkout.sessions.create({
       // One-time purchase per rf-2 ("one-time Stripe pricing, not

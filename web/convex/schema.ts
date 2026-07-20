@@ -103,5 +103,6 @@ export default defineSchema({
     downloadCount: v.number(),
   })
     .index("by_stripe_session", ["stripeSessionId"])
-    .index("by_download_token", ["downloadToken"]),
+    .index("by_download_token", ["downloadToken"])
+    .index("by_upload", ["uploadId"]),
 });
