@@ -232,6 +232,21 @@ def _merge_bundles(bundles: dict[str, PersonBundle]) -> dict[str, PersonBundle]:
         b.files.sort(key=lambda f: (cat_order.get(f.category, 99), f.filename))
     return aliased
 
+def _unique_dest(dir_path: str, filename: str) -> str:
+    """Return a collision-free destination path for *filename* inside *dir_path*,
+    appending _dup / _dup2 / ... suffixes as needed. Shared by organize_files and
+    redetect_command's --apply move step."""
+    dest = os.path.join(dir_path, filename)
+    if not os.path.exists(dest):
+        return dest
+    base, ext = os.path.splitext(filename)
+    candidate = os.path.join(dir_path, f"{base}_dup{ext}")
+    counter = 2
+    while os.path.exists(candidate):
+        candidate = os.path.join(dir_path, f"{base}_dup{counter}{ext}")
+        counter += 1
+    return candidate
+
 def organize_files(bundles: dict[str, PersonBundle], output_dir: str, dry_run: bool = False) -> None:
     for person, bundle in bundles.items():
         person_dir = os.path.join(output_dir, "resources", slug(person))
@@ -246,14 +261,7 @@ def organize_files(bundles: dict[str, PersonBundle], output_dir: str, dry_run: b
             if not dest.startswith(person_dir):
                 print(f"  [warn] skipping malicious path: {ff.filename}")
                 continue
-            if os.path.exists(dest):
-                base, ext = os.path.splitext(safe_name)
-                candidate = os.path.join(person_dir, f"{base}_dup{ext}")
-                counter = 2
-                while os.path.exists(candidate):
-                    candidate = os.path.join(person_dir, f"{base}_dup{counter}{ext}")
-                    counter += 1
-                dest = candidate
+            dest = _unique_dest(person_dir, safe_name)
             if dry_run:
                 print(f"  [copy] {safe_name} → {dest}")
             else:
@@ -261,6 +269,48 @@ def organize_files(bundles: dict[str, PersonBundle], output_dir: str, dry_run: b
         if not dry_run and bundle.files:
             cats = ", ".join(sorted(set(f.category for f in bundle.files)))
             print(f"  [{slug(person)}] {len(bundle.files)} files ({cats})")
+
+
+def bundles_from_resources(output_dir: str, person_filter: Optional[str] = None) -> dict[str, PersonBundle]:
+    """Rebuild PersonBundle objects from an already-organized output dir's
+    resources/{person}/ folders, without re-scanning original source directories.
+
+    Each resources/ subdirectory name is a slug() (lowercase-hyphenated), so the
+    display name is reconstructed by title-casing its hyphen-separated words; this
+    always round-trips back through slug() to the same directory name, which keeps
+    consolidated/resume filenames stable across reruns. Used by the rescore,
+    redetect, and stats subcommands.
+
+    person_filter, if given, is matched against slug(person_filter) so callers can
+    pass either a display name ("Alice Smith") or a slug ("alice-smith").
+    """
+    resources_dir = os.path.join(output_dir, "resources")
+    bundles: dict[str, PersonBundle] = {}
+    if not os.path.isdir(resources_dir):
+        return bundles
+    target_slug = slug(person_filter) if person_filter else None
+    for dirname in sorted(os.listdir(resources_dir)):
+        person_dir = os.path.join(resources_dir, dirname)
+        if not os.path.isdir(person_dir):
+            continue
+        if target_slug and target_slug != dirname:
+            continue
+        display_name = " ".join(w.capitalize() for w in dirname.split("-") if w) or dirname
+        bundle = PersonBundle(name=display_name)
+        for fname in sorted(os.listdir(person_dir)):
+            fpath = os.path.join(person_dir, fname)
+            if not os.path.isfile(fpath):
+                continue
+            ext = os.path.splitext(fname)[1].lower()
+            if ext not in VALID_EXT:
+                continue
+            bundle.files.append(FoundFile(
+                path=fpath, filename=fname, ext=ext,
+                size_kb=fmt_size(fpath), person=display_name, category=classify(fname),
+            ))
+        if bundle.files:
+            bundles[display_name] = bundle
+    return bundles
 
 
 # ── Text Extraction ────────────────────────────
@@ -757,6 +807,140 @@ def validate_command(path: str) -> int:
     return exit_code
 
 
+# ── Rescore / Redetect / Stats ──────────────────
+
+
+def rescore_command(output_dir: str, llm_client: LLMClient, person: Optional[str] = None,
+                    skip_consolidate: bool = False, skip_resume: bool = False,
+                    resume_format: str = "markdown") -> int:
+    """Re-run LLM consolidation/resume generation against files already organized
+    under output_dir/resources/, without re-scanning source directories. Useful for
+    retrying with a different --llm/--model. Reuses extract_all + llm_process_all
+    (which itself calls llm_consolidate + llm_generate_resume) exactly as `scan` does.
+    """
+    output_dir = os.path.abspath(output_dir)
+    bundles = bundles_from_resources(output_dir, person_filter=person)
+    if not bundles:
+        if person:
+            print(f"  [error] no organized files found for '{person}' under {output_dir}/resources")
+        else:
+            print(f"  [error] no organized files found under {output_dir}/resources")
+        return 1
+
+    print(f"  Found {len(bundles)} people under {output_dir}/resources")
+    bundles = extract_all(bundles)
+    llm_process_all(bundles, output_dir, llm_client, skip_consolidate=skip_consolidate,
+                    skip_resume=skip_resume, resume_format=resume_format)
+    return 0
+
+
+def redetect_command(output_dir: str, apply: bool = False) -> int:
+    """Re-run extract_person() against filenames already organized under
+    output_dir/resources/ (e.g. after the user edits aliases.json) and report what
+    would change. Dry-run by default — only prints old-slug -> new-slug diffs; pass
+    apply=True to actually move the files.
+    """
+    output_dir = os.path.abspath(output_dir)
+    resources_dir = os.path.join(output_dir, "resources")
+    if not os.path.isdir(resources_dir):
+        print(f"  [error] no resources/ directory found under {output_dir}")
+        return 1
+
+    changes = []  # (old_dir_slug, new_dir_slug, filename)
+    for dirname in sorted(os.listdir(resources_dir)):
+        person_dir = os.path.join(resources_dir, dirname)
+        if not os.path.isdir(person_dir):
+            continue
+        for fname in sorted(os.listdir(person_dir)):
+            if not os.path.isfile(os.path.join(person_dir, fname)):
+                continue
+            detected = extract_person(fname)
+            new_slug = slug(detected) if detected else dirname
+            if new_slug != dirname:
+                changes.append((dirname, new_slug, fname))
+
+    print(f"\n=== Redetect {'(applying)' if apply else '(dry run)'}: {output_dir} ===")
+    if not changes:
+        print("  no changes — all files already match current detection rules")
+        return 0
+
+    for old_slug, new_slug, fname in changes:
+        print(f"  [{fname}] {old_slug} → {new_slug}")
+
+    if apply:
+        for old_slug, new_slug, fname in changes:
+            src = os.path.join(resources_dir, old_slug, fname)
+            new_dir = os.path.join(resources_dir, new_slug)
+            os.makedirs(new_dir, exist_ok=True)
+            dest = _unique_dest(new_dir, fname)
+            shutil.move(src, dest)
+        # Prune person dirs left empty by the move.
+        for dirname in sorted(os.listdir(resources_dir)):
+            person_dir = os.path.join(resources_dir, dirname)
+            if os.path.isdir(person_dir) and not os.listdir(person_dir):
+                os.rmdir(person_dir)
+        print(f"\n  moved {len(changes)} file(s)")
+    else:
+        print(f"\n  {len(changes)} file(s) would move — pass --apply to move them")
+
+    return 0
+
+
+def stats_command(output_dir: str) -> int:
+    """Print a summary of an existing output directory: how many people, how many
+    files each, whether structured JSON / resumes / latex exist per person, and
+    (reusing score_structured_data) any data-quality warnings.
+    """
+    output_dir = os.path.abspath(output_dir)
+    resources_dir = os.path.join(output_dir, "resources")
+    consolidated_dir = os.path.join(output_dir, "consolidated")
+    resumes_dir = os.path.join(output_dir, "resumes")
+    latex_dir = os.path.join(output_dir, "latex")
+
+    if not os.path.isdir(resources_dir):
+        print(f"  [error] no resources/ directory found under {output_dir}")
+        return 1
+
+    people = sorted(d for d in os.listdir(resources_dir) if os.path.isdir(os.path.join(resources_dir, d)))
+    print(f"\n=== Stats: {output_dir} ===")
+    if not people:
+        print("  no people found under resources/")
+        return 0
+
+    print(f"  People: {len(people)}")
+    total_files = 0
+    for p in people:
+        person_dir = os.path.join(resources_dir, p)
+        files = [f for f in os.listdir(person_dir) if os.path.isfile(os.path.join(person_dir, f))]
+        total_files += len(files)
+
+        json_path = os.path.join(consolidated_dir, f"{p}_structured.json")
+        md_path = os.path.join(resumes_dir, f"{p}_resume.md")
+        tex_path = os.path.join(latex_dir, f"{p}_resume.tex")
+        has_json = os.path.isfile(json_path)
+
+        print(f"\n  [{p}] {len(files)} file(s)")
+        print(f"    structured json: {'yes' if has_json else 'no'}")
+        print(f"    resume markdown: {'yes' if os.path.isfile(md_path) else 'no'}")
+        print(f"    latex:           {'yes' if os.path.isfile(tex_path) else 'no'}")
+
+        if has_json:
+            try:
+                with open(json_path) as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, OSError) as e:
+                print(f"    quality: [error] could not read {json_path}: {e}")
+                continue
+            result = score_structured_data(data)
+            status = "CRITICAL" if result["critical"] else "OK"
+            print(f"    quality: {result['score']}/{result['max_score']} ({status})")
+            for w in result["warnings"]:
+                print(f"      - {w}")
+
+    print(f"\n  Total files: {total_files}\n")
+    return 0
+
+
 # ── Summary ────────────────────────────────────
 
 
@@ -841,6 +1025,11 @@ Examples:
   python pipeline.py scan --auto --llm openai --skip-resume   # structured data only
   python pipeline.py validate ./cv_pipeline_output            # data-quality gate (CI-friendly)
   python pipeline.py validate ./cv_pipeline_output/consolidated/john-doe_structured.json
+  python pipeline.py rescore --output ./cv_pipeline_output --llm anthropic     # redo LLM step
+  python pipeline.py rescore --output ./cv_pipeline_output "Jane Doe" --llm openai --model gpt-4o
+  python pipeline.py redetect --output ./cv_pipeline_output                   # preview renames
+  python pipeline.py redetect --output ./cv_pipeline_output --apply          # apply them
+  python pipeline.py stats --output ./cv_pipeline_output                     # summarize output dir
         """)
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -865,10 +1054,51 @@ Examples:
     validate.add_argument("path", help="Path to a *_structured.json file, or a directory containing "
                                         "consolidated/*_structured.json files")
 
+    rescore = sub.add_parser("rescore", help="Re-run LLM consolidation/resume generation against an "
+                                              "already-organized output dir, without re-scanning source dirs")
+    rescore.add_argument("person", nargs="?", default=None,
+                         help="Only rescore this person (display name or slug). Default: everyone.")
+    rescore.add_argument("--output", "-o", default="./cv_pipeline_output",
+                         help="Existing output dir with a resources/ folder to rescore")
+    rescore.add_argument("--llm", default=None, choices=["openai", "anthropic", "ollama"],
+                         help="LLM provider to use (required)")
+    rescore.add_argument("--model", default=None, help="LLM model override (e.g. gpt-4o, claude-3-opus)")
+    rescore.add_argument("--skip-consolidate", action="store_true", help="Skip LLM consolidation, use cached JSON")
+    rescore.add_argument("--skip-resume", action="store_true", help="Skip LLM resume generation")
+    rescore.add_argument("--format", default="markdown", choices=["markdown", "latex"],
+                         help="Resume output format, same as `scan --format`")
+
+    redetect = sub.add_parser("redetect", help="Re-run person detection against filenames already organized "
+                                               "under an output dir's resources/ folder (e.g. after editing "
+                                               "aliases.json) and report what would change")
+    redetect.add_argument("--output", "-o", default="./cv_pipeline_output",
+                          help="Existing output dir with a resources/ folder to redetect")
+    redetect.add_argument("--apply", action="store_true",
+                          help="Actually move/rename files. Default is a dry run that only prints diffs.")
+
+    stats = sub.add_parser("stats", help="Summarize an existing output dir: people, file counts, "
+                                         "which artifacts exist, and data-quality warnings")
+    stats.add_argument("--output", "-o", default="./cv_pipeline_output",
+                       help="Existing output dir to summarize")
+
     args = parser.parse_args()
 
     if args.command == "validate":
         sys.exit(validate_command(args.path))
+
+    if args.command == "rescore":
+        if not args.llm:
+            parser.error("rescore requires --llm {openai,anthropic,ollama}")
+        llm_client = LLMClient(provider=args.llm, model=args.model)
+        sys.exit(rescore_command(args.output, llm_client, person=args.person,
+                                 skip_consolidate=args.skip_consolidate, skip_resume=args.skip_resume,
+                                 resume_format=args.format))
+
+    if args.command == "redetect":
+        sys.exit(redetect_command(args.output, apply=args.apply))
+
+    if args.command == "stats":
+        sys.exit(stats_command(args.output))
 
     if args.set_key:
         provider, key = args.set_key

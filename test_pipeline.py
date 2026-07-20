@@ -19,6 +19,7 @@ Run with:
 All tests use only Python 3.10+ standard library (unittest, unittest.mock, tempfile).
 """
 
+import io
 import json
 import os
 import re
@@ -28,6 +29,7 @@ import sys
 import tempfile
 import unittest
 from collections import defaultdict
+from contextlib import redirect_stdout
 from unittest.mock import MagicMock, PropertyMock, patch, mock_open
 
 # ── Import the pipeline module ──────────────────────────────────────────────
@@ -69,6 +71,12 @@ from pipeline import (
     validate_command,
     _find_structured_json_files,
     REQUIRED_STRUCTURED_KEYS,
+    # Rescore / redetect / stats
+    bundles_from_resources,
+    rescore_command,
+    redetect_command,
+    stats_command,
+    _unique_dest,
 )
 
 
@@ -1860,6 +1868,352 @@ class TestPipelineLatexWiring(unittest.TestCase):
 
         latex_dir = os.path.join(output, "latex")
         self.assertFalse(os.path.isdir(latex_dir))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 9.  test_unique_dest
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestUniqueDest(unittest.TestCase):
+    """_unique_dest(): collision-free destination naming, shared by organize_files
+    and redetect_command's --apply move step."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_no_collision_returns_plain_path(self):
+        dest = _unique_dest(self.tmp.name, "alice_cv.txt")
+        self.assertEqual(dest, os.path.join(self.tmp.name, "alice_cv.txt"))
+
+    def test_single_collision_gets_dup_suffix(self):
+        _make_file(self.tmp.name, "alice_cv.txt", "v1")
+        dest = _unique_dest(self.tmp.name, "alice_cv.txt")
+        self.assertEqual(dest, os.path.join(self.tmp.name, "alice_cv_dup.txt"))
+
+    def test_repeated_collision_increments_counter(self):
+        _make_file(self.tmp.name, "alice_cv.txt", "v1")
+        _make_file(self.tmp.name, "alice_cv_dup.txt", "v2")
+        dest = _unique_dest(self.tmp.name, "alice_cv.txt")
+        self.assertEqual(dest, os.path.join(self.tmp.name, "alice_cv_dup2.txt"))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 10. test_bundles_from_resources
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestBundlesFromResources(unittest.TestCase):
+    """bundles_from_resources(): rebuild PersonBundle objects from an already
+    organized resources/ folder, without re-scanning source directories."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.output = os.path.join(self.tmp.name, "output")
+        _make_file(self.output, os.path.join("resources", "alice-smith", "alice_cv.txt"), "Alice Smith\nEngineer")
+        _make_file(self.output, os.path.join("resources", "alice-smith", "alice_resume.txt"), "Alice Smith resume")
+        _make_file(self.output, os.path.join("resources", "bob-jones", "bob_cv.txt"), "Bob Jones\nScientist")
+
+    def test_no_resources_dir_returns_empty(self):
+        empty_output = os.path.join(self.tmp.name, "nothing")
+        self.assertEqual(bundles_from_resources(empty_output), {})
+
+    def test_rebuilds_all_people_with_correct_file_counts(self):
+        bundles = bundles_from_resources(self.output)
+        self.assertEqual(set(bundles.keys()), {"Alice Smith", "Bob Jones"})
+        self.assertEqual(len(bundles["Alice Smith"].files), 2)
+        self.assertEqual(len(bundles["Bob Jones"].files), 1)
+
+    def test_display_name_round_trips_through_slug(self):
+        bundles = bundles_from_resources(self.output)
+        for name in bundles:
+            self.assertEqual(pipeline.slug(name), pipeline.slug(name.lower().replace(" ", "-")))
+
+    def test_person_filter_by_display_name(self):
+        bundles = bundles_from_resources(self.output, person_filter="Alice Smith")
+        self.assertEqual(set(bundles.keys()), {"Alice Smith"})
+
+    def test_person_filter_by_slug(self):
+        bundles = bundles_from_resources(self.output, person_filter="bob-jones")
+        self.assertEqual(set(bundles.keys()), {"Bob Jones"})
+
+    def test_person_filter_no_match_returns_empty(self):
+        bundles = bundles_from_resources(self.output, person_filter="nobody-here")
+        self.assertEqual(bundles, {})
+
+    def test_ignores_files_with_unsupported_extension(self):
+        _make_file(self.output, os.path.join("resources", "alice-smith", "notes.xyz"), "junk")
+        bundles = bundles_from_resources(self.output)
+        names = {ff.filename for ff in bundles["Alice Smith"].files}
+        self.assertNotIn("notes.xyz", names)
+
+    def test_empty_person_dir_excluded(self):
+        os.makedirs(os.path.join(self.output, "resources", "empty-person"))
+        bundles = bundles_from_resources(self.output)
+        self.assertNotIn("Empty Person", bundles)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 11. test_rescore_command
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestRescoreCommand(unittest.TestCase):
+    """rescore_command(): re-run LLM consolidation/resume against already
+    organized resources/, reusing extract_all + llm_process_all."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.output = os.path.join(self.tmp.name, "output")
+        _make_file(self.output, os.path.join("resources", "alice-smith", "alice_cv.txt"),
+                  "Alice Smith\nSoftware Engineer\nPython, Go")
+
+    def _mock_client(self, extra_pairs=1):
+        mock_client = MagicMock(spec=LLMClient)
+        mock_client.provider = "ollama"
+        mock_client.model = "llama3.2"
+        responses = []
+        for _ in range(extra_pairs):
+            responses.append(json.dumps({
+                "name": "Alice Smith",
+                "skills": {"languages": ["Python", "Go"]},
+                "experience": [],
+            }))
+            responses.append("# Alice Smith\n\nSkills: Python, Go")
+        mock_client.chat.side_effect = responses
+        return mock_client
+
+    def test_no_resources_dir_returns_error(self):
+        empty_output = os.path.join(self.tmp.name, "nothing")
+        rc = rescore_command(empty_output, self._mock_client())
+        self.assertEqual(rc, 1)
+
+    def test_unknown_person_filter_returns_error(self):
+        rc = rescore_command(self.output, self._mock_client(), person="Nobody")
+        self.assertEqual(rc, 1)
+
+    def test_rescore_writes_structured_json_and_resume(self):
+        rc = rescore_command(self.output, self._mock_client())
+        self.assertEqual(rc, 0)
+
+        json_path = os.path.join(self.output, "consolidated", "alice-smith_structured.json")
+        self.assertTrue(os.path.isfile(json_path))
+        with open(json_path) as f:
+            data = json.load(f)
+        self.assertEqual(data["name"], "Alice Smith")
+
+        resume_path = os.path.join(self.output, "resumes", "alice-smith_resume.md")
+        self.assertTrue(os.path.isfile(resume_path))
+
+    def test_rescore_with_person_filter(self):
+        _make_file(self.output, os.path.join("resources", "bob-jones", "bob_cv.txt"), "Bob Jones\nScientist")
+        rc = rescore_command(self.output, self._mock_client(), person="Alice Smith")
+        self.assertEqual(rc, 0)
+        self.assertTrue(os.path.isfile(os.path.join(self.output, "consolidated", "alice-smith_structured.json")))
+        self.assertFalse(os.path.isfile(os.path.join(self.output, "consolidated", "bob-jones_structured.json")))
+
+    def test_rescore_skip_resume_only_writes_json(self):
+        mock_client = self._mock_client(extra_pairs=1)
+        rc = rescore_command(self.output, mock_client, skip_resume=True)
+        self.assertEqual(rc, 0)
+        self.assertTrue(os.path.isfile(os.path.join(self.output, "consolidated", "alice-smith_structured.json")))
+        self.assertFalse(os.path.isfile(os.path.join(self.output, "resumes", "alice-smith_resume.md")))
+        # Resume generation step never fired, so only one chat() call happened.
+        mock_client.chat.assert_called_once()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 12. test_redetect_command
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestRedetectCommand(unittest.TestCase):
+    """redetect_command(): re-run extract_person() against already-organized
+    filenames and report/apply diffs, dry-run by default."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.output = os.path.join(self.tmp.name, "output")
+
+    def test_no_resources_dir_returns_error(self):
+        rc = redetect_command(self.output)
+        self.assertEqual(rc, 1)
+
+    @patch("pipeline._load_aliases", return_value={})
+    def test_no_changes_when_already_matching(self, _):
+        # extract_person("alice-smith_cv.txt") -> "Alice-smith" -> slug "alice-smith",
+        # which matches the directory it's already organized under.
+        _make_file(self.output, os.path.join("resources", "alice-smith", "alice-smith_cv.txt"), "content")
+        rc = redetect_command(self.output)
+        self.assertEqual(rc, 0)
+        # File untouched.
+        self.assertTrue(os.path.isfile(os.path.join(self.output, "resources", "alice-smith", "alice-smith_cv.txt")))
+
+    @patch("pipeline._load_aliases", return_value={})
+    def test_dry_run_reports_but_does_not_move(self, _):
+        # File organized under the wrong slug -- extract_person("alice_cv.txt") resolves to "alice".
+        _make_file(self.output, os.path.join("resources", "wrongname", "alice_cv.txt"), "content")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = redetect_command(self.output, apply=False)
+        self.assertEqual(rc, 0)
+        self.assertIn("wrongname", buf.getvalue())
+        self.assertIn("alice", buf.getvalue())
+        # Dry run: original file must still be exactly where it was.
+        self.assertTrue(os.path.isfile(os.path.join(self.output, "resources", "wrongname", "alice_cv.txt")))
+        self.assertFalse(os.path.isdir(os.path.join(self.output, "resources", "alice")))
+
+    @patch("pipeline._load_aliases", return_value={})
+    def test_apply_moves_file_and_prunes_empty_dir(self, _):
+        _make_file(self.output, os.path.join("resources", "wrongname", "alice_cv.txt"), "content")
+        rc = redetect_command(self.output, apply=True)
+        self.assertEqual(rc, 0)
+
+        new_path = os.path.join(self.output, "resources", "alice", "alice_cv.txt")
+        self.assertTrue(os.path.isfile(new_path))
+        # Old dir pruned since it's now empty.
+        self.assertFalse(os.path.isdir(os.path.join(self.output, "resources", "wrongname")))
+
+    @patch("pipeline._load_aliases", return_value={})
+    def test_apply_dedupes_on_collision(self, _):
+        # Two mis-organized files that both detect to "alice" and share a filename.
+        _make_file(self.output, os.path.join("resources", "wrongname1", "alice_cv.txt"), "v1")
+        _make_file(self.output, os.path.join("resources", "wrongname2", "alice_cv.txt"), "v2")
+        rc = redetect_command(self.output, apply=True)
+        self.assertEqual(rc, 0)
+
+        alice_dir = os.path.join(self.output, "resources", "alice")
+        files = sorted(os.listdir(alice_dir))
+        self.assertEqual(files, ["alice_cv.txt", "alice_cv_dup.txt"])
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 13. test_stats_command
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestStatsCommand(unittest.TestCase):
+    """stats_command(): summarize an output dir's people, file counts, which
+    artifacts exist, and (reusing score_structured_data) quality warnings."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.output = os.path.join(self.tmp.name, "output")
+
+    def test_no_resources_dir_returns_error(self):
+        rc = stats_command(self.output)
+        self.assertEqual(rc, 1)
+
+    def test_empty_resources_dir_returns_zero(self):
+        os.makedirs(os.path.join(self.output, "resources"))
+        rc = stats_command(self.output)
+        self.assertEqual(rc, 0)
+
+    def test_reports_people_files_and_artifacts(self):
+        _make_file(self.output, os.path.join("resources", "alice-smith", "alice_cv.txt"), "content")
+        _make_file(self.output, os.path.join("resources", "alice-smith", "alice_resume.txt"), "content")
+        _make_file(self.output, os.path.join("resources", "bob-jones", "bob_cv.txt"), "content")
+
+        consolidated = os.path.join(self.output, "consolidated")
+        os.makedirs(consolidated)
+        with open(os.path.join(consolidated, "alice-smith_structured.json"), "w") as f:
+            json.dump({
+                "name": "Alice Smith",
+                "skills": {"languages": ["Python"]},
+                "experience": [{"title": "Engineer", "company": "Acme", "bullets": ["Built X"]}],
+            }, f)
+
+        resumes = os.path.join(self.output, "resumes")
+        os.makedirs(resumes)
+        with open(os.path.join(resumes, "alice-smith_resume.md"), "w") as f:
+            f.write("# Alice Smith")
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = stats_command(self.output)
+        out = buf.getvalue()
+
+        self.assertEqual(rc, 0)
+        self.assertIn("People: 2", out)
+        self.assertIn("[alice-smith] 2 file(s)", out)
+        self.assertIn("[bob-jones] 1 file(s)", out)
+        self.assertIn("structured json: yes", out)
+        self.assertIn("resume markdown: yes", out)
+        self.assertIn("latex:           no", out)
+        # Bob has no structured JSON at all.
+        self.assertIn("Total files: 3", out)
+
+    def test_missing_structured_json_reported_as_no_quality(self):
+        _make_file(self.output, os.path.join("resources", "bob-jones", "bob_cv.txt"), "content")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = stats_command(self.output)
+        out = buf.getvalue()
+        self.assertEqual(rc, 0)
+        self.assertIn("structured json: no", out)
+        self.assertNotIn("quality:", out)
+
+    def test_unparseable_structured_json_reports_error_not_crash(self):
+        _make_file(self.output, os.path.join("resources", "alice-smith", "alice_cv.txt"), "content")
+        consolidated = os.path.join(self.output, "consolidated")
+        os.makedirs(consolidated)
+        with open(os.path.join(consolidated, "alice-smith_structured.json"), "w") as f:
+            f.write("{ not valid json")
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = stats_command(self.output)
+        out = buf.getvalue()
+        self.assertEqual(rc, 0)
+        self.assertIn("[error] could not read", out)
+
+
+class TestRescoreRedetectStatsCLI(unittest.TestCase):
+    """CLI wiring for `rescore` / `redetect` / `stats` subcommands."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.output = os.path.join(self.tmp.name, "output")
+
+    def test_cli_rescore_requires_llm(self):
+        _make_file(self.output, os.path.join("resources", "alice-smith", "alice_cv.txt"), "content")
+        with patch.object(sys, "argv", ["pipeline.py", "rescore", "--output", self.output]):
+            with self.assertRaises(SystemExit) as ctx:
+                pipeline.main()
+        self.assertNotEqual(ctx.exception.code, 0)
+
+    def test_cli_rescore_runs_with_llm(self):
+        _make_file(self.output, os.path.join("resources", "alice-smith", "alice_cv.txt"), "content")
+        mock_client = MagicMock(spec=LLMClient)
+        mock_client.provider = "ollama"
+        mock_client.model = "llama3.2"
+        mock_client.chat.side_effect = [
+            json.dumps({"name": "Alice Smith", "skills": {"languages": ["Python"]}, "experience": []}),
+            "# Alice Smith",
+        ]
+        with patch("pipeline.LLMClient", return_value=mock_client):
+            with patch.object(sys, "argv", ["pipeline.py", "rescore", "--output", self.output, "--llm", "ollama"]):
+                with self.assertRaises(SystemExit) as ctx:
+                    pipeline.main()
+        self.assertEqual(ctx.exception.code, 0)
+        self.assertTrue(os.path.isfile(
+            os.path.join(self.output, "consolidated", "alice-smith_structured.json")))
+
+    @patch("pipeline._load_aliases", return_value={})
+    def test_cli_redetect_dry_run_default(self, _):
+        _make_file(self.output, os.path.join("resources", "alice-smith", "alice_cv.txt"), "content")
+        with patch.object(sys, "argv", ["pipeline.py", "redetect", "--output", self.output]):
+            with self.assertRaises(SystemExit) as ctx:
+                pipeline.main()
+        self.assertEqual(ctx.exception.code, 0)
+
+    def test_cli_stats_runs(self):
+        _make_file(self.output, os.path.join("resources", "alice-smith", "alice_cv.txt"), "content")
+        with patch.object(sys, "argv", ["pipeline.py", "stats", "--output", self.output]):
+            with self.assertRaises(SystemExit) as ctx:
+                pipeline.main()
+        self.assertEqual(ctx.exception.code, 0)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
