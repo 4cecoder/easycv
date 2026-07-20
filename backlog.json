@@ -39,8 +39,8 @@
       "rationale": "Foundation of the 'Overleaf but simpler' product angle; also the artifact that eventually sits behind the payment gate.",
       "source": "user",
       "priority": "critical",
-      "status": "in_progress",
-      "note": "Being built now by workflow run wf_26587f6c-a9b."
+      "status": "done",
+      "note": "Built by wf_26587f6c-a9b (commit d72ccfa). Adversarial security+correctness QA both OK, including a PoC injection attempt against escape_latex that was neutralized. 160+ tests green."
     },
     {
       "id": "cli-quality-gate",
@@ -48,8 +48,8 @@
       "rationale": "Prevents shipping a garbage resume to a paying customer; needed before a payment gate can be trusted.",
       "source": "user",
       "priority": "high",
-      "status": "in_progress",
-      "note": "Being built now by workflow run wf_26587f6c-a9b."
+      "status": "done",
+      "note": "Built by wf_26587f6c-a9b (commit 45584c6). Adversarial security+correctness QA both OK. 160+ tests green."
     },
     {
       "id": "cli-subcommands",
@@ -57,8 +57,8 @@
       "rationale": "CLI maturity requested explicitly by user before fullstack work begins.",
       "source": "user",
       "priority": "medium",
-      "status": "in_progress",
-      "note": "Being built now by workflow run wf_26587f6c-a9b."
+      "status": "done",
+      "note": "Built by wf_26587f6c-a9b (commit f7ab6f6). Correctness QA found a real bug: redetect --apply would scatter stray non-CV files (.DS_Store etc.) into bogus person dirs. Fixed and regression-tested by the fix agent, committed separately as 1510140. 162/162 tests green, pushed to origin/master."
     },
     {
       "id": "web-mvp-payment-gate",
@@ -110,6 +110,22 @@
       "tasks_done": [],
       "issues_found": 6,
       "issues_fixed": 6
+    },
+    {
+      "cycle_id": "wf-cli-maturity",
+      "date": "2026-07-20",
+      "description": "wf_26587f6c-a9b: 3 sequential dev agents (latex.py, validate subcommand, rescore/redetect/stats) + 6 adversarial QA reviews (security+correctness x3) + 3 fix agents. 2/3 tasks clean on first QA pass; rescore/redetect/stats had a real bug (stray-file scattering in redetect --apply) caught by the correctness lens, fixed and regression-tested. Predates the orchestrator script so nothing here was auto-persisted — backlog updated manually to match ground truth after the fact.",
+      "tasks_done": ["cli-latex-gen", "cli-quality-gate", "cli-subcommands"],
+      "issues_found": 1,
+      "issues_fixed": 1
+    },
+    {
+      "cycle_id": "wf-convex-plan-hold",
+      "date": "2026-07-20",
+      "description": "cv-pipeline-improve.js run wf_13868626-886, scoped to convex-backend only. Plan agent correctly refused to start: sequencing_constraints requires CLI maturity done first, backlog.json still showed the CLI items in_progress at the time (even though the code already existed), and the Convex focus note only orders Convex ahead of OAuth, not ahead of the CLI-first rule. No dev work done. Backlog now updated to done for the CLI items, so a re-run should proceed.",
+      "tasks_done": [],
+      "issues_found": 0,
+      "issues_fixed": 0
     }
   ]
 }
