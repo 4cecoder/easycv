@@ -2,7 +2,7 @@
   "product_goal": "Dead-simple microSaaS: user uploads their messy resume/CV history, gets one clean consolidated resume typeset in LaTeX ('Overleaf but simpler'), free on-screen preview, PDF download gated behind a one-time Stripe payment. Eventual: Next.js frontend deployed on Netlify, Convex backend, Google OAuth. CLI (pipeline.py) is the reusable core engine underneath all of that.",
   "sequencing_constraints": [
     "CLI maturity (this repo) comes before the fullstack web layer.",
-    "Convex backend and Google OAuth are explicitly deferred by the user — do not build them until the user asks.",
+    "Convex backend is approved (2026-07-20) — build it before Google OAuth. Google OAuth remains deferred until the user explicitly asks for it.",
     "Deploy target is Netlify; frontend will eventually be Next.js.",
     "Never build competitor features with no proven willingness-to-pay signal — check research_findings before adding scope."
   ],
@@ -87,15 +87,15 @@
     {
       "id": "convex-backend",
       "title": "Convex backend integration",
-      "rationale": "User wants this for dev speed, but explicitly said not initially.",
+      "rationale": "User wants this for dev speed. Un-deferred 2026-07-20: user explicitly asked to focus on Convex before OAuth. Scope for this cycle: schema + functions to store uploaded resume bundles, structured JSON profiles, and payment/download state — the data layer the web MVP (web-mvp-payment-gate) needs. Do not add auth to this task; auth stays on google-oauth.",
       "source": "user",
-      "priority": "low",
-      "status": "deferred"
+      "priority": "high",
+      "status": "pending"
     },
     {
       "id": "google-oauth",
       "title": "Google OAuth for customers",
-      "rationale": "User explicitly said future rollout, not initial.",
+      "rationale": "User explicitly said future rollout, not initial. Reconfirmed 2026-07-20: still deferred, explicitly after Convex.",
       "source": "user",
       "priority": "low",
       "status": "deferred"
