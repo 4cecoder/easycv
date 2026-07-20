@@ -1,0 +1,18 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Personal data — never commit
+resources/
+consolidated_info.md
+resume_2026.md
+cv_pipeline_output/
+*.pdf
+~/.config/cv-pipeline/
