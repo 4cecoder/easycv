@@ -1,0 +1,20 @@
+{
+  "name": "easycv-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Web/Convex backend for easyCV (root for eventual Next.js frontend).",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "dev:convex": "convex dev",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "convex": "^1.42.3"
+  },
+  "devDependencies": {
+    "convex-test": "^0.0.54",
+    "vitest": "^4.1.10",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,6 @@
+node_modules/
+dist/
+
+# Convex local dev state and secrets — never commit
+.env.local
+.convex/
