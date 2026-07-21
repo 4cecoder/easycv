@@ -75,7 +75,8 @@
       "rationale": "User's stated eventual frontend/deploy target (Netlify), plus explicit 2026-07-20 request to combine Meta's Astryx design system (github.com/facebook/astryx, React+StyleX, open-sourced 2026-06-28) with shadcn/ui. Decision: shadcn/Tailwind is the base since it already fits this Next.js App Router app and is fast to theme; Astryx is a StyleX system, so running both live would double the CSS pipeline for no real benefit -- pull Astryx's theme tokens (color/spacing/type scale) and any standout layout patterns into Tailwind config instead of importing Astryx components directly. Existing app/page.tsx, app/preview/[uploadId]/page.tsx are currently unstyled scaffolding from the web-mvp-payment-gate task -- this task makes them a real, compact, professional front end.",
       "source": "user",
       "priority": "high",
-      "status": "pending"
+      "status": "done",
+      "note": "Built commit 038bae6. shadcn/Tailwind v4 applied to all 4 existing pages, data flow untouched. Theme tokens verified against real @astryxdesign/theme-neutral@0.1.7 npm package source (downloaded tarball, grepped dist/theme.css for the exact hex values before trusting the self-report) -- not fabricated-but-plausible colors. No astryx/StyleX package installed. tsc clean, 24 vitest, next build succeeds, verified live against running dev server. Netlify deploy itself not yet done."
     },
     {
       "id": "job-match-hook",
