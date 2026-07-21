@@ -2,6 +2,17 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* @bytecats/ui-kit is consumed as raw .tsx source (git install, not the npm
+ * registry -- see package.json), so its component classes only exist if
+ * *this app's* Tailwind build scans them too. The kit's own precompiled
+ * dist/styles.css only contains classes used inside the kit's own source at
+ * its build time, not this app's usage of kit components -- importing that
+ * file instead of scanning source would silently drop everything. Token
+ * *values* below stay hand-duplicated (not re-imported from the kit) since
+ * this app has one deliberate deviation from the kit's default Neutral
+ * theme (see comment below) that a straight CSS import would fight with. */
+@source "../node_modules/@bytecats/ui-kit/src";
+
 /*
  * Theme tokens below are shadcn/ui's standard CSS-variable contract (so every
  * generated component in components/ui/* keeps working unmodified), but the

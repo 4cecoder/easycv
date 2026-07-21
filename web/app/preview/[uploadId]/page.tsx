@@ -7,11 +7,17 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { getConvexClient } from "../../../lib/convexServer";
 import { SESSION_COOKIE } from "../../../lib/session";
 import { CheckoutButton } from "./CheckoutButton";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  Separator,
+} from "@bytecats/ui-kit";
 
 export const dynamic = "force-dynamic";
 

@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, Button } from "@bytecats/ui-kit";
 
 // Split out as its own client component because the parent preview page is a
 // server component (it needs to await Convex queries directly) -- only the

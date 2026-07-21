@@ -4,10 +4,16 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, type DragEvent, type FormEvent } from "react";
 import { AlertCircle, FileText, Loader2, Sparkles, UploadCloud, X } from "lucide-react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  Skeleton,
+} from "@bytecats/ui-kit";
 
 // Plain HTML upload form under the hood -- styling only (see
 // web-frontend-scaffold). Accepts only the extensions pipeline.py's

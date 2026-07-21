@@ -1,5 +1,4 @@
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader, Skeleton } from "@bytecats/ui-kit";
 
 // Next.js route-segment loading UI (not a new route) -- shown automatically
 // while the server component in page.tsx awaits Convex's
