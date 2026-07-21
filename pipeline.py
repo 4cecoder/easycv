@@ -1010,18 +1010,30 @@ def summary_report(bundles: dict[str, PersonBundle], output_dir: str, elapsed: f
 # ── Main ───────────────────────────────────────
 
 
-def consolidate_stdin_command(paths: list[str], llm_client: LLMClient) -> int:
-    """Consolidate one or more already-saved file paths for a single person and
-    print EXACTLY one line of JSON to stdout:
-    ``{"profile": <dict>, "score": <dict>, "pdf_path": <str-or-null>}``.
+def consolidate_files(paths: list[str], llm_client: LLMClient) -> dict:
+    """Consolidate one or more already-saved file paths for a single person.
+    Returns ``{"profile": <dict>, "score": <dict>, "pdf_path": <str-or-null>,
+    "tmp_dir": <str>}``.
 
-    This is the bridge the web layer (`consolidate-stdin`) calls into: it
-    reuses extract_text() / llm_consolidate() / score_structured_data() /
-    latex.render_latex() / latex.compile_pdf() exactly as `scan`/`rescore` do,
-    rather than reimplementing extraction, consolidation, or scoring in
-    TypeScript. Every one of those functions normally prints progress straight
-    to stdout -- that's redirected to stderr here so stdout carries only the
-    final JSON line.
+    The single source of truth for "given some files on disk, produce a
+    structured profile + quality score + rendered LaTeX/PDF" -- reused by
+    both consolidate_stdin_command() (the CLI/subprocess bridge the web
+    upload route used to call directly) and worker.py (which imports this
+    module and calls this function in-process, no subprocess involved,
+    since it's already a long-lived Python process). Keeping this as one
+    function means a fix here fixes both callers at once.
+
+    Every step below normally prints progress straight to stdout -- that's
+    redirected to stderr for the duration of this call so callers that
+    parse stdout (consolidate_stdin_command's JSON line) or want clean logs
+    (worker.py) both get that for free.
+
+    tmp_dir must survive past this function returning (a caller reading
+    pdf_path off disk may do so well after this returns, e.g.
+    consolidate_stdin_command's subprocess caller reads it only after the
+    whole process exits), so it is NOT cleaned up here -- always returned,
+    even when pdf_path is null, so every caller can unconditionally remove
+    it once it's actually done reading from it.
     """
     with contextlib.redirect_stdout(sys.stderr):
         display_name = (paths and extract_person(os.path.basename(paths[0]))) or "Candidate"
@@ -1048,11 +1060,16 @@ def consolidate_stdin_command(paths: list[str], llm_client: LLMClient) -> int:
             f.write(latex.render_latex(profile, display_name))
         pdf_path = latex.compile_pdf(tex_path, tmp_dir)
 
-    # tmp_dir must survive past this process exiting (the caller reads
-    # pdf_path off disk *after* this subprocess returns), so it can't be
-    # cleaned up here -- always report it, even when pdf_path is null, so
-    # the caller can unconditionally remove it once it's done reading.
-    print(json.dumps({"profile": profile, "score": score, "pdf_path": pdf_path, "tmp_dir": tmp_dir}))
+    return {"profile": profile, "score": score, "pdf_path": pdf_path, "tmp_dir": tmp_dir}
+
+
+def consolidate_stdin_command(paths: list[str], llm_client: LLMClient) -> int:
+    """CLI/subprocess bridge: consolidate_files(), then print EXACTLY one
+    line of JSON to stdout so a caller in another process/language (the
+    Next.js web layer, historically) can parse it. See consolidate_files()
+    for the actual work."""
+    result = consolidate_files(paths, llm_client)
+    print(json.dumps(result))
     return 0
 
 

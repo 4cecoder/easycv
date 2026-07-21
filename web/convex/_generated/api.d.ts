@@ -15,6 +15,7 @@ import type * as payments from "../payments.js";
 import type * as profiles from "../profiles.js";
 import type * as resumeFiles from "../resumeFiles.js";
 import type * as uploads from "../uploads.js";
+import type * as workerAuth from "../workerAuth.js";
 
 import type {
   ApiFromModules,
@@ -30,6 +31,7 @@ declare const fullApi: ApiFromModules<{
   profiles: typeof profiles;
   resumeFiles: typeof resumeFiles;
   uploads: typeof uploads;
+  workerAuth: typeof workerAuth;
 }>;
 
 /**

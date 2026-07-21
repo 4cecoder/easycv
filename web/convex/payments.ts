@@ -151,7 +151,7 @@ export const getByDownloadToken = query({
 
     const profile = await ctx.db
       .query("structuredProfiles")
-      .filter((q) => q.eq(q.field("uploadId"), payment.uploadId))
+      .withIndex("by_upload", (q) => q.eq("uploadId", payment.uploadId))
       .first();
     const pdfUrl = profile?.pdfStorageId
       ? await ctx.storage.getUrl(profile.pdfStorageId)

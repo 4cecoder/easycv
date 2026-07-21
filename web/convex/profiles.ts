@@ -30,7 +30,7 @@ export const saveStructuredProfile = mutation({
   handler: async (ctx, { uploadId, ...fields }) => {
     const existing = await ctx.db
       .query("structuredProfiles")
-      .filter((q) => q.eq(q.field("uploadId"), uploadId))
+      .withIndex("by_upload", (q) => q.eq("uploadId", uploadId))
       .first();
 
     if (existing) {
@@ -68,7 +68,7 @@ export const setProfilePdf = mutation({
   handler: async (ctx, { uploadId, pdfStorageId }) => {
     const existing = await ctx.db
       .query("structuredProfiles")
-      .filter((q) => q.eq(q.field("uploadId"), uploadId))
+      .withIndex("by_upload", (q) => q.eq("uploadId", uploadId))
       .first();
     if (!existing) {
       throw new Error(`No structuredProfile found for uploadId ${uploadId}`);
@@ -89,7 +89,7 @@ export const getStructuredProfile = query({
 
     return await ctx.db
       .query("structuredProfiles")
-      .filter((q) => q.eq(q.field("uploadId"), uploadId))
+      .withIndex("by_upload", (q) => q.eq("uploadId", uploadId))
       .first();
   },
 });
@@ -113,7 +113,7 @@ export const getProfilePdfUrl = query({
 
     const profile = await ctx.db
       .query("structuredProfiles")
-      .filter((q) => q.eq(q.field("uploadId"), uploadId))
+      .withIndex("by_upload", (q) => q.eq("uploadId", uploadId))
       .first();
     if (!profile?.pdfStorageId) return null;
     return await ctx.storage.getUrl(profile.pdfStorageId);

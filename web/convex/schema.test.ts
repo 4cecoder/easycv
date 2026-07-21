@@ -214,7 +214,7 @@ describe("resume bundle lifecycle", () => {
       uploadId,
       sessionId: "sess-lonely",
     });
-    expect(bare?.status).toBe("scanning");
+    expect(bare?.status).toBe("queued");
     expect(bare?.resumeFiles).toEqual([]);
     expect(bare?.structuredProfile).toBeNull();
     expect(bare?.payment).toBeNull();
@@ -289,7 +289,7 @@ describe("cross-session authorization", () => {
     // Owner sees real data.
     expect(
       (await t.query(api.uploads.getUpload, { uploadId, sessionId: "owner-session" }))?.status,
-    ).toBe("scanning");
+    ).toBe("queued");
     expect(
       (await t.query(api.profiles.getStructuredProfile, { uploadId, sessionId: "owner-session" }))
         ?.name,
@@ -438,5 +438,189 @@ describe("file storage helpers", () => {
       sessionId: "sess-no-profile",
     });
     expect(url).toBeNull();
+  });
+});
+
+describe("worker job queue (uploads.claimNextQueued / markReady / markAttemptFailed)", () => {
+  const WORKER_SECRET = "test-worker-secret";
+  process.env.WORKER_SECRET = WORKER_SECRET;
+
+  test("worker mutations reject a missing or wrong secret", async () => {
+    const t = convexTest(schema);
+    const uploadId = await t.mutation(api.uploads.createUpload, { sessionId: "s1" });
+
+    await expect(
+      t.mutation(api.uploads.claimNextQueued, { workerSecret: "wrong" }),
+    ).rejects.toThrow(/worker secret/i);
+    await expect(
+      t.mutation(api.uploads.markReady, { uploadId, workerSecret: "wrong" }),
+    ).rejects.toThrow(/worker secret/i);
+    await expect(
+      t.mutation(api.uploads.markAttemptFailed, {
+        uploadId,
+        workerSecret: "wrong",
+        reason: "boom",
+      }),
+    ).rejects.toThrow(/worker secret/i);
+    await expect(
+      t.query(api.resumeFiles.getResumeFilesForWorker, {
+        uploadId,
+        workerSecret: "wrong",
+      }),
+    ).rejects.toThrow(/worker secret/i);
+  });
+
+  test("getResumeFilesForWorker returns signed URLs regardless of session", async () => {
+    const t = convexTest(schema);
+    const uploadId = await t.mutation(api.uploads.createUpload, { sessionId: "owner" });
+    const storageId = await storeFakeFile(t);
+    await t.mutation(api.resumeFiles.addResumeFile, {
+      uploadId,
+      filename: "resume.pdf",
+      storageId,
+      ext: "pdf",
+      sizeKb: 12,
+      category: "resume",
+    });
+
+    const files = await t.query(api.resumeFiles.getResumeFilesForWorker, {
+      uploadId,
+      workerSecret: WORKER_SECRET,
+    });
+    expect(files).toHaveLength(1);
+    expect(files[0].filename).toBe("resume.pdf");
+    expect(typeof files[0].url).toBe("string");
+  });
+
+  test("claimNextQueued claims a queued upload, bumps attempts, sets processing", async () => {
+    const t = convexTest(schema);
+    const uploadId = await t.mutation(api.uploads.createUpload, { sessionId: "s2" });
+
+    const claimed = await t.mutation(api.uploads.claimNextQueued, {
+      workerSecret: WORKER_SECRET,
+    });
+    expect(claimed).toBe(uploadId);
+
+    const upload = await t.query(api.uploads.getUpload, { uploadId, sessionId: "s2" });
+    expect(upload?.status).toBe("processing");
+    expect(upload?.attempts).toBe(1);
+  });
+
+  test("a freshly-claimed job is NOT immediately reclaimable as stale", async () => {
+    // Regression test: staleness must be measured from processingStartedAt,
+    // not createdAt. A job claimed right after creation has an "old-ish"
+    // createdAt relative to a naive check but a brand-new
+    // processingStartedAt -- claiming it a second time immediately after
+    // must return null, not the same uploadId again.
+    const t = convexTest(schema);
+    await t.mutation(api.uploads.createUpload, { sessionId: "s2b" });
+
+    const firstClaim = await t.mutation(api.uploads.claimNextQueued, {
+      workerSecret: WORKER_SECRET,
+    });
+    expect(firstClaim).not.toBeNull();
+
+    const secondClaim = await t.mutation(api.uploads.claimNextQueued, {
+      workerSecret: WORKER_SECRET,
+    });
+    expect(secondClaim).toBeNull();
+  });
+
+  test("claimNextQueued returns null when nothing is queued", async () => {
+    const t = convexTest(schema);
+    const claimed = await t.mutation(api.uploads.claimNextQueued, {
+      workerSecret: WORKER_SECRET,
+    });
+    expect(claimed).toBeNull();
+  });
+
+  test("markReady flips status to ready and clears any prior error", async () => {
+    const t = convexTest(schema);
+    const uploadId = await t.mutation(api.uploads.createUpload, { sessionId: "s3" });
+    await t.mutation(api.uploads.claimNextQueued, { workerSecret: WORKER_SECRET });
+    await t.mutation(api.uploads.markAttemptFailed, {
+      uploadId,
+      workerSecret: WORKER_SECRET,
+      reason: "transient failure",
+    });
+
+    await t.mutation(api.uploads.markReady, { uploadId, workerSecret: WORKER_SECRET });
+
+    const upload = await t.query(api.uploads.getUpload, { uploadId, sessionId: "s3" });
+    expect(upload?.status).toBe("ready");
+    expect(upload?.errorMessage).toBeUndefined();
+  });
+
+  test("markAttemptFailed requeues under the attempts ceiling, errors once it's hit", async () => {
+    const t = convexTest(schema);
+    const uploadId = await t.mutation(api.uploads.createUpload, { sessionId: "s4" });
+
+    // MAX_ATTEMPTS is 3: claim+fail three times should requeue twice, then
+    // the third claim pushes attempts to 3, and that failure is terminal.
+    for (let i = 0; i < 2; i++) {
+      await t.mutation(api.uploads.claimNextQueued, { workerSecret: WORKER_SECRET });
+      await t.mutation(api.uploads.markAttemptFailed, {
+        uploadId,
+        workerSecret: WORKER_SECRET,
+        reason: `attempt ${i + 1} failed`,
+      });
+      const mid = await t.query(api.uploads.getUpload, { uploadId, sessionId: "s4" });
+      expect(mid?.status).toBe("queued");
+    }
+
+    await t.mutation(api.uploads.claimNextQueued, { workerSecret: WORKER_SECRET });
+    await t.mutation(api.uploads.markAttemptFailed, {
+      uploadId,
+      workerSecret: WORKER_SECRET,
+      reason: "final failure",
+    });
+
+    const upload = await t.query(api.uploads.getUpload, { uploadId, sessionId: "s4" });
+    expect(upload?.status).toBe("error");
+    expect(upload?.errorMessage).toBe("final failure");
+  });
+
+  test("claimNextQueued refuses to claim an upload already at the attempts ceiling", async () => {
+    const t = convexTest(schema);
+    const uploadId = await t.mutation(api.uploads.createUpload, { sessionId: "s5" });
+    await t.run(async (ctx) => {
+      await ctx.db.patch(uploadId, { status: "queued", attempts: 3 });
+    });
+
+    const claimed = await t.mutation(api.uploads.claimNextQueued, {
+      workerSecret: WORKER_SECRET,
+    });
+    expect(claimed).toBeNull();
+
+    const upload = await t.run(async (ctx) => ctx.db.get(uploadId));
+    expect(upload?.status).toBe("error");
+  });
+
+  test("claimNextQueued reclaims a processing job stuck past the stale window", async () => {
+    const t = convexTest(schema);
+    const uploadId = await t.mutation(api.uploads.createUpload, { sessionId: "s6" });
+    await t.run(async (ctx) => {
+      // Simulate an abandoned job: "processing" but processingStartedAt is
+      // far in the past (older than STALE_PROCESSING_MS), as if a worker
+      // claimed it and then crashed before finishing. createdAt is
+      // deliberately left recent to prove staleness is measured from
+      // processingStartedAt, not createdAt (see uploads.ts's comment on why
+      // conflating the two would be a real bug -- a job claimed shortly
+      // after creation would look immediately stale).
+      await ctx.db.patch(uploadId, {
+        status: "processing",
+        attempts: 1,
+        processingStartedAt: Date.now() - 60 * 60 * 1000,
+      });
+    });
+
+    const claimed = await t.mutation(api.uploads.claimNextQueued, {
+      workerSecret: WORKER_SECRET,
+    });
+    expect(claimed).toBe(uploadId);
+
+    const upload = await t.query(api.uploads.getUpload, { uploadId, sessionId: "s6" });
+    expect(upload?.status).toBe("processing");
+    expect(upload?.attempts).toBe(2);
   });
 });
