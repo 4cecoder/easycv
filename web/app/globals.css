@@ -1,0 +1,118 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/*
+ * Theme tokens below are shadcn/ui's standard CSS-variable contract (so every
+ * generated component in components/ui/* keeps working unmodified), but the
+ * *values* are hand-translated from Astryx (github.com/facebook/astryx,
+ * Meta's open-sourced React+StyleX design system -- astryx.atmeta.com). We do
+ * NOT install the astryx or stylex packages; these are verbatim token values
+ * pulled from Astryx's actual published source
+ * (@astryxdesign/theme-neutral@0.1.7's dist/theme.css + src/neutralTheme.ts,
+ * and @astryxdesign/core@0.1.7's dist/astryx.css + src/tailwind-theme.css),
+ * hand-copied into our own Tailwind v4 @theme tokens.
+ *
+ * Base is Astryx's "Neutral" theme -- its body/surface/card split
+ * (light #f1f1f1 body vs #ffffff card; dark #1b1b1b body/card vs #262626
+ * elevated surface), text grays (#171717/#fafafa, #737373/#a3a3a3), borders
+ * (#ebebeb / #FFFFFF1A, emphasized #d4d4d4/#525252), error/warning text
+ * colors, the Figtree font stack, and its radius overrides (radius-element:
+ * 0.625rem, matching shadcn's own default base radius almost exactly).
+ * Neutral was picked over Astryx's more decorative themes (Butter, Gothic,
+ * Y2K, Brutalist, ...) because a resume tool should read as calm and
+ * trustworthy, not stylized.
+ *
+ * One deliberate deviation: Neutral's own accent is monochrome (a plain
+ * black/white flip, #262626 light / #ebebeb dark) -- fine for general app
+ * chrome, but this product lives or dies on two specific calls to action
+ * (upload, paid download) that need to visually pop, not blend into the
+ * grayscale. So --primary/--ring borrow Astryx core's own default-theme
+ * accent blue instead (astryx.css's `.xj0fimd` block: #0064E0 light /
+ * #2694FE dark) -- still 100% real Astryx source, just from its other
+ * built-in theme rather than Neutral's.
+ *
+ * Light/dark switching uses CSS `light-dark()` for every token, the same
+ * mechanism Astryx's own theme.css uses -- driven by `color-scheme` below,
+ * which follows `prefers-color-scheme` automatically. There's no `.dark`
+ * class and no custom-variant override: this app has no manual theme
+ * toggle (a nice-to-have, not required), so both these variables and the
+ * `dark:` Tailwind utility variant used inside components/ui/* stay on
+ * Tailwind v4's default, media-query-driven dark behavior. Zero JS.
+ */
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: var(--font-sans);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
+  --color-warning-muted: var(--warning-muted);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  color-scheme: light dark;
+
+  /* body/page canvas vs. elevated card surface, per Astryx's own split */
+  --background: light-dark(#f1f1f1, #1b1b1b);
+  --foreground: light-dark(#171717, #fafafa);
+  --card: light-dark(#ffffff, #1b1b1b);
+  --card-foreground: light-dark(#171717, #fafafa);
+  --popover: light-dark(#ffffff, #262626);
+  --popover-foreground: light-dark(#171717, #fafafa);
+  /* borrowed from Astryx core's default-theme accent, see note above */
+  --primary: light-dark(#0064e0, #2694fe);
+  --primary-foreground: light-dark(#ffffff, #0a1420);
+  --secondary: light-dark(#f1f1f1, #262626);
+  --secondary-foreground: light-dark(#171717, #fafafa);
+  --muted: light-dark(#f1f1f1, #1b1b1b);
+  --muted-foreground: light-dark(#737373, #a3a3a3);
+  --accent: light-dark(#f1f1f1, #262626);
+  --accent-foreground: light-dark(#171717, #fafafa);
+  --destructive: light-dark(#a50c25, #ffc6c1);
+  --destructive-foreground: light-dark(#ffffff, #2a0a0a);
+  --warning: light-dark(#745b00, #fdcf4f);
+  --warning-muted: light-dark(#f8da9d, rgba(222, 180, 51, 0.24));
+  --warning-foreground: light-dark(#ffffff, #2a1a00);
+  --border: light-dark(#ebebeb, #ffffff1a);
+  --input: light-dark(#d4d4d4, #525252);
+  --ring: light-dark(#0064e0, #2694fe);
+  --radius: 0.625rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}

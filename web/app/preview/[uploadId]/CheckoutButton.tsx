@@ -1,6 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { AlertCircle, Loader2 } from "lucide-react";
+
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 // Split out as its own client component because the parent preview page is a
 // server component (it needs to await Convex queries directly) -- only the
@@ -33,14 +37,26 @@ export function CheckoutButton({ uploadId }: { uploadId: string }) {
   }
 
   return (
-    <div>
+    <div className="flex w-full flex-col items-center gap-2 sm:w-auto">
       {/* Price itself is NOT hardcoded here -- it's whatever STRIPE_PRICE_ID
           resolves to in the Stripe dashboard, so it can be tuned without a
           redeploy (per rf-2). */}
-      <button onClick={handleClick} disabled={pending}>
-        {pending ? "Redirecting to checkout..." : "Download PDF"}
-      </button>
-      {error && <p role="alert">{error}</p>}
+      <Button onClick={handleClick} disabled={pending} size="lg" className="w-full sm:w-auto">
+        {pending ? (
+          <>
+            <Loader2 className="size-4 animate-spin" />
+            Redirecting to checkout&hellip;
+          </>
+        ) : (
+          "Download PDF"
+        )}
+      </Button>
+      {error && (
+        <Alert variant="destructive" role="alert" className="text-left">
+          <AlertCircle />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 }
