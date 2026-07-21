@@ -332,7 +332,12 @@ def extract_text(filepath: str) -> Optional[str]:
                 text = "\n".join(page.get_text() for page in doc)
                 doc.close()
                 if text.strip(): return text
-            except ImportError: pass
+            # Broad catch is intentional: fitz isn't installed today (ImportError
+            # is the only path exercised), but once added as a dependency,
+            # fitz.open() on a corrupt/malicious PDF can raise its own
+            # exceptions (e.g. FileDataError/RuntimeError) that aren't
+            # ImportError. Don't narrow this back down without handling those.
+            except Exception: pass
         else:  # .txt, .md
             try:
                 with open(filepath, "r", errors="replace") as f: return f.read()
@@ -462,7 +467,8 @@ class LLMClient:
                                          headers={"Content-Type": "application/json"})
             with urllib.request.urlopen(req, timeout=120) as resp:
                 data = json.loads(resp.read())
-                return data.get("message", {}).get("content")
+                msg = data.get("message") or {}
+                return msg.get("content")
         except urllib.error.URLError:
             print("  [error] Ollama not running at http://localhost:11434")
             print("  Start it: ollama serve")
@@ -580,9 +586,12 @@ def llm_consolidate(client: LLMClient, bundle: PersonBundle) -> Optional[dict]:
     text = json_match.group(1) if json_match else result
     try:
         parsed = json.loads(text)
-        if _validate_structured_data(parsed):
+        if isinstance(parsed, dict) and _validate_structured_data(parsed):
             return parsed
-        print(f"  [warn] LLM response missing required fields (needs at least 2 of: {', '.join(sorted(REQUIRED_STRUCTURED_KEYS))})")
+        if not isinstance(parsed, dict):
+            print(f"  [warn] LLM returned valid JSON but not an object ({type(parsed).__name__}), saving raw response")
+        else:
+            print(f"  [warn] LLM response missing required fields (needs at least 2 of: {', '.join(sorted(REQUIRED_STRUCTURED_KEYS))})")
         return {"_raw": result}
     except json.JSONDecodeError:
         print(f"  [warn] LLM returned non-JSON, saving raw response")

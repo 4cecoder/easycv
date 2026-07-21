@@ -981,6 +981,76 @@ class TestConsolidate(unittest.TestCase):
         result = llm_consolidate(mock_client, bundle)
         self.assertIsNone(result)
 
+    def test_llm_consolidate_json_array_response(self):
+        """llm_consolidate falls back to '_raw' instead of crashing when the
+        LLM returns a valid JSON array instead of an object."""
+        bundle = PersonBundle(name="Test Person")
+        bundle.extracted_texts["cv.txt"] = "Content."
+
+        mock_client = MagicMock(spec=LLMClient)
+        mock_client.provider = "ollama"
+        mock_client.model = "llama3.2"
+        mock_client.chat.return_value = "[1,2,3]"
+
+        result = llm_consolidate(mock_client, bundle)
+        self.assertEqual(result, {"_raw": "[1,2,3]"})
+
+    def test_llm_consolidate_json_null_response(self):
+        """llm_consolidate falls back to '_raw' instead of crashing when the
+        LLM returns JSON null instead of an object."""
+        bundle = PersonBundle(name="Test Person")
+        bundle.extracted_texts["cv.txt"] = "Content."
+
+        mock_client = MagicMock(spec=LLMClient)
+        mock_client.provider = "ollama"
+        mock_client.model = "llama3.2"
+        mock_client.chat.return_value = "null"
+
+        result = llm_consolidate(mock_client, bundle)
+        self.assertEqual(result, {"_raw": "null"})
+
+    def test_llm_consolidate_json_scalar_response(self):
+        """llm_consolidate falls back to '_raw' instead of crashing when the
+        LLM returns a bare JSON scalar (number) instead of an object."""
+        bundle = PersonBundle(name="Test Person")
+        bundle.extracted_texts["cv.txt"] = "Content."
+
+        mock_client = MagicMock(spec=LLMClient)
+        mock_client.provider = "ollama"
+        mock_client.model = "llama3.2"
+        mock_client.chat.return_value = "42"
+
+        result = llm_consolidate(mock_client, bundle)
+        self.assertEqual(result, {"_raw": "42"})
+
+    def test_llm_consolidate_json_string_response(self):
+        """llm_consolidate falls back to '_raw' instead of crashing when the
+        LLM returns a bare JSON string instead of an object."""
+        bundle = PersonBundle(name="Test Person")
+        bundle.extracted_texts["cv.txt"] = "Content."
+
+        mock_client = MagicMock(spec=LLMClient)
+        mock_client.provider = "ollama"
+        mock_client.model = "llama3.2"
+        mock_client.chat.return_value = '"just a string"'
+
+        result = llm_consolidate(mock_client, bundle)
+        self.assertEqual(result, {"_raw": '"just a string"'})
+
+    def test_llm_consolidate_json_bool_response(self):
+        """llm_consolidate falls back to '_raw' instead of crashing when the
+        LLM returns a bare JSON boolean instead of an object."""
+        bundle = PersonBundle(name="Test Person")
+        bundle.extracted_texts["cv.txt"] = "Content."
+
+        mock_client = MagicMock(spec=LLMClient)
+        mock_client.provider = "ollama"
+        mock_client.model = "llama3.2"
+        mock_client.chat.return_value = "true"
+
+        result = llm_consolidate(mock_client, bundle)
+        self.assertEqual(result, {"_raw": "true"})
+
     # ── llm_generate_resume ───────────────────────────────────────────────
 
     def test_llm_generate_resume(self):
