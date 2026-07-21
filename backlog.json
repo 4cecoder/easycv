@@ -71,8 +71,8 @@
     },
     {
       "id": "web-frontend-scaffold",
-      "title": "Next.js frontend scaffold, deployable to Netlify",
-      "rationale": "User's stated eventual frontend/deploy target.",
+      "title": "Real UI kit for the Next.js app: shadcn/ui (Tailwind) as the structural foundation, Astryx theme tokens/visual polish ported in on top -- not run as a second live CSS engine",
+      "rationale": "User's stated eventual frontend/deploy target (Netlify), plus explicit 2026-07-20 request to combine Meta's Astryx design system (github.com/facebook/astryx, React+StyleX, open-sourced 2026-06-28) with shadcn/ui. Decision: shadcn/Tailwind is the base since it already fits this Next.js App Router app and is fast to theme; Astryx is a StyleX system, so running both live would double the CSS pipeline for no real benefit -- pull Astryx's theme tokens (color/spacing/type scale) and any standout layout patterns into Tailwind config instead of importing Astryx components directly. Existing app/page.tsx, app/preview/[uploadId]/page.tsx are currently unstyled scaffolding from the web-mvp-payment-gate task -- this task makes them a real, compact, professional front end.",
       "source": "user",
       "priority": "high",
       "status": "pending"
