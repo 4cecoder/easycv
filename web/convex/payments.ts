@@ -1,15 +1,28 @@
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { ownedUpload } from "./authz";
 
+// uploadId is visible in the /preview/[uploadId] URL (see convex/authz.ts),
+// so -- like every other uploadId-scoped write/read in this codebase --
+// this must take the caller's sessionId and verify ownership via
+// ownedUpload before attaching a payment (and eventually a downloadToken)
+// to that upload. Without this, anyone who obtains another user's uploadId
+// could pay Stripe themselves but attach the payment to the VICTIM's
+// uploadId, and the resulting downloadToken would unlock the victim's PDF
+// for the attacker.
 export const createPaymentRecord = mutation({
   args: {
     uploadId: v.id("uploads"),
+    sessionId: v.string(),
     stripeSessionId: v.string(),
     amountCents: v.number(),
     currency: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, { sessionId, ...args }) => {
+    const upload = await ownedUpload(ctx.db, args.uploadId, sessionId);
+    if (!upload) {
+      throw new Error("Upload not found or not owned by this session");
+    }
     return await ctx.db.insert("payments", {
       ...args,
       status: "pending",
@@ -22,7 +35,17 @@ export const createPaymentRecord = mutation({
 // Looks up by the by_stripe_session index (the webhook handler's lookup key),
 // marks the payment paid, and mints a fresh downloadToken. A downloadToken is
 // ONLY ever set here — never on creation — so its mere presence implies paid.
-export const markPaymentPaid = mutation({
+//
+// internalMutation, NOT mutation: this is only ever called from
+// convex/http.ts's Stripe webhook handler, after that handler has verified
+// the request really came from Stripe via stripe.webhooks.constructEvent.
+// A public mutation here would let any client holding the public
+// NEXT_PUBLIC_CONVEX_URL call convex.mutation(api.payments.markPaymentPaid,
+// {stripeSessionId}) directly -- e.g. with their own real-but-unpaid
+// Checkout session id, visible in the Stripe-hosted checkout page's URL bar
+// -- and mark themselves "paid" for free, completely bypassing Stripe and
+// the webhook signature check.
+export const markPaymentPaid = internalMutation({
   args: {
     stripeSessionId: v.string(),
   },

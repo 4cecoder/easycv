@@ -66,7 +66,8 @@
       "rationale": "This is the actual money-making surface. rf-1 and rf-2 directly support this exact shape. Nothing else in the backlog produces revenue on its own.",
       "source": "user+research",
       "priority": "critical",
-      "status": "pending"
+      "status": "done",
+      "note": "Built, then adversarial QA (security/correctness/product-fit) found 3 real issues: checkout success_url/cancel_url trusted attacker-controlled Origin header, anthropic SDK never declared as a dependency (silent fallback to _raw/critical path on every real upload), and getPaymentStatus could surface a stale/abandoned payment row instead of the paid one. All 3 confirmed and fixed (commit 4e1cdab): APP_URL-based origin with fail-closed 500, `uv add anthropic`, and a by_upload index preferring paid rows. 168 Python tests OK, 27 vitest OK, tsc clean."
     },
     {
       "id": "web-frontend-scaffold",
@@ -90,7 +91,8 @@
       "rationale": "User wants this for dev speed. Un-deferred 2026-07-20: user explicitly asked to focus on Convex before OAuth. Scope for this cycle: schema + functions to store uploaded resume bundles, structured JSON profiles, and payment/download state — the data layer the web MVP (web-mvp-payment-gate) needs. Do not add auth to this task; auth stays on google-oauth.",
       "source": "user",
       "priority": "high",
-      "status": "pending"
+      "status": "done",
+      "note": "Built, then adversarial QA found an IDOR (uploadId-scoped queries had no sessionId ownership check, directly callable from the browser via NEXT_PUBLIC_CONVEX_URL) and a stale-field patch bug in saveStructuredProfile (ctx.db.patch dropped JSON-undefined fields, leaving stale data after re-consolidation). Both confirmed real; a half-wired fix already in the tree was completed and wired through (session-cookie threading in preview page, download route, and schema.test.ts call sites), committed as 8290147. tsc --noEmit clean, 168 Python tests OK, 23 vitest OK, including a new cross-session-authorization regression test."
     },
     {
       "id": "google-oauth",
@@ -99,6 +101,14 @@
       "source": "user",
       "priority": "low",
       "status": "deferred"
+    },
+    {
+      "id": "convex-unindexed-lookups",
+      "title": "Add indexes for getUpload/getStructuredProfile/listResumeFiles uploadId lookups",
+      "rationale": "QA (convex-backend/product-fit) flagged that getUpload and getStructuredProfile still use an unindexed .filter(q.field(\"uploadId\")) scan rather than an indexed lookup, same class of issue as the getPaymentStatus bug already fixed by adding a by_upload index. Non-blocking at MVP scale but worth closing out before traffic grows.",
+      "source": "qa",
+      "priority": "low",
+      "status": "pending"
     }
   ],
   "open_issues": [],
@@ -126,6 +136,22 @@
       "tasks_done": [],
       "issues_found": 0,
       "issues_fixed": 0
+    },
+    {
+      "cycle_id": "wf-convex-payment-qa-fix-20260720",
+      "date": "2026-07-20",
+      "description": "Adversarial QA (security/correctness/product-fit) on convex-backend and web-mvp-payment-gate followed by fix agents. convex-backend: IDOR (uploadId queries lacked sessionId ownership checks) and a stale-field ctx.db.patch bug in saveStructuredProfile, both confirmed and fixed (8290147). web-mvp-payment-gate: attacker-controlled Origin header trusted for Stripe success/cancel URLs, anthropic SDK never declared as a dependency (silent fallback path), and stale/unindexed getPaymentStatus row selection, all confirmed and fixed (4e1cdab). All test suites green after fixes (168 Python tests, tsc --noEmit clean, vitest green).",
+      "tasks_done": ["convex-backend", "web-mvp-payment-gate"],
+      "issues_found": 2,
+      "issues_fixed": 2
+    },
+    {
+      "cycle_id": "manual-audit-payment-bypass-20260720",
+      "date": "2026-07-20",
+      "description": "Manual audit (not automated QA -- the security/correctness lenses in wf-convex-payment-qa-fix-20260720 missed both of these) found two further real bugs in code already marked done: (1) CRITICAL: markPaymentPaid was a public Convex mutation taking only {stripeSessionId}. Since Convex public mutations are directly callable by any client holding NEXT_PUBLIC_CONVEX_URL (e.g. browser devtools), a user could see their own real-but-unpaid Stripe Checkout session id in the Stripe-hosted checkout URL and call the mutation directly to mark themselves paid for free, completely bypassing Stripe and the webhook signature check. Fixed by moving webhook verification into a Convex httpAction (convex/http.ts) and converting markPaymentPaid to an internalMutation, unreachable from any client. (2) createPaymentRecord had no sessionId/ownership check (unlike every other uploadId-scoped function in the codebase) -- anyone who obtained another user's uploadId (visible in the /preview/[uploadId] URL) could pay and attach the payment to the victim's upload, then download the victim's resume PDF. Fixed by requiring sessionId + ownedUpload check, threaded through checkout/route.ts via the session cookie (401 if missing). Lesson for future QA cycles: the security lens needs to explicitly check whether Convex mutations that gate money/access are public when they should be internal-only, not just check for injection/traversal -- 'is this write reachable from an unintended caller' is a distinct question from 'does this write sanitize its inputs'. 168 Python tests OK, 24 vitest OK, tsc clean.",
+      "tasks_done": [],
+      "issues_found": 2,
+      "issues_fixed": 2
     }
   ]
 }

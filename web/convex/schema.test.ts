@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "./schema";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 // Mirrors pipeline.py's score_structured_data() output shape — the caller
 // (Python) computes these, TS just stores them as-is.
@@ -98,6 +98,7 @@ describe("resume bundle lifecycle", () => {
 
     await t.mutation(api.payments.createPaymentRecord, {
       uploadId,
+      sessionId: "sess-abc123",
       stripeSessionId: "cs_test_123",
       amountCents: 1500,
       currency: "usd",
@@ -110,7 +111,11 @@ describe("resume bundle lifecycle", () => {
     });
     expect(statusBefore).toEqual({ paid: false, downloadToken: null });
 
-    const downloadToken = await t.mutation(api.payments.markPaymentPaid, {
+    // markPaymentPaid is internalMutation-only (see convex/payments.ts) --
+    // only reachable via internal.payments, never api.payments, since it's
+    // only meant to be called from convex/http.ts's Stripe webhook handler
+    // after signature verification.
+    const downloadToken = await t.mutation(internal.payments.markPaymentPaid, {
       stripeSessionId: "cs_test_123",
     });
     expect(typeof downloadToken).toBe("string");
@@ -259,12 +264,27 @@ describe("cross-session authorization", () => {
     });
     await t.mutation(api.payments.createPaymentRecord, {
       uploadId,
+      sessionId: "owner-session",
       stripeSessionId: "cs_attacker_test",
       amountCents: 1500,
       currency: "usd",
     });
 
     const attackerSession = "attacker-session";
+
+    // Regression coverage for the IDOR fix on the write side: an attacker
+    // holding only the victim's uploadId must not be able to attach their
+    // own Stripe payment (and thus a downloadToken that unlocks the
+    // victim's PDF) to that uploadId by passing their own sessionId.
+    await expect(
+      t.mutation(api.payments.createPaymentRecord, {
+        uploadId,
+        sessionId: attackerSession,
+        stripeSessionId: "cs_attacker_hijack",
+        amountCents: 1500,
+        currency: "usd",
+      }),
+    ).rejects.toThrow();
 
     // Owner sees real data.
     expect(
@@ -301,6 +321,7 @@ describe("download gate", () => {
     });
     await t.mutation(api.payments.createPaymentRecord, {
       uploadId,
+      sessionId: "sess-pending",
       stripeSessionId: "cs_test_pending",
       amountCents: 1500,
       currency: "usd",
@@ -325,7 +346,7 @@ describe("download gate", () => {
   test("markPaymentPaid throws for an unknown stripeSessionId", async () => {
     const t = convexTest(schema);
     await expect(
-      t.mutation(api.payments.markPaymentPaid, {
+      t.mutation(internal.payments.markPaymentPaid, {
         stripeSessionId: "cs_does_not_exist",
       }),
     ).rejects.toThrow();
@@ -346,6 +367,7 @@ describe("duplicate payment rows", () => {
     // First (abandoned) checkout attempt.
     await t.mutation(api.payments.createPaymentRecord, {
       uploadId,
+      sessionId: "sess-retry",
       stripeSessionId: "cs_abandoned",
       amountCents: 1500,
       currency: "usd",
@@ -354,11 +376,12 @@ describe("duplicate payment rows", () => {
     // Second checkout attempt, which the customer actually completes.
     await t.mutation(api.payments.createPaymentRecord, {
       uploadId,
+      sessionId: "sess-retry",
       stripeSessionId: "cs_completed",
       amountCents: 1500,
       currency: "usd",
     });
-    const downloadToken = await t.mutation(api.payments.markPaymentPaid, {
+    const downloadToken = await t.mutation(internal.payments.markPaymentPaid, {
       stripeSessionId: "cs_completed",
     });
 

@@ -88,7 +88,7 @@ phase('QA')
 const LENSES = [
   {
     key: 'security',
-    prompt: 'Hunt for injection (LaTeX/shell/path traversal), unsafe handling of LLM-derived or otherwise untrusted data, and secrets handling. Read the actual diff/code yourself (git diff, git log -p, or read the files directly) — do not just trust the self-report. Try to construct a concrete input that breaks it.',
+    prompt: 'Hunt for injection (LaTeX/shell/path traversal), unsafe handling of LLM-derived or otherwise untrusted data, and secrets handling. Read the actual diff/code yourself (git diff, git log -p, or read the files directly) — do not just trust the self-report. Try to construct a concrete input that breaks it. If this touches Convex: check whether every mutation/query that gates money, ownership, or access is declared `internalMutation`/`internalQuery` when it should be — a public Convex mutation/query is directly callable by ANY client holding just the public deployment URL (e.g. from browser devtools), regardless of what a trusted server route around it does. "Does this write/read sanitize its inputs" and "is this write/read reachable from a caller it was never meant to have" are two different questions — answer both. Also check every uploadId/userId-scoped function actually verifies ownership against the caller-supplied session/identity, not just that the id exists.',
   },
   {
     key: 'correctness',

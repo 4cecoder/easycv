@@ -4,6 +4,7 @@ import Stripe from "stripe";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { getConvexClient } from "../../../lib/convexServer";
+import { SESSION_COOKIE } from "../../../lib/session";
 
 function getStripe(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -29,6 +30,16 @@ export async function POST(request: NextRequest) {
     const uploadId = body.uploadId;
     if (!uploadId) {
       return NextResponse.json({ error: "uploadId is required" }, { status: 400 });
+    }
+
+    // uploadId is visible in the /preview/[uploadId] URL (see
+    // convex/authz.ts), so ownership must be proven by the session cookie,
+    // not just by knowing the id -- otherwise anyone could pay for and
+    // attach a downloadToken to a stranger's upload. No cookie means no
+    // checkout, full stop.
+    const sessionId = request.cookies.get(SESSION_COOKIE)?.value;
+    if (!sessionId) {
+      return NextResponse.json({ error: "Missing session" }, { status: 401 });
     }
 
     const priceId = process.env.STRIPE_PRICE_ID;
@@ -67,6 +78,7 @@ export async function POST(request: NextRequest) {
     const convex = getConvexClient();
     await convex.mutation(api.payments.createPaymentRecord, {
       uploadId: uploadId as Id<"uploads">,
+      sessionId,
       stripeSessionId: session.id,
       amountCents: price.unit_amount ?? 0,
       currency: price.currency,

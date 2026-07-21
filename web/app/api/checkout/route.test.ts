@@ -24,10 +24,18 @@ vi.mock("../../../lib/convexServer", () => ({
 
 const { POST } = await import("./route");
 
-function makeRequest(body: unknown, headers: Record<string, string> = {}) {
+function makeRequest(
+  body: unknown,
+  headers: Record<string, string> = {},
+  { withSession = true }: { withSession?: boolean } = {},
+) {
+  const allHeaders = { ...headers };
+  if (withSession) {
+    allHeaders.cookie = "cv_session=session1";
+  }
   return new NextRequest("http://localhost/api/checkout", {
     method: "POST",
-    headers,
+    headers: allHeaders,
     body: JSON.stringify(body),
   });
 }
@@ -71,5 +79,21 @@ describe("checkout", () => {
     const res = await POST(makeRequest({}));
     expect(res.status).toBe(400);
     expect(createSessionMock).not.toHaveBeenCalled();
+  });
+
+  test("401s when there is no session cookie -- uploadId alone is not authorization", async () => {
+    const res = await POST(makeRequest({ uploadId: "upload1" }, {}, { withSession: false }));
+    expect(res.status).toBe(401);
+    expect(createSessionMock).not.toHaveBeenCalled();
+    expect(mutationMock).not.toHaveBeenCalled();
+  });
+
+  test("passes the session cookie's sessionId to createPaymentRecord, not the uploadId alone", async () => {
+    const res = await POST(makeRequest({ uploadId: "upload1" }));
+    expect(res.status).toBe(200);
+    expect(mutationMock).toHaveBeenCalledWith(
+      "payments:createPaymentRecord",
+      expect.objectContaining({ uploadId: "upload1", sessionId: "session1" }),
+    );
   });
 });
