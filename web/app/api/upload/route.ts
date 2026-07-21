@@ -28,6 +28,7 @@ type ConsolidateStdinResult = {
   profile: Record<string, unknown>;
   score: { score: number; max_score: number; warnings: string[]; critical: boolean };
   pdf_path: string | null;
+  tmp_dir: string;
 };
 
 // Mirrors pipeline.py's classify() (pipeline.py:101) -- kept in sync by hand
@@ -176,6 +177,12 @@ export async function POST(request: NextRequest) {
       throw new Error("consolidate-stdin produced no output");
     }
     const result = JSON.parse(lastLine) as ConsolidateStdinResult;
+    // Always track this, not just when pdf_path is set -- consolidate-stdin
+    // creates this directory unconditionally (it holds the rendered .tex
+    // file even when PDF compilation fails or pdflatex isn't installed), so
+    // only cleaning it up inside the pdf_path branch below leaked one
+    // tmpdir per upload forever whenever compilation didn't succeed.
+    pdfTmpDir = result.tmp_dir;
 
     await convex.mutation(api.profiles.saveStructuredProfile, {
       uploadId,
@@ -187,7 +194,6 @@ export async function POST(request: NextRequest) {
     });
 
     if (result.pdf_path) {
-      pdfTmpDir = path.dirname(result.pdf_path);
       const pdfBytes = await readFile(result.pdf_path);
       const pdfStorageId = await uploadBytesToConvexStorage(pdfBytes, "application/pdf");
       await convex.mutation(api.profiles.setProfilePdf, {

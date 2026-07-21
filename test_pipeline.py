@@ -2250,13 +2250,14 @@ class TestConsolidateStdinCommand(unittest.TestCase):
         self.assertEqual(len(lines), 1, f"expected exactly one stdout line, got: {out!r}")
 
         payload = json.loads(lines[0])
-        self.assertEqual(set(payload.keys()), {"profile", "score", "pdf_path"})
+        self.assertEqual(set(payload.keys()), {"profile", "score", "pdf_path", "tmp_dir"})
         self.assertEqual(payload["profile"]["name"], "Alice Smith")
         self.assertEqual(payload["score"]["critical"], False)
         self.assertIn("score", payload["score"])
         self.assertIn("max_score", payload["score"])
         self.assertIn("warnings", payload["score"])
         self.assertEqual(payload["pdf_path"], "/tmp/fake/alice-smith_resume.pdf")
+        self.assertTrue(os.path.isdir(payload["tmp_dir"]))
 
         # No progress/log lines (e.g. "[llm] sending...") leaked onto stdout.
         self.assertNotIn("[llm]", out)
@@ -2273,6 +2274,29 @@ class TestConsolidateStdinCommand(unittest.TestCase):
         payload = json.loads(buf.getvalue().splitlines()[0])
         self.assertEqual(rc, 0)
         self.assertIsNone(payload["pdf_path"])
+
+    @patch("latex.compile_pdf", return_value=None)
+    def test_tmp_dir_always_reported_even_when_pdf_compile_fails(self, mock_compile):
+        # Regression test: tmp_dir must be reported even when pdf_path is
+        # null, since it's the only way the caller can find and clean up the
+        # rendered .tex file + directory. Before this field existed, the
+        # caller only ever cleaned up path.dirname(pdf_path) -- when
+        # pdflatex isn't installed (pdf_path always null), that leaked one
+        # tmpdir per call, permanently, with no cleanup path at all.
+        mock_client = self._mock_client(json.dumps({
+            "name": "Alice Smith", "skills": {"languages": ["Python"]}, "experience": [],
+        }))
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = consolidate_stdin_command([self.cv_path], mock_client)
+        payload = json.loads(buf.getvalue().splitlines()[0])
+        self.assertEqual(rc, 0)
+        self.assertIsNone(payload["pdf_path"])
+        self.assertIn("tmp_dir", payload)
+        self.assertTrue(os.path.isdir(payload["tmp_dir"]))
+        tex_files = [f for f in os.listdir(payload["tmp_dir"]) if f.endswith(".tex")]
+        self.assertEqual(len(tex_files), 1, f"expected exactly one .tex file, found: {tex_files}")
+        shutil.rmtree(payload["tmp_dir"], ignore_errors=True)
 
     @patch("latex.compile_pdf", return_value=None)
     def test_non_json_llm_response_falls_back_to_raw(self, mock_compile):
@@ -2317,7 +2341,8 @@ class TestConsolidateStdinCommand(unittest.TestCase):
         lines = buf.getvalue().splitlines()
         self.assertEqual(len(lines), 1)
         payload = json.loads(lines[0])
-        self.assertEqual(set(payload.keys()), {"profile", "score", "pdf_path"})
+        self.assertEqual(set(payload.keys()), {"profile", "score", "pdf_path", "tmp_dir"})
+        shutil.rmtree(payload["tmp_dir"], ignore_errors=True)
 
     def test_cli_requires_llm(self):
         with patch.object(sys, "argv", ["pipeline.py", "consolidate-stdin", self.cv_path]):

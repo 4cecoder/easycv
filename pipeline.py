@@ -1010,7 +1010,11 @@ def consolidate_stdin_command(paths: list[str], llm_client: LLMClient) -> int:
             f.write(latex.render_latex(profile, display_name))
         pdf_path = latex.compile_pdf(tex_path, tmp_dir)
 
-    print(json.dumps({"profile": profile, "score": score, "pdf_path": pdf_path}))
+    # tmp_dir must survive past this process exiting (the caller reads
+    # pdf_path off disk *after* this subprocess returns), so it can't be
+    # cleaned up here -- always report it, even when pdf_path is null, so
+    # the caller can unconditionally remove it once it's done reading.
+    print(json.dumps({"profile": profile, "score": score, "pdf_path": pdf_path, "tmp_dir": tmp_dir}))
     return 0
 
 
