@@ -460,17 +460,46 @@ class LLMClient:
     def _chat_ollama(self, messages: list[dict], max_tokens: int) -> Optional[str]:
         import urllib.request
         import urllib.error
+        # OLLAMA_API_BASE lets this point at a remote/networked Ollama
+        # server (e.g. a Tailscale-reachable box) instead of only ever
+        # talking to localhost -- same env var name Ollama's own official
+        # clients use, so it's consistent with any existing setup.
+        base = os.environ.get("OLLAMA_API_BASE", "http://localhost:11434").rstrip("/")
+        # Reasoning/"thinking" models (e.g. openbmb/minicpm5, Qwen3-family --
+        # confirmed via `ollama list`'s "family":"qwen35" tag on at least one
+        # real Ollama server this pipeline talks to) spend a large, unbounded
+        # chunk of the token budget on an internal <thinking> trace before
+        # emitting any real "content". Confirmed directly, same model/prompt:
+        # with thinking on, a trivial "what is 2+2" call took ~38s (and a
+        # real consolidation prompt exceeded a 300s budget without ever
+        # finishing); with `"think": false`, the same trivial call took
+        # ~5s. Structured JSON extraction against an explicit schema is
+        # exactly the kind of task that doesn't benefit from chain-of-thought
+        # -- bumping the timeout further would have papered over the real
+        # problem (wasted reasoning tokens) rather than fixing it. Ollama
+        # ignores unknown request fields, so this is safe to send even to
+        # models that don't support toggling thinking at all.
+        #
+        # Eliminating wasted thinking tokens wasn't the whole story, though:
+        # even with think=false, this same real consolidation prompt against
+        # the same model measured ~104s of raw generation for a 218-token
+        # response on at least one real (CPU-bound, Tailscale-reachable)
+        # Ollama box -- ~2 tokens/sec, genuinely slow hardware, not a prompt
+        # problem. 120s cut that off right at the margin. Default reflects
+        # that observed reality with headroom, not a guess.
+        timeout = int(os.environ.get("OLLAMA_TIMEOUT", "180"))
         body = json.dumps({"model": self.model, "messages": messages, "stream": False,
+                           "think": False,
                            "options": {"num_predict": max_tokens}}).encode()
         try:
-            req = urllib.request.Request("http://localhost:11434/api/chat", data=body,
+            req = urllib.request.Request(f"{base}/api/chat", data=body,
                                          headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
                 data = json.loads(resp.read())
                 msg = data.get("message") or {}
                 return msg.get("content")
         except urllib.error.URLError:
-            print("  [error] Ollama not running at http://localhost:11434")
+            print(f"  [error] Ollama not running at {base}")
             print("  Start it: ollama serve")
             return None
         except Exception as e:

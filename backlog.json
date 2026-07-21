@@ -118,6 +118,15 @@
       "rationale": "User explicitly reprioritized 2026-07-21: make sure the core product works, subscription/Stripe stuff waits. consolidate_stdin_command already had a confirmed, actively-occurring bug (tmp_dir leaked on every call when pdflatex isn't installed -- 123 leaked dirs found on the dev machine, fixed 2026-07-21) found by manual audit, not by any prior automated QA cycle. That's a strong signal there are more issues like it in the same code path -- it's the literal bridge every web upload calls through, and it hasn't had the same adversarial scrutiny the Stripe/payment code got.",
       "source": "user",
       "priority": "critical",
+      "status": "done",
+      "note": "Commit 1203819 fixed the llm_consolidate crash on non-dict JSON (array/null/scalar/string/bool) responses -- now falls into {\"_raw\": result} instead of throwing, verified inert downstream since render_latex only reads named fields, never \"_raw\". Also tightened _chat_ollama's null-message handling and broadened the dead PyMuPDF fallback except. Adversarial QA (security/correctness/product-fit) all returned Verdict: OK -- diff matches self-report, live smoke test against consolidate_stdin_command confirmed no traceback on array/null/scalar/string/bool/malformed input, 174/174 tests green, no injection or shell-escape issues found. No unresolved issues."
+    },
+    {
+      "id": "cli-ollama-message-type-guard",
+      "title": "_chat_ollama should tolerate a non-dict truthy `message` value in the Ollama response",
+      "rationale": "QA on cli-core-reliability-audit (commit 1203819) noted the new `msg = data.get(\"message\") or {}` guard only covers falsy/missing `message` -- if a future/alternate Ollama-compatible endpoint returns `message` as a truthy non-dict (e.g. a bare string), `msg.get(...)` further downstream will still raise AttributeError. Narrow and pre-existing, but a real gap in the same function just hardened, worth a small explicit guard.",
+      "source": "qa",
+      "priority": "low",
       "status": "pending"
     }
   ],
@@ -170,6 +179,13 @@
       "tasks_done": [],
       "issues_found": 1,
       "issues_fixed": 1
+    },
+    {
+      "cycle_id": "wf-cli-reliability-qa-20260721",
+      "description": "Adversarial QA (security/correctness/product-fit) on cli-core-reliability-audit, reviewing commit 1203819 (llm_consolidate non-dict-JSON crash fix, _chat_ollama null-message guard, broadened dead PyMuPDF fallback except). All three lenses returned Verdict: OK -- no injection/shell-escape issues, diff matches self-report, 174/174 tests green, live smoke test against consolidate_stdin_command confirmed no crash across array/null/scalar/string/bool/malformed inputs. No fixes were needed. QA did surface one narrow non-blocking gap (non-dict truthy `message` value in _chat_ollama), tracked as new backlog item cli-ollama-message-type-guard rather than blocking this cycle.",
+      "tasks_done": ["cli-core-reliability-audit"],
+      "issues_found": 0,
+      "issues_fixed": 0
     }
   ]
 }

@@ -162,13 +162,16 @@ export async function POST(request: NextRequest) {
         cwd: PIPELINE_ROOT,
         env: process.env,
         maxBuffer: 20 * 1024 * 1024,
-        // Local Ollama models (esp. small ones like a 1.1B param model with
-        // no GPU) can genuinely take 90-120s+ for structured extraction --
-        // observed a real request finish at 90s and another get killed by a
-        // 120s cap on the same machine/model. Hosted providers (OpenAI/
-        // Anthropic) return in a few seconds, so this only matters for the
-        // no-API-key local dev path.
-        timeout: 240_000,
+        // Ollama models can genuinely take minutes for structured extraction
+        // -- worse for "thinking"/reasoning models, which spend a large
+        // token budget on internal reasoning before any real output (see
+        // pipeline.py's OLLAMA_TIMEOUT, now 300s). This MUST stay comfortably
+        // above that inner Python-level timeout, or Node kills the process
+        // before Ollama's own timeout would even trigger, which looks
+        // identical to "the model produced nothing" and is much harder to
+        // diagnose. Hosted providers (OpenAI/Anthropic) return in seconds,
+        // so this generous a cap only matters for the no-API-key local path.
+        timeout: 330_000,
       },
     );
 
