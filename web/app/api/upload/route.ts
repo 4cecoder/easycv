@@ -92,9 +92,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!process.env.ANTHROPIC_API_KEY) {
+    // Defaults to Ollama (matches pipeline.py's own LLMClient default,
+    // pipeline.py:382) -- no API key required, runs entirely on this
+    // machine. Set LLM_PROVIDER=openai/anthropic + the matching API key
+    // env var to use a hosted provider instead.
+    const llmProvider = process.env.LLM_PROVIDER || "ollama";
+    const llmModel = process.env.LLM_MODEL;
+    const requiredKeyEnvVar =
+      llmProvider === "anthropic"
+        ? "ANTHROPIC_API_KEY"
+        : llmProvider === "openai"
+          ? "OPENAI_API_KEY"
+          : null;
+    if (requiredKeyEnvVar && !process.env[requiredKeyEnvVar]) {
       return NextResponse.json(
-        { error: "Server is not configured with ANTHROPIC_API_KEY" },
+        { error: `Server is not configured with ${requiredKeyEnvVar}` },
         { status: 500 },
       );
     }
@@ -141,14 +153,21 @@ export async function POST(request: NextRequest) {
         "pipeline.py",
         "consolidate-stdin",
         "--llm",
-        "anthropic",
+        llmProvider,
+        ...(llmModel ? ["--model", llmModel] : []),
         ...saved.map((f) => f.path),
       ],
       {
         cwd: PIPELINE_ROOT,
         env: process.env,
         maxBuffer: 20 * 1024 * 1024,
-        timeout: 120_000,
+        // Local Ollama models (esp. small ones like a 1.1B param model with
+        // no GPU) can genuinely take 90-120s+ for structured extraction --
+        // observed a real request finish at 90s and another get killed by a
+        // 120s cap on the same machine/model. Hosted providers (OpenAI/
+        // Anthropic) return in a few seconds, so this only matters for the
+        // no-API-key local dev path.
+        timeout: 240_000,
       },
     );
 
