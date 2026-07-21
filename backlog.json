@@ -4,7 +4,8 @@
     "CLI maturity (this repo) comes before the fullstack web layer.",
     "Convex backend is approved (2026-07-20) — build it before Google OAuth. Google OAuth remains deferred until the user explicitly asks for it.",
     "Deploy target is Netlify; frontend will eventually be Next.js.",
-    "Never build competitor features with no proven willingness-to-pay signal — check research_findings before adding scope."
+    "Never build competitor features with no proven willingness-to-pay signal — check research_findings before adding scope.",
+    "2026-07-21: user explicitly deprioritized the subscription/Stripe/billing layer for now (\"we will worry about later\") in favor of making sure the core product (CLI + consolidate-stdin bridge) actually works. Do not pick up Stripe/payment/subscription-flavored backlog items unless the user re-prioritizes them; focus reliability work on pipeline.py and the consolidate-stdin bridge."
   ],
   "research_findings": [
     {
@@ -110,6 +111,14 @@
       "source": "qa",
       "priority": "low",
       "status": "pending"
+    },
+    {
+      "id": "cli-core-reliability-audit",
+      "title": "Harden pipeline.py's core engine and the consolidate-stdin bridge -- resource leaks, error handling, edge cases in the actual production upload path",
+      "rationale": "User explicitly reprioritized 2026-07-21: make sure the core product works, subscription/Stripe stuff waits. consolidate_stdin_command already had a confirmed, actively-occurring bug (tmp_dir leaked on every call when pdflatex isn't installed -- 123 leaked dirs found on the dev machine, fixed 2026-07-21) found by manual audit, not by any prior automated QA cycle. That's a strong signal there are more issues like it in the same code path -- it's the literal bridge every web upload calls through, and it hasn't had the same adversarial scrutiny the Stripe/payment code got.",
+      "source": "user",
+      "priority": "critical",
+      "status": "pending"
     }
   ],
   "open_issues": [],
@@ -153,6 +162,14 @@
       "tasks_done": [],
       "issues_found": 2,
       "issues_fixed": 2
+    },
+    {
+      "cycle_id": "manual-audit-tmpdir-leak-20260721",
+      "date": "2026-07-21",
+      "description": "User reprioritized: focus on core product reliability, subscription/Stripe layer on hold. Manual audit of consolidate_stdin_command (pipeline.py) -- the bridge every web upload calls through -- found tmp_dir was created unconditionally but only ever reported/cleaned up via path.dirname(pdf_path), which is null whenever pdflatex isn't installed or compilation fails. Confirmed actively occurring: 123 leaked cv-consolidate-* directories already on the dev machine from this session's own testing, since pdflatex isn't installed here at all. Fixed by always including tmp_dir in the JSON output and always cleaning it up on the Node side regardless of pdf_path. Verified live: ran a real upload post-fix, zero new leaked directories. 169 Python tests OK (2 new), tsc clean.",
+      "tasks_done": [],
+      "issues_found": 1,
+      "issues_fixed": 1
     }
   ]
 }
