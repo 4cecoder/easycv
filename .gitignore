@@ -16,3 +16,6 @@ resume_2026.md
 cv_pipeline_output/
 *.pdf
 ~/.config/cv-pipeline/
+
+# Local Netlify folder
+.netlify

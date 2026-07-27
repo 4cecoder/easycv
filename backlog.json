@@ -110,7 +110,8 @@
       "rationale": "QA (convex-backend/product-fit) flagged that getUpload and getStructuredProfile still use an unindexed .filter(q.field(\"uploadId\")) scan rather than an indexed lookup, same class of issue as the getPaymentStatus bug already fixed by adding a by_upload index. Non-blocking at MVP scale but worth closing out before traffic grows.",
       "source": "qa",
       "priority": "low",
-      "status": "pending"
+      "status": "done",
+      "note": "Closed out 2026-07-21 while building the async job-queue architecture (async-job-queue-architecture item): resumeFiles/structuredProfiles now have by_upload indexes, every uploadId-scoped query in uploads/profiles/payments.ts uses withIndex."
     },
     {
       "id": "cli-core-reliability-audit",
@@ -128,6 +129,20 @@
       "source": "qa",
       "priority": "low",
       "status": "pending"
+    },
+    {
+      "id": "async-job-queue-architecture",
+      "title": "Replace synchronous upload->consolidate HTTP request with a job-queue + long-lived worker process",
+      "rationale": "The synchronous design (Next.js API route blocks on LLM consolidation for 90-300+s) cannot work in production: standard Netlify Functions time out at 10-26s, and the documented 'experimental-background' escape hatch is confirmed Pages-Router-only with no App Router support (checked directly against Netlify's own reference repo before ruling it out). User asked explicitly for something 'designed very well, not oneshot,' with bounded retry that doesn't 'tailspin.'",
+      "source": "user",
+      "priority": "critical",
+      "status": "done",
+      "note": "Built 2026-07-21: uploads.status now drives a real queued -> processing -> ready|error lifecycle (was set once to \"scanning\" and never updated). worker.py is a separate, long-lived Python process (not a Convex function, not a serverless function -- sidesteps all timeout questions) that polls Convex via the official convex PyPI client, claims jobs, and reuses pipeline.consolidate_files() in-process. Bounded retry: attempts persists on the row (survives worker restarts), MAX_ATTEMPTS=3 enforced server-side in claimNextQueued, not trusted to worker memory. Two real bugs caught via actual live testing (not just code review): (1) a genuine race -- createUpload originally set status \"queued\" before resumeFiles were attached, so a fast-polling worker claimed empty jobs; fixed with an intermediate \"uploading\" status and a new finalizeUpload mutation, called only after all files are attached, (2) an env-var override bug in worker.py where a stale ambient shell OLLAMA_API_BASE silently beat web/.env.local's correct, intentional value. Frontend: preview page split into a thin server component (reads the httpOnly session cookie) + a new reactive client component (useQuery via a new ConvexReactClient/ConvexProvider) showing live queued/processing/error/ready states with zero polling -- Convex pushes the update the moment the worker's mutation lands. Upload route simplified drastically (removed local tmpdir + subprocess + profile-saving entirely, now just saves files and queues, ~0.1-0.5s response vs 90-300s+ before). 174 Python tests, 36 vitest (12 new), tsc clean, next build clean, verified live end-to-end against the real Tailscale Ollama box with the actual worker process running.",
+      "known_gaps": [
+        "profile_fields_from() in worker.py duplicates web/lib/profileMapping.ts's profileFieldsFrom() logic by hand (Python vs TypeScript) -- a more robust fix would move this coercion server-side into the saveStructuredProfile Convex mutation itself so every caller gets it for free. Not done now to keep this change's scope bounded.",
+        "Worker-facing mutations (claimNextQueued/markReady/markAttemptFailed/getResumeFilesForWorker) are public-but-secret-gated (WORKER_SECRET) rather than true internalMutation, since the Python convex client has no admin/deploy-key path the way a trusted Convex-internal caller would. Proportionate to the actual risk (queue interference, not payment bypass or data exposure) but a real, deliberate tradeoff -- see convex/workerAuth.ts.",
+        "No production deployment story for worker.py yet (where it actually runs continuously, e.g. the same Tailscale box as Ollama, a small VPS, or similar) -- that's an infrastructure/ops decision for the user, not something to guess at."
+      ]
     }
   ],
   "open_issues": [],

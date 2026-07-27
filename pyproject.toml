@@ -1,11 +1,18 @@
 [project]
 name = "easycv-pipeline"
 version = "0.1.0"
-description = "Add your description here"
+description = "CV/resume consolidation pipeline — scan, extract, consolidate, and generate tech-focused resumes using LLMs"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "anthropic>=0.117.0",
     "convex>=0.7.0",
+    "python-dotenv>=1.2.2",
     "requests>=2.34.2",
 ]
+
+[project.scripts]
+easycv = "pipeline:main"
+
+[dependency-groups]
+dev = ["pytest>=8.0"]

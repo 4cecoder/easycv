@@ -5,9 +5,9 @@ import { AlertCircle, Loader2 } from "lucide-react";
 
 import { Alert, AlertDescription, Button } from "@bytecats/ui-kit";
 
-// Split out as its own client component because the parent preview page is a
-// server component (it needs to await Convex queries directly) -- only the
-// "kick off Stripe Checkout" bit needs client-side interactivity.
+// Its own small client component (PreviewClient, which renders this, is
+// also a client component now -- kept split out anyway since this is a
+// self-contained bit of interactivity/local state).
 export function CheckoutButton({ uploadId }: { uploadId: string }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);

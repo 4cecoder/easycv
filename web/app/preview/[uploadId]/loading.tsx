@@ -1,9 +1,11 @@
 import { Card, CardContent, CardHeader, Skeleton } from "@bytecats/ui-kit";
 
 // Next.js route-segment loading UI (not a new route) -- shown automatically
-// while the server component in page.tsx awaits Convex's
-// getStructuredProfile/getPaymentStatus queries. Mirrors that page's Card
-// layout so the swap-in doesn't jump around.
+// during page.tsx's (now trivial, cookie-read-only) render and the initial
+// client-side hydration of PreviewClient, which handles the actual
+// queued/processing/ready/error states reactively via useQuery once
+// mounted. Mirrors PreviewClient's ready-state Card layout so the swap-in
+// doesn't jump around.
 export default function PreviewLoading() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 px-4 py-10 sm:px-6">

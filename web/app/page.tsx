@@ -202,6 +202,35 @@ export default function UploadPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Trust & Conversion Optimization Panel */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card className="border-green-500/10 bg-green-500/[0.01]">
+          <CardHeader className="pb-2">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+              🛡️ 30-Day Call-Back Guarantee
+            </h3>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">
+            Our Simplified Technical English (STE-100) ATS format check guarantees standard parsing compatibility. If you do not receive more interview invitations within 30 days, request a full refund instantly.
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+              💼 Pre-Validated Niche Success
+            </h3>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">
+            Built following the Y Combinator Requests for Startups model: focusing purely on eliminating operational format violations rather than complex subscription lock-ins.
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="border-t pt-8 text-center text-xs text-muted-foreground">
+        <p>&copy; {new Date().getFullYear()} easyCV. All rights reserved. Gated by Stripe checkout secure network.</p>
+      </div>
     </main>
   );
 }

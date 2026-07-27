@@ -8,13 +8,39 @@ export const createUpload = mutation({
     sessionId: v.string(),
   },
   handler: async (ctx, { sessionId }) => {
+    // Deliberately NOT "queued" yet -- the upload route creates this row
+    // before it has finished attaching resumeFiles (each is its own
+    // mutation + a Convex storage upload in between). "queued" is what
+    // claimNextQueued's by_status index scan makes claimable; without this
+    // intermediate state, a worker polling every few seconds can and did
+    // (caught live, not hypothetically) claim an upload with zero
+    // resumeFiles attached yet, wasting a real attempt out of the bounded
+    // retry budget on a race rather than an actual failure. finalizeUpload
+    // flips this to "queued" once the route is done attaching files.
     const uploadId = await ctx.db.insert("uploads", {
       sessionId,
-      status: "queued",
+      status: "uploading",
       attempts: 0,
       createdAt: Date.now(),
     });
     return uploadId;
+  },
+});
+
+// Called once by the upload route after every resumeFiles row has been
+// attached -- flips "uploading" to "queued", making it eligible for
+// claimNextQueued for the first time. Session-owned (not worker-secret
+// gated): this is the client's own upload finishing, not a worker
+// operation.
+export const finalizeUpload = mutation({
+  args: {
+    uploadId: v.id("uploads"),
+    sessionId: v.string(),
+  },
+  handler: async (ctx, { uploadId, sessionId }) => {
+    const upload = await ownedUpload(ctx.db, uploadId, sessionId);
+    if (!upload) throw new Error("Upload not found or not owned by this session");
+    await ctx.db.patch(uploadId, { status: "queued" });
   },
 });
 

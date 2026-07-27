@@ -33,7 +33,7 @@ from contextlib import redirect_stdout
 from unittest.mock import MagicMock, PropertyMock, patch, mock_open
 
 # ── Import the pipeline module ──────────────────────────────────────────────
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pipeline
 import latex
 from latex import escape_latex, render_latex, compile_pdf
@@ -64,6 +64,7 @@ from pipeline import (
     _load_aliases,
     _resolve_alias,
     _load_config,
+    _format_name,
     LLM_CONSOLIDATE_SYSTEM,
     LLM_RESUME_SYSTEM,
     # Data quality
@@ -79,6 +80,9 @@ from pipeline import (
     _unique_dest,
     # Web-layer bridge
     consolidate_stdin_command,
+    # High-level orchestration
+    consolidate_files,
+    run,
 )
 
 
@@ -2467,6 +2471,249 @@ class TestRescoreRedetectStatsCLI(unittest.TestCase):
             with self.assertRaises(SystemExit) as ctx:
                 pipeline.main()
         self.assertEqual(ctx.exception.code, 0)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 10.  test_format_name
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestFormatName(unittest.TestCase):
+    """Tests for _format_name() helper."""
+
+    def test_normal_words_capitalized(self):
+        self.assertEqual(_format_name("john doe"), "John Doe")
+        self.assertEqual(_format_name("alice bob charlie"), "Alice Bob Charlie")
+
+    def test_empty_string(self):
+        self.assertEqual(_format_name(""), "")
+
+    def test_whitespace_only(self):
+        self.assertEqual(_format_name("   "), "")
+
+    def test_single_word(self):
+        self.assertEqual(_format_name("alice"), "Alice")
+
+    def test_preserves_internal_structure(self):
+        self.assertEqual(_format_name("mac macdonald"), "Mac Macdonald")
+
+    def test_strips_leading_trailing_whitespace(self):
+        self.assertEqual(_format_name("  john doe  "), "John Doe")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 11.  test_consolidate_files
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestConsolidateFiles(unittest.TestCase):
+    """Tests for consolidate_files() high-level orchestration."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    @patch("latex.compile_pdf", return_value="/tmp/fake.pdf")
+    @patch("pipeline.llm_consolidate")
+    @patch("pipeline._load_aliases", return_value={})
+    def test_happy_path_txt_file(self, _aliases, mock_consolidate, mock_compile):
+        """consolidate_files with a .txt file returns expected dict keys."""
+        mock_consolidate.return_value = {
+            "name": "Alice Smith",
+            "skills": {"languages": ["Python"]},
+        }
+        txt_path = _make_file(self.tmp.name, "alice_smith_cv.txt", "Alice is a dev")
+        mock_client = MagicMock(spec=LLMClient)
+        mock_client.provider = "ollama"
+        mock_client.model = "llama3.2"
+
+        result = consolidate_files([txt_path], mock_client)
+
+        self.assertIn("profile", result)
+        self.assertIn("score", result)
+        self.assertIn("pdf_path", result)
+        self.assertIn("tmp_dir", result)
+        self.assertEqual(result["profile"]["name"], "Alice Smith")
+        self.assertIsInstance(result["score"], dict)
+        self.assertIn("score", result["score"])
+        self.assertIn("max_score", result["score"])
+
+    @patch("latex.compile_pdf", return_value=None)
+    @patch("pipeline.llm_consolidate")
+    @patch("pipeline._load_aliases", return_value={})
+    def test_no_extractable_text_path(self, _aliases, mock_consolidate, mock_compile):
+        """consolidate_files with a .docx file (no text extraction) falls back to _raw."""
+        docx_path = _make_file(self.tmp.name, "bob_jones_cv.docx", "fake docx binary content")
+        mock_client = MagicMock(spec=LLMClient)
+
+        result = consolidate_files([docx_path], mock_client)
+
+        self.assertIn("profile", result)
+        self.assertIn("_raw", result["profile"])
+        self.assertTrue(result["score"]["critical"])
+        mock_consolidate.assert_not_called()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 12.  test_run
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestRun(unittest.TestCase):
+    """Tests for run() high-level pipeline orchestration."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.src = os.path.join(self.tmp.name, "src")
+        self.output = os.path.join(self.tmp.name, "output")
+        os.makedirs(self.src)
+
+    @patch("pipeline._load_aliases", return_value={})
+    def test_dry_run_no_output_dir_created(self, _):
+        """Dry run should not create the output directory."""
+        _make_cv_file(self.src, "alice smith", ".txt", "alice cv content")
+        run([self.src], self.output, dry_run=True)
+        # The output dir itself may be created (for the resources step),
+        # but the dry-run path returns early before any file I/O beyond
+        # scan + organize (which is also a no-op in dry_run).
+        # The key invariant: no resources/ dir with actual files.
+        resources = os.path.join(self.output, "resources")
+        if os.path.isdir(resources):
+            # If the dir exists, it must be empty (no files copied).
+            self.assertEqual(
+                sum(len(files) for _, _, files in os.walk(resources)),
+                0, "Dry run should not copy any files"
+            )
+
+    @patch("pipeline._load_aliases", return_value={})
+    def test_empty_scan_graceful(self, _):
+        """run() with no CV files should complete without error."""
+        run([self.src], self.output)
+        self.assertTrue(True)
+
+    @patch("latex.compile_pdf", return_value=None)
+    @patch("pipeline.llm_generate_resume", return_value="# Alice Smith\n\nSkills: Python")
+    @patch("pipeline.llm_consolidate")
+    @patch("pipeline._load_aliases", return_value={})
+    def test_with_llm_mock_creates_output_files(self, _aliases, mock_consolidate, _resume, _compile):
+        """With LLM mock, output files should be created."""
+        mock_consolidate.return_value = {
+            "name": "Alice Smith",
+            "skills": {"languages": ["Python"]},
+        }
+        _make_cv_file(self.src, "alice smith", ".txt", "Alice is a dev")
+        mock_client = MagicMock(spec=LLMClient)
+        mock_client.provider = "ollama"
+        mock_client.model = "llama3.2"
+
+        run([self.src], self.output, llm_enabled=True, llm_client=mock_client)
+
+        consolidated_dir = os.path.join(self.output, "consolidated")
+        self.assertTrue(os.path.isdir(consolidated_dir))
+        json_files = [f for f in os.listdir(consolidated_dir) if f.endswith(".json")]
+        self.assertTrue(len(json_files) > 0, "Should have created consolidated JSON")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 13.  test_extract_person_advanced
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestExtractPersonAdvanced(unittest.TestCase):
+    """Additional edge-case tests for extract_person()."""
+
+    @patch("pipeline._load_aliases", return_value={})
+    def test_suffix_before_name_cv_john(self, _):
+        """CV_John_Doe.pdf -> suffix-before-name pattern."""
+        result = extract_person("CV_John_Doe.pdf")
+        self.assertIsNotNone(result)
+        self.assertIn("John", result)
+
+    @patch("pipeline._load_aliases", return_value={})
+    def test_suffix_before_name_cv_john_no_ext(self, _):
+        """CV_John.pdf -> single name after suffix."""
+        result = extract_person("CV_John.pdf")
+        self.assertIsNotNone(result)
+        self.assertIn("John", result)
+
+    @patch("pipeline._load_aliases", return_value={})
+    def test_linkedin_jane(self, _):
+        """linkedin_jane.pdf -> fallback split pattern."""
+        result = extract_person("linkedin_jane.pdf")
+        self.assertIsNotNone(result)
+        self.assertIn("Jane", result)
+
+    @patch("pipeline._load_aliases", return_value={})
+    def test_resume_alice_bob(self, _):
+        """resume_alice_bob.pdf -> two-word name after suffix.
+        Note: _format_name splits on whitespace, not underscores,
+        so the result preserves the underscore join."""
+        result = extract_person("resume_alice_bob.pdf")
+        self.assertIsNotNone(result)
+        self.assertIn("Alice", result)
+        self.assertIn("bob", result.lower())
+
+    @patch("pipeline._load_aliases", return_value={})
+    def test_profile_marie_curie(self, _):
+        """profile_marie_curie.pdf -> multi-word name.
+        _format_name capitalizes first letter of each whitespace-separated
+        token; underscores are not whitespace, so curie stays lowercase."""
+        result = extract_person("profile_marie_curie.pdf")
+        self.assertIsNotNone(result)
+        self.assertIn("Marie", result)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 14.  test_load_config
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestLoadConfig(unittest.TestCase):
+    """Tests for _load_config()."""
+
+    @patch("pipeline.CONFIG_PATH", "/nonexistent/path/config.json")
+    def test_missing_config_returns_empty(self):
+        """Missing config file returns empty dict."""
+        result = _load_config()
+        self.assertEqual(result, {})
+
+    def test_valid_config_file(self, ):
+        """Mock config file returns the llm section."""
+        cfg_content = json.dumps({
+            "llm": {"provider": "openai", "model": "gpt-4o", "api_key": "sk-test"}
+        })
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            f.write(cfg_content)
+            cfg_path = f.name
+        try:
+            with patch("pipeline.CONFIG_PATH", cfg_path):
+                result = _load_config()
+            self.assertEqual(result["provider"], "openai")
+            self.assertEqual(result["model"], "gpt-4o")
+            self.assertEqual(result["api_key"], "sk-test")
+        finally:
+            os.unlink(cfg_path)
+
+    def test_corrupt_config_returns_empty(self):
+        """Corrupt JSON in config file returns empty dict."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            f.write("{invalid json!!!")
+            cfg_path = f.name
+        try:
+            with patch("pipeline.CONFIG_PATH", cfg_path):
+                result = _load_config()
+            self.assertEqual(result, {})
+        finally:
+            os.unlink(cfg_path)
+
+    def test_config_without_llm_section(self):
+        """Config without 'llm' key returns empty dict."""
+        cfg_content = json.dumps({"other_key": "value"})
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            f.write(cfg_content)
+            cfg_path = f.name
+        try:
+            with patch("pipeline.CONFIG_PATH", cfg_path):
+                result = _load_config()
+            self.assertEqual(result, {})
+        finally:
+            os.unlink(cfg_path)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

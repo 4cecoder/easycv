@@ -214,7 +214,7 @@ describe("resume bundle lifecycle", () => {
       uploadId,
       sessionId: "sess-lonely",
     });
-    expect(bare?.status).toBe("queued");
+    expect(bare?.status).toBe("uploading");
     expect(bare?.resumeFiles).toEqual([]);
     expect(bare?.structuredProfile).toBeNull();
     expect(bare?.payment).toBeNull();
@@ -289,7 +289,7 @@ describe("cross-session authorization", () => {
     // Owner sees real data.
     expect(
       (await t.query(api.uploads.getUpload, { uploadId, sessionId: "owner-session" }))?.status,
-    ).toBe("queued");
+    ).toBe("uploading");
     expect(
       (await t.query(api.profiles.getStructuredProfile, { uploadId, sessionId: "owner-session" }))
         ?.name,
@@ -441,7 +441,62 @@ describe("file storage helpers", () => {
   });
 });
 
+describe("finalizeUpload (uploading -> queued transition)", () => {
+  // Same literal value as the "worker job queue" describe block below --
+  // both assign process.env.WORKER_SECRET at describe-body (collection
+  // time, not test-run time) scope, so whichever runs last during
+  // collection would otherwise silently win for both blocks' tests.
+  const WORKER_SECRET = "test-worker-secret";
+  process.env.WORKER_SECRET = WORKER_SECRET;
+
+  test("a fresh upload is 'uploading', not yet claimable by the worker", async () => {
+    // Regression test for a real race caught live: claimNextQueued must
+    // NOT be able to claim an upload before finalizeUpload has run, or a
+    // fast-polling worker can grab a job with zero resumeFiles attached
+    // yet, burning a real attempt out of the bounded retry budget on a
+    // race instead of an actual failure.
+    const t = convexTest(schema);
+    const uploadId = await t.mutation(api.uploads.createUpload, { sessionId: "s7" });
+
+    const upload = await t.query(api.uploads.getUpload, { uploadId, sessionId: "s7" });
+    expect(upload?.status).toBe("uploading");
+
+    const claimed = await t.mutation(api.uploads.claimNextQueued, {
+      workerSecret: WORKER_SECRET,
+    });
+    expect(claimed).toBeNull();
+  });
+
+  test("finalizeUpload flips uploading to queued, making it claimable", async () => {
+    const t = convexTest(schema);
+    const uploadId = await t.mutation(api.uploads.createUpload, { sessionId: "s8" });
+
+    await t.mutation(api.uploads.finalizeUpload, { uploadId, sessionId: "s8" });
+
+    const upload = await t.query(api.uploads.getUpload, { uploadId, sessionId: "s8" });
+    expect(upload?.status).toBe("queued");
+
+    const claimed = await t.mutation(api.uploads.claimNextQueued, {
+      workerSecret: WORKER_SECRET,
+    });
+    expect(claimed).toBe(uploadId);
+  });
+
+  test("finalizeUpload rejects a session that doesn't own the upload", async () => {
+    const t = convexTest(schema);
+    const uploadId = await t.mutation(api.uploads.createUpload, { sessionId: "owner-s9" });
+
+    await expect(
+      t.mutation(api.uploads.finalizeUpload, { uploadId, sessionId: "attacker-s9" }),
+    ).rejects.toThrow();
+
+    const upload = await t.query(api.uploads.getUpload, { uploadId, sessionId: "owner-s9" });
+    expect(upload?.status).toBe("uploading");
+  });
+});
+
 describe("worker job queue (uploads.claimNextQueued / markReady / markAttemptFailed)", () => {
+  // Must match the "finalizeUpload" describe block's value above -- see its comment.
   const WORKER_SECRET = "test-worker-secret";
   process.env.WORKER_SECRET = WORKER_SECRET;
 
@@ -495,6 +550,7 @@ describe("worker job queue (uploads.claimNextQueued / markReady / markAttemptFai
   test("claimNextQueued claims a queued upload, bumps attempts, sets processing", async () => {
     const t = convexTest(schema);
     const uploadId = await t.mutation(api.uploads.createUpload, { sessionId: "s2" });
+    await t.mutation(api.uploads.finalizeUpload, { uploadId, sessionId: "s2" });
 
     const claimed = await t.mutation(api.uploads.claimNextQueued, {
       workerSecret: WORKER_SECRET,
@@ -513,7 +569,8 @@ describe("worker job queue (uploads.claimNextQueued / markReady / markAttemptFai
     // processingStartedAt -- claiming it a second time immediately after
     // must return null, not the same uploadId again.
     const t = convexTest(schema);
-    await t.mutation(api.uploads.createUpload, { sessionId: "s2b" });
+    const uploadId = await t.mutation(api.uploads.createUpload, { sessionId: "s2b" });
+    await t.mutation(api.uploads.finalizeUpload, { uploadId, sessionId: "s2b" });
 
     const firstClaim = await t.mutation(api.uploads.claimNextQueued, {
       workerSecret: WORKER_SECRET,
@@ -537,6 +594,7 @@ describe("worker job queue (uploads.claimNextQueued / markReady / markAttemptFai
   test("markReady flips status to ready and clears any prior error", async () => {
     const t = convexTest(schema);
     const uploadId = await t.mutation(api.uploads.createUpload, { sessionId: "s3" });
+    await t.mutation(api.uploads.finalizeUpload, { uploadId, sessionId: "s3" });
     await t.mutation(api.uploads.claimNextQueued, { workerSecret: WORKER_SECRET });
     await t.mutation(api.uploads.markAttemptFailed, {
       uploadId,
@@ -554,6 +612,7 @@ describe("worker job queue (uploads.claimNextQueued / markReady / markAttemptFai
   test("markAttemptFailed requeues under the attempts ceiling, errors once it's hit", async () => {
     const t = convexTest(schema);
     const uploadId = await t.mutation(api.uploads.createUpload, { sessionId: "s4" });
+    await t.mutation(api.uploads.finalizeUpload, { uploadId, sessionId: "s4" });
 
     // MAX_ATTEMPTS is 3: claim+fail three times should requeue twice, then
     // the third claim pushes attempts to 3, and that failure is terminal.
