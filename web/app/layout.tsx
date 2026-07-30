@@ -3,6 +3,7 @@ import "./globals.css";
 import { Figtree } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { ConvexClientProvider } from "./ConvexClientProvider";
+import { PostHogProvider } from "./PostHogProvider";
 
 // Figtree is Astryx's own documented font stack (--font-family-body /
 // --font-family-heading in @astryxdesign/core) -- used here as the same
@@ -19,7 +20,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={cn("font-sans", figtree.variable)}>
       <body className="min-h-screen bg-background text-foreground antialiased">
-        <ConvexClientProvider>{children}</ConvexClientProvider>
+        <PostHogProvider>
+          <ConvexClientProvider>{children}</ConvexClientProvider>
+        </PostHogProvider>
       </body>
     </html>
   );

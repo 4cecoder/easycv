@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState, type DragEvent, type FormEvent } from "react";
 import { AlertCircle, FileText, Loader2, Sparkles, UploadCloud, X } from "lucide-react";
+import { usePostHog } from "posthog-js/react";
 
 import {
   Alert,
@@ -24,6 +25,7 @@ const ACCEPTED_EXTENSIONS = ".pdf,.txt,.md";
 
 export default function UploadPage() {
   const router = useRouter();
+  const posthog = usePostHog();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -71,6 +73,10 @@ export default function UploadPage() {
       if (!res.ok) {
         throw new Error(body.error ?? `Upload failed (${res.status})`);
       }
+      posthog.capture("cv_uploaded", {
+        file_count: files.length,
+        upload_id: body.uploadId,
+      });
       router.push(`/preview/${body.uploadId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
