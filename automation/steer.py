@@ -16,6 +16,7 @@ from automation.pipeline import (
 from automation.tdd import tdd_loop
 from automation.playwright_agent import full_pipeline, start_dev_server, stop_dev_server
 from automation.improve import suggest_improvements, parse_test_failures
+from automation.refine import refine_file, discover_ocr_rules
 from automation.scanner import discover_llm_servers
 from automation.llm_client import chat
 
@@ -46,6 +47,15 @@ def main() -> int:
     # ── improve ─────────────────────────────────────────────────────────────────
     p_imp = sub.add_parser("improve", help="Analyze test failures and suggest LLM-generated fixes")
     p_imp.add_argument("--target", type=str, default="", help="Test file pattern to analyze")
+
+    # ── refine ──────────────────────────────────────────────────────────────────
+    p_refine = sub.add_parser("refine", help="Run Alibaba OCR code review + LLM refactor loop")
+    p_refine.add_argument("--target", type=str, default="", help="File or directory to refine")
+    p_refine.add_argument("--dry-run", action="store_true", help="Show changes without applying")
+    p_refine.add_argument("--limit", type=int, default=5, help="Max files to refine")
+
+    # ── ocr ────────────────────────────────────────────────────────────────────
+    sub.add_parser("ocr", help="List available OCR (OpenCodeReview) rules")
 
     # ── scout ───────────────────────────────────────────────────────────────────
     sub.add_parser("scout", help="Discover LLM servers on local network")
@@ -114,6 +124,24 @@ def main() -> int:
             else:
                 reason = s.get("reason", "unknown")
                 print(f"skip: {test} ({reason})")
+        return 0
+
+    elif args.command == "refine":
+        from automation.refine import main as refine_main
+        refine_argv = [sys.argv[0], "--target", args.target]
+        if args.dry_run:
+            refine_argv.append("--dry-run")
+        refine_argv.extend(["--limit", str(args.limit)])
+        sys.argv = refine_argv
+        return refine_main()
+
+    elif args.command == "ocr":
+        rules = discover_ocr_rules()
+        if rules:
+            for r in rules:
+                print(r["rule"])
+        else:
+            print("no OCR rules found")
         return 0
 
     elif args.command == "scout":
