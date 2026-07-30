@@ -13,9 +13,10 @@ dependencies = [
 
 [project.scripts]
 easycv = "backend.pipeline:main"
+easycv-automation = "automation.steer:main"
 
 [tool.setuptools.packages.find]
-include = ["backend*"]
+include = ["backend*", "automation*"]
 
 [dependency-groups]
 dev = ["pytest>=8.0"]
