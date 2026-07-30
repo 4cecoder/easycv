@@ -13,6 +13,7 @@ import {
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { CheckoutButton } from "./CheckoutButton";
+import { JobMatchWidget } from "./JobMatchWidget";
 import {
   Alert,
   AlertDescription,
@@ -342,6 +343,8 @@ export function PreviewClient({
           )}
         </CardContent>
       </Card>
+
+      <JobMatchWidget uploadId={uploadId} />
 
       <Card className="border-primary/20 bg-primary/[0.03]">
         <CardContent className="flex flex-col items-center gap-3 py-2 text-center">
