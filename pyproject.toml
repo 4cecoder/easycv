@@ -14,5 +14,8 @@ dependencies = [
 [project.scripts]
 easycv = "backend.pipeline:main"
 
+[tool.setuptools.packages.find]
+include = ["backend*"]
+
 [dependency-groups]
 dev = ["pytest>=8.0"]
