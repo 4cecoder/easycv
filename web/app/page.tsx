@@ -144,6 +144,23 @@ export default function UploadPage() {
               />
             </label>
 
+            <div className="flex flex-col gap-2 border-t pt-4">
+              <label htmlFor="jobDescription" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Sparkles className="size-4 text-primary animate-pulse" />
+                Target Job Description (Optional)
+              </label>
+              <p className="text-xs text-muted-foreground pb-1">
+                Paste the target job description to automatically analyze compatibility and tailor experience bullets on upload.
+              </p>
+              <textarea
+                id="jobDescription"
+                name="jobDescription"
+                placeholder="Paste the target job description here..."
+                rows={4}
+                className="w-full rounded-md border border-border bg-card p-3 text-xs focus:border-primary focus:outline-none"
+              />
+            </div>
+
             {files.length > 0 && (
               <ul className="flex flex-col gap-1.5">
                 {files.map((file, i) => (

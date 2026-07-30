@@ -119,3 +119,50 @@ export const getProfilePdfUrl = query({
     return await ctx.storage.getUrl(profile.pdfStorageId);
   },
 });
+
+export const saveJobMatch = mutation({
+  args: {
+    uploadId: v.id("uploads"),
+    matchScore: v.number(),
+    matchedKeywords: v.array(v.string()),
+    missingKeywords: v.array(v.string()),
+    gapAnalysis: v.string(),
+    tailoredBullets: v.array(v.string()),
+    workerSecret: v.string(),
+  },
+  handler: async (ctx, { uploadId, workerSecret, ...fields }) => {
+    // Require worker secret verification
+    const validSecret = process.env.WORKER_SECRET;
+    if (!validSecret || workerSecret !== validSecret) {
+      throw new Error("Unauthorized: Invalid worker secret");
+    }
+
+    const existing = await ctx.db
+      .query("jobMatches")
+      .withIndex("by_upload", (q) => q.eq("uploadId", uploadId))
+      .first();
+
+    if (existing) {
+      await ctx.db.replace(existing._id, { uploadId, ...fields });
+      return existing._id;
+    }
+
+    return await ctx.db.insert("jobMatches", { uploadId, ...fields });
+  },
+});
+
+export const getJobMatch = query({
+  args: {
+    uploadId: v.id("uploads"),
+    sessionId: v.string(),
+  },
+  handler: async (ctx, { uploadId, sessionId }) => {
+    const upload = await ownedUpload(ctx.db, uploadId, sessionId);
+    if (!upload) return null;
+
+    return await ctx.db
+      .query("jobMatches")
+      .withIndex("by_upload", (q) => q.eq("uploadId", uploadId))
+      .first();
+  },
+});

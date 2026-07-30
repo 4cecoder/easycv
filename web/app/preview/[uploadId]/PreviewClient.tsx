@@ -79,6 +79,10 @@ export function PreviewClient({
     uploadId: uploadId as Id<"uploads">,
     sessionId,
   });
+  const jobMatch = useQuery(api.profiles.getJobMatch, {
+    uploadId: uploadId as Id<"uploads">,
+    sessionId,
+  });
 
   const [template, setTemplate] = useState<"modern" | "classic" | "minimal">("modern");
   const [fontSize, setFontSize] = useState<"sm" | "base" | "lg">("base");
@@ -454,7 +458,7 @@ export function PreviewClient({
         </CardContent>
       </Card>
 
-      <JobMatchWidget uploadId={uploadId} />
+      <JobMatchWidget uploadId={uploadId} initialMatch={jobMatch ?? undefined} />
 
       <Card className="border-primary/20 bg-primary/[0.03]">
         <CardContent className="flex flex-col items-center gap-3 py-2 text-center">

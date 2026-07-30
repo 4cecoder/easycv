@@ -256,6 +256,26 @@ def process_upload(client: ConvexClient, convex_url: str, worker_secret: str, up
             "qualityCritical": result["score"]["critical"],
         })
 
+        # Check if user provided an optional job description to auto-tailor/match on upload
+        upload = client.query(
+            "uploads:getUploadForWorker",
+            {"uploadId": upload_id, "workerSecret": worker_secret},
+        )
+        if upload and upload.get("jobDescription"):
+            job_desc = upload["jobDescription"]
+            if isinstance(job_desc, str) and job_desc.strip():
+                match_res = pipeline.llm_match_job(llm_client, result["profile"], job_desc)
+                if match_res:
+                    client.mutation("profiles:saveJobMatch", {
+                        "uploadId": upload_id,
+                        "matchScore": int(match_res.get("matchScore", 50)),
+                        "matchedKeywords": list(match_res.get("matchedKeywords", [])),
+                        "missingKeywords": list(match_res.get("missingKeywords", [])),
+                        "gapAnalysis": str(match_res.get("gapAnalysis", "")),
+                        "tailoredBullets": list(match_res.get("tailoredBullets", [])),
+                        "workerSecret": worker_secret,
+                    })
+
         if result["pdf_path"]:
             pdf_storage_id = upload_bytes_to_convex(client, convex_url, result["pdf_path"], "application/pdf")
             client.mutation("profiles:setProfilePdf", {"uploadId": upload_id, "pdfStorageId": pdf_storage_id})

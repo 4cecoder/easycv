@@ -45,30 +45,13 @@ export default defineSchema({
   // Auth (google-oauth) is a separate, deferred item.
   uploads: defineTable({
     sessionId: v.string(),
-    // "queued" (waiting for a worker) | "processing" (a worker claimed it) |
-    // "ready" (structuredProfiles row exists) | "error" (failed after
-    // bounded retries -- see errorMessage). Consolidation runs in a
-    // separate long-lived worker process (worker.py), not inside any
-    // Next.js API route or Convex function -- both have hard execution
-    // time limits far below what LLM extraction can take, especially
-    // against a local/self-hosted model. The web tier only ever queues.
     status: v.string(),
-    // Set only when status is "error" -- a short, user-facing reason
-    // (never a raw stack trace/internal detail).
     errorMessage: v.optional(v.string()),
-    // How many processing attempts the worker has made on this upload.
-    // The worker enforces its own hard retry ceiling using this -- exists
-    // on the row (not just in worker memory) so a restarted worker doesn't
-    // lose count and retry forever across restarts.
     attempts: v.number(),
-    // Set each time claimNextQueued transitions this row to "processing" --
-    // deliberately NOT the same as createdAt (which is set once, at
-    // creation). A job claimed shortly after being created would look
-    // immediately stale if staleness were measured from createdAt instead,
-    // and a second worker could then claim and process the same job
-    // concurrently.
     processingStartedAt: v.optional(v.number()),
     createdAt: v.number(),
+    jobDescription: v.optional(v.string()),
+    jobLink: v.optional(v.string()),
   }).index("by_status", ["status"]),
 
   // Mirrors pipeline.py's FoundFile dataclass (pipeline.py:77-84). Raw bytes
@@ -109,6 +92,15 @@ export default defineSchema({
     qualityCritical: v.boolean(),
     // Set once a PDF has been compiled — the download gate serves this.
     pdfStorageId: v.optional(v.id("_storage")),
+  }).index("by_upload", ["uploadId"]),
+
+  jobMatches: defineTable({
+    uploadId: v.id("uploads"),
+    matchScore: v.number(),
+    matchedKeywords: v.array(v.string()),
+    missingKeywords: v.array(v.string()),
+    gapAnalysis: v.string(),
+    tailoredBullets: v.array(v.string()),
   }).index("by_upload", ["uploadId"]),
 
   payments: defineTable({

@@ -88,9 +88,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const jobDescription = (formData.get("jobDescription") as string) || undefined;
+    const jobLink = (formData.get("jobLink") as string) || undefined;
     const sessionId = request.cookies.get(SESSION_COOKIE)?.value ?? randomUUID();
     const convex = getConvexClient();
-    const uploadId = await convex.mutation(api.uploads.createUpload, { sessionId });
+    const uploadId = await convex.mutation(api.uploads.createUpload, {
+      sessionId,
+      jobDescription,
+      jobLink,
+    });
 
     for (const file of files) {
       const ext = path.extname(file.name).toLowerCase();

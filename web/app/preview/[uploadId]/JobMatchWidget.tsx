@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AlertCircle, CheckCircle2, HelpCircle, Loader2, Sparkles } from "lucide-react";
 import { Button, Card, CardContent, CardHeader, Badge, Alert, AlertDescription } from "@bytecats/ui-kit";
 
@@ -12,11 +12,17 @@ type MatchResult = {
   tailoredBullets: string[];
 };
 
-export function JobMatchWidget({ uploadId }: { uploadId: string }) {
+export function JobMatchWidget({ uploadId, initialMatch }: { uploadId: string; initialMatch?: MatchResult }) {
   const [jobDescription, setJobDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<MatchResult | null>(null);
+  const [result, setResult] = useState<MatchResult | null>(initialMatch || null);
+
+  useEffect(() => {
+    if (initialMatch) {
+      setResult(initialMatch);
+    }
+  }, [initialMatch]);
 
   async function handleAnalyze() {
     if (!jobDescription.trim()) {

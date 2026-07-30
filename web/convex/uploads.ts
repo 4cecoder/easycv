@@ -6,8 +6,10 @@ import { requireWorkerSecret } from "./workerAuth";
 export const createUpload = mutation({
   args: {
     sessionId: v.string(),
+    jobDescription: v.optional(v.string()),
+    jobLink: v.optional(v.string()),
   },
-  handler: async (ctx, { sessionId }) => {
+  handler: async (ctx, { sessionId, jobDescription, jobLink }) => {
     // Deliberately NOT "queued" yet -- the upload route creates this row
     // before it has finished attaching resumeFiles (each is its own
     // mutation + a Convex storage upload in between). "queued" is what
@@ -22,6 +24,8 @@ export const createUpload = mutation({
       status: "uploading",
       attempts: 0,
       createdAt: Date.now(),
+      jobDescription,
+      jobLink,
     });
     return uploadId;
   },
@@ -172,5 +176,13 @@ export const markAttemptFailed = mutation({
     } else {
       await ctx.db.patch(uploadId, { status: "queued", errorMessage: reason });
     }
+  },
+});
+
+export const getUploadForWorker = query({
+  args: { uploadId: v.id("uploads"), workerSecret: v.string() },
+  handler: async (ctx, { uploadId, workerSecret }) => {
+    requireWorkerSecret(workerSecret);
+    return await ctx.db.get(uploadId);
   },
 });
