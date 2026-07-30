@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { 
   BarChart3, 
   DollarSign, 
@@ -12,7 +13,7 @@ import {
   CheckCircle2,
   FileDown
 } from "lucide-react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 
 type StripeMetrics = {
@@ -36,6 +37,13 @@ export default function AdminDashboard() {
   const [authError, setAuthError] = useState("");
   const [metrics, setMetrics] = useState<StripeMetrics | null>(null);
   const [loadingMetrics, setLoadingMetrics] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+
+  const uploads = useQuery(api.admin.listAllUploads, { passcode: isAuthorized ? password : "" }) || [];
+  const bypassPaymentMutation = useMutation(api.admin.bypassPayment);
+  const deleteUploadMutation = useMutation(api.admin.deleteUpload);
+  const retryUploadMutation = useMutation(api.admin.retryUpload);
 
   function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -68,6 +76,44 @@ export default function AdminDashboard() {
       })
       .catch(() => setLoadingMetrics(false));
   }
+
+  async function handleBypassPayment(uploadId: any) {
+    setActionLoading(`bypass-${uploadId}`);
+    try {
+      await bypassPaymentMutation({ passcode: password, uploadId });
+      alert("Payment bypassed successfully!");
+    } catch (err: any) {
+      alert(`Bypass failed: ${err.message}`);
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleRetry(uploadId: any) {
+    setActionLoading(`retry-${uploadId}`);
+    try {
+      await retryUploadMutation({ passcode: password, uploadId });
+      alert("Upload status reset to queued!");
+    } catch (err: any) {
+      alert(`Retry failed: ${err.message}`);
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleDelete(uploadId: any) {
+    if (!confirm("Are you sure you want to delete this upload and all associated records?")) return;
+    setActionLoading(`delete-${uploadId}`);
+    try {
+      await deleteUploadMutation({ passcode: password, uploadId });
+      alert("Upload deleted successfully!");
+    } catch (err: any) {
+      alert(`Delete failed: ${err.message}`);
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
 
   if (!isAuthorized) {
     return (
@@ -228,6 +274,136 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Uploads and Workers Queue Manager */}
+      <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+        <div className="flex items-center justify-between pb-4 border-b">
+          <div>
+            <h2 className="text-lg font-bold tracking-tight">Active CV Uploads & Jobs Queue</h2>
+            <p className="text-xs text-muted-foreground">Manage processing pipeline, bypass payments, or delete records.</p>
+          </div>
+          <span className="rounded bg-muted px-2.5 py-1 text-xs font-semibold">{uploads.length} uploads found</span>
+        </div>
+
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-border text-muted-foreground uppercase tracking-wider font-semibold">
+                <th className="py-3 px-2">Created</th>
+                <th className="py-3 px-2">Upload ID</th>
+                <th className="py-3 px-2">Files</th>
+                <th className="py-3 px-2">Worker Status</th>
+                <th className="py-3 px-2">Attempts</th>
+                <th className="py-3 px-2">Quality</th>
+                <th className="py-3 px-2">Payment Status</th>
+                <th className="py-3 px-2 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {uploads.length > 0 ? (
+                uploads.map((u: any) => {
+                  const hasPaid = u.payments?.some((p: any) => p.status === "paid");
+                  const activePayment = u.payments?.find((p: any) => p.status === "paid") || u.payments?.[0];
+                  return (
+                    <tr key={u._id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                      <td className="py-3 px-2 whitespace-nowrap text-muted-foreground">
+                        {new Date(u.createdAt).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-2 font-mono text-muted-foreground">
+                        <Link href={`/preview/${u._id}`} target="_blank" className="hover:underline text-primary">
+                          {u._id.substring(0, 8)}...
+                        </Link>
+                      </td>
+                      <td className="py-3 px-2 max-w-[150px] truncate" title={u.resumeFiles?.map((f: any) => f.filename).join(", ")}>
+                        {u.resumeFiles && u.resumeFiles.length > 0 ? (
+                          <div className="flex flex-col gap-0.5">
+                            {u.resumeFiles.map((f: any, idx: number) => (
+                              <span key={idx} className="block truncate text-foreground/80 font-medium">
+                                📄 {f.filename} ({f.sizeKb}kb)
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground italic">No files</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-2">
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+                          u.status === "ready" ? "bg-green-500/10 text-green-500" :
+                          u.status === "processing" ? "bg-blue-500/10 text-blue-500 animate-pulse" :
+                          u.status === "error" ? "bg-red-500/10 text-red-500" :
+                          u.status === "queued" ? "bg-amber-500/10 text-amber-500" :
+                          "bg-muted text-muted-foreground"
+                        }`}>
+                          {u.status}
+                        </span>
+                        {u.errorMessage && (
+                          <p className="text-[10px] text-red-400 mt-1 max-w-[150px] truncate" title={u.errorMessage}>
+                            Err: {u.errorMessage}
+                          </p>
+                        )}
+                      </td>
+                      <td className="py-3 px-2 font-mono">{u.attempts}</td>
+                      <td className="py-3 px-2">
+                        {u.structuredProfile ? (
+                          <span className={`font-semibold ${u.structuredProfile.qualityCritical ? "text-red-500" : "text-foreground"}`}>
+                            {u.structuredProfile.qualityScore}/{u.structuredProfile.qualityMaxScore}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground italic">&mdash;</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-2">
+                        <span className={`inline-flex items-center rounded px-1.5 py-0.5 font-medium ${
+                          hasPaid ? "bg-green-500/10 text-green-500" : "bg-amber-500/10 text-amber-500"
+                        }`}>
+                          {hasPaid ? "Paid" : activePayment ? activePayment.status : "Unpaid"}
+                        </span>
+                      </td>
+                      <td className="py-3 px-2 text-right">
+                        <div className="flex justify-end gap-1.5">
+                          {!hasPaid && (
+                            <button
+                              disabled={actionLoading !== null}
+                              onClick={() => handleBypassPayment(u._id)}
+                              className="rounded bg-green-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+                            >
+                              {actionLoading === `bypass-${u._id}` ? "Bypassing..." : "Bypass Pay"}
+                            </button>
+                          )}
+                          {(u.status === "error" || u.status === "processing") && (
+                            <button
+                              disabled={actionLoading !== null}
+                              onClick={() => handleRetry(u._id)}
+                              className="rounded border border-border bg-card px-2 py-1 text-[10px] font-semibold text-foreground hover:bg-muted disabled:opacity-50"
+                            >
+                              {actionLoading === `retry-${u._id}` ? "Retrying..." : "Retry"}
+                            </button>
+                          )}
+                          <button
+                            disabled={actionLoading !== null}
+                            onClick={() => handleDelete(u._id)}
+                            className="rounded bg-destructive px-2 py-1 text-[10px] font-semibold text-destructive-foreground hover:opacity-95 disabled:opacity-50"
+                          >
+                            {actionLoading === `delete-${u._id}` ? "Deleting..." : "Delete"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={8} className="py-6 text-center text-muted-foreground">
+                    No uploads in system or incorrect admin password.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </main>
   );
 }
+
