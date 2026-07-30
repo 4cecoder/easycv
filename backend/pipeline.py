@@ -40,8 +40,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-import latex
-import ste100
+from backend import latex
+from backend import ste100
 
 
 # ── Config ─────────────────────────────────────

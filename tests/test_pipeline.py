@@ -34,10 +34,10 @@ from unittest.mock import MagicMock, PropertyMock, patch, mock_open
 
 # ── Import the pipeline module ──────────────────────────────────────────────
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import pipeline
-import latex
-from latex import escape_latex, render_latex, compile_pdf
-from pipeline import (
+import backend.pipeline as pipeline
+import backend.latex as latex
+from backend.latex import escape_latex, render_latex, compile_pdf
+from backend.pipeline import (
     # Helpers
     slug,
     classify,
@@ -281,7 +281,7 @@ class TestHelpers(unittest.TestCase):
 
     # ── extract_person ────────────────────────────────────────────────────
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_extract_person_with_years(self, _):
         """Years are stripped before name extraction."""
         result = extract_person("john_doe_2024_cv.pdf")
@@ -289,21 +289,21 @@ class TestHelpers(unittest.TestCase):
         # 'john doe' after year removal → 'John Doe'
         self.assertIn("John", result)
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_extract_person_no_year(self, _):
         """Name extracted without year suffixes."""
         result = extract_person("alice smith_resume.pdf")
         self.assertEqual(result, "Alice Smith")
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_extract_person_with_alias(self, _):
         """Alias lookup overrides extracted name."""
-        with patch("pipeline._load_aliases",
+        with patch("backend.pipeline._load_aliases",
                    return_value={"alice smith": "Alice B. Smith"}):
             result = extract_person("alice smith_resume.pdf")
             self.assertEqual(result, "Alice B. Smith")
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_extract_person_various_formats(self, _):
         cases = [
             # (filename, expected_substring)
@@ -318,7 +318,7 @@ class TestHelpers(unittest.TestCase):
                 if result is not None:
                     self.assertIn(expected, result)
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_extract_person_none_for_unrelated(self, _):
         """Files without name patterns return None."""
         # "notes.txt" falls through to the split fallback which treats
@@ -326,7 +326,7 @@ class TestHelpers(unittest.TestCase):
         result = extract_person("123_cv.pdf")
         self.assertIsNone(result)
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_extract_person_edge_chars(self, _):
         """Special characters in filenames are handled."""
         result = extract_person("john-doe_cv.pdf")
@@ -369,7 +369,7 @@ class TestScan(unittest.TestCase):
 
     # ── scan_directories ──────────────────────────────────────────────────
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_scan_directories(self, _):
         """Temp dirs with CV files produce correct bundles."""
         root = self.tmp.name
@@ -394,13 +394,13 @@ class TestScan(unittest.TestCase):
         self.assertEqual(len(bundles["Bob Jones"].files), 1)
         self.assertEqual(len(bundles), 2)
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_scan_empty_dir(self, _):
         """Empty directory returns empty bundles dict."""
         bundles = scan_directories([self.tmp.name])
         self.assertEqual(bundles, {})
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     @unittest.skipIf(not hasattr(os, "symlink"), "os.symlink not available")
     def test_scan_dedup_symlink(self, _):
         """Same real file discovered via two paths (symlink) is counted once."""
@@ -423,7 +423,7 @@ class TestScan(unittest.TestCase):
         self.assertIn("Alice Smith", bundles)
         self.assertEqual(len(bundles["Alice Smith"].files), 1)
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_scan_skips_hidden_dirs(self, _):
         """Directories starting with '.' are skipped."""
         root = self.tmp.name
@@ -434,7 +434,7 @@ class TestScan(unittest.TestCase):
         bundles = scan_directories([root])
         self.assertEqual(bundles, {})
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_scan_skips_system_dirs(self, _):
         """System dirs like node_modules are skipped."""
         root = self.tmp.name
@@ -445,7 +445,7 @@ class TestScan(unittest.TestCase):
         bundles = scan_directories([root])
         self.assertEqual(bundles, {})
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_scan_invalid_ext_skipped(self, _):
         """Files with extensions not in VALID_EXT are skipped."""
         root = self.tmp.name
@@ -455,7 +455,7 @@ class TestScan(unittest.TestCase):
         bundles = scan_directories([root])
         self.assertEqual(bundles, {})
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_scan_non_cv_name_skipped(self, _):
         """Files whose names don't match CV_PATTERNS are skipped."""
         root = self.tmp.name
@@ -465,7 +465,7 @@ class TestScan(unittest.TestCase):
         bundles = scan_directories([root])
         self.assertEqual(bundles, {})
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_scan_nonexistent_dir_warn(self, _):
         """Non-existent directory produces a warning but no crash."""
         bundles = scan_directories(["/nonexistent_path_xyz123"])
@@ -473,7 +473,7 @@ class TestScan(unittest.TestCase):
 
     # ── _merge_bundles ────────────────────────────────────────────────────
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_merge_bundles_identity(self, _):
         """Without aliases, bundles pass through unchanged (except sorting)."""
         b1 = PersonBundle(name="Alice Smith")
@@ -485,7 +485,7 @@ class TestScan(unittest.TestCase):
         self.assertIn("Alice Smith", merged)
         self.assertEqual(len(merged["Alice Smith"].files), 1)
 
-    @patch("pipeline._load_aliases",
+    @patch("backend.pipeline._load_aliases",
            return_value={"alice smith": "Alice Canonical"})
     def test_merge_bundles_alias(self, _):
         """Aliased keys merge into the canonical name."""
@@ -499,7 +499,7 @@ class TestScan(unittest.TestCase):
         self.assertNotIn("alice smith", merged)
         self.assertEqual(len(merged["Alice Canonical"].files), 1)
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_merge_bundles_unknown_merged(self, _):
         """Unknown files merge into the person with the most files."""
         alice = PersonBundle(name="Alice Smith")
@@ -598,7 +598,7 @@ class TestExtract(unittest.TestCase):
 
     # ── extract_all ───────────────────────────────────────────────────────
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_extract_all_populates_texts(self, _):
         """extract_all fills extracted_texts for each bundle."""
         root = self.tmp.name
@@ -625,7 +625,7 @@ class TestOrganize(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_organize_files(self, _):
         """Files are copied into 'resources/{slug(person)}/' directories."""
         root = self.tmp.name
@@ -654,7 +654,7 @@ class TestOrganize(unittest.TestCase):
         bob_dest = os.path.join(bob_dir, os.path.basename(bob_file))
         self.assertTrue(os.path.isfile(bob_dest))
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_organize_dedup(self, _):
         """Duplicate filenames get a '_dup' suffix appended."""
         root = self.tmp.name
@@ -684,7 +684,7 @@ class TestOrganize(unittest.TestCase):
         with open(second) as f:
             self.assertEqual(f.read(), "second version")
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_organize_dry_run_no_files_copied(self, _):
         """Dry run should not create any files."""
         root = self.tmp.name
@@ -1239,7 +1239,7 @@ class TestIntegration(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_full_pipeline(self, _):
         """
         Full pipeline (scan → organize → extract → verify structure).
@@ -1319,7 +1319,7 @@ class TestIntegration(unittest.TestCase):
 
         # ── STEP 5: Cleanup handled by TemporaryDirectory ──
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_pipeline_with_llm_mock(self, _):
         """End-to-end test including mock LLM consolidation and resume."""
         root = self.tmp.name
@@ -1373,7 +1373,7 @@ class TestIntegration(unittest.TestCase):
         # README summary is written by summary_report() (called from run()),
         # not by llm_process_all() — skip that assertion here.
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_pipeline_empty_no_crash(self, _):
         """Pipeline with no CV files completes gracefully."""
         root = self.tmp.name
@@ -1385,7 +1385,7 @@ class TestIntegration(unittest.TestCase):
         # organize_files on empty bundles should not crash
         organize_files(bundles, output_dir)
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_pipeline_dedup_across_dirs(self, _):
         """
         Same person, same filename across dirs results in _dup suffix
@@ -1613,7 +1613,7 @@ class TestCompilePdf(unittest.TestCase):
             f.write(r"\documentclass{article}\begin{document}x\end{document}")
         return tex_path
 
-    @patch("latex.subprocess.run")
+    @patch("backend.latex.subprocess.run")
     def test_compile_success(self, mock_run):
         tex_path = self._write_tex()
         pdf_path = os.path.join(self.tmp.name, "resume.pdf")
@@ -1633,7 +1633,7 @@ class TestCompilePdf(unittest.TestCase):
         self.assertIn("-no-shell-escape", called_args)
         self.assertNotIn("shell", kwargs)  # never shell=True
 
-    @patch("latex.subprocess.run")
+    @patch("backend.latex.subprocess.run")
     def test_compile_pdflatex_not_installed(self, mock_run):
         mock_run.side_effect = FileNotFoundError()
         tex_path = self._write_tex()
@@ -1642,7 +1642,7 @@ class TestCompilePdf(unittest.TestCase):
 
         self.assertIsNone(result)
 
-    @patch("latex.subprocess.run")
+    @patch("backend.latex.subprocess.run")
     def test_compile_timeout(self, mock_run):
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="pdflatex", timeout=30)
         tex_path = self._write_tex()
@@ -1651,7 +1651,7 @@ class TestCompilePdf(unittest.TestCase):
 
         self.assertIsNone(result)
 
-    @patch("latex.subprocess.run")
+    @patch("backend.latex.subprocess.run")
     def test_compile_nonzero_exit_returns_none(self, mock_run):
         mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="! Undefined control sequence")
         tex_path = self._write_tex()
@@ -1660,7 +1660,7 @@ class TestCompilePdf(unittest.TestCase):
 
         self.assertIsNone(result)
 
-    @patch("latex.subprocess.run")
+    @patch("backend.latex.subprocess.run")
     def test_compile_uses_timeout_kwarg(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         tex_path = self._write_tex()
@@ -1939,7 +1939,7 @@ class TestPipelineLatexWiring(unittest.TestCase):
             "# Alice Resume\n\nSkills: Python",
         ]
 
-        with patch("latex.compile_pdf", return_value=None) as mock_compile:
+        with patch("backend.latex.compile_pdf", return_value=None) as mock_compile:
             llm_process_all({"Alice Smith": bundle}, output, mock_client, resume_format="latex")
 
         tex_path = os.path.join(output, "latex", "alice-smith_resume.tex")
@@ -2143,7 +2143,7 @@ class TestRedetectCommand(unittest.TestCase):
         rc = redetect_command(self.output)
         self.assertEqual(rc, 1)
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_no_changes_when_already_matching(self, _):
         # extract_person("alice-smith_cv.txt") -> "Alice-smith" -> slug "alice-smith",
         # which matches the directory it's already organized under.
@@ -2153,7 +2153,7 @@ class TestRedetectCommand(unittest.TestCase):
         # File untouched.
         self.assertTrue(os.path.isfile(os.path.join(self.output, "resources", "alice-smith", "alice-smith_cv.txt")))
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_dry_run_reports_but_does_not_move(self, _):
         # File organized under the wrong slug -- extract_person("alice_cv.txt") resolves to "alice".
         _make_file(self.output, os.path.join("resources", "wrongname", "alice_cv.txt"), "content")
@@ -2167,7 +2167,7 @@ class TestRedetectCommand(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(self.output, "resources", "wrongname", "alice_cv.txt")))
         self.assertFalse(os.path.isdir(os.path.join(self.output, "resources", "alice")))
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_apply_moves_file_and_prunes_empty_dir(self, _):
         _make_file(self.output, os.path.join("resources", "wrongname", "alice_cv.txt"), "content")
         rc = redetect_command(self.output, apply=True)
@@ -2178,7 +2178,7 @@ class TestRedetectCommand(unittest.TestCase):
         # Old dir pruned since it's now empty.
         self.assertFalse(os.path.isdir(os.path.join(self.output, "resources", "wrongname")))
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_apply_dedupes_on_collision(self, _):
         # Two mis-organized files that both detect to "alice" and share a filename.
         _make_file(self.output, os.path.join("resources", "wrongname1", "alice_cv.txt"), "v1")
@@ -2190,7 +2190,7 @@ class TestRedetectCommand(unittest.TestCase):
         files = sorted(os.listdir(alice_dir))
         self.assertEqual(files, ["alice_cv.txt", "alice_cv_dup.txt"])
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_stray_non_cv_file_ignored(self, _):
         # Non-CV junk (e.g. a stray .DS_Store or README.md) sitting inside a
         # person's resources/ dir must never be treated as a filename to
@@ -2219,7 +2219,7 @@ class TestRedetectCommand(unittest.TestCase):
         self.assertFalse(os.path.isdir(os.path.join(self.output, "resources", "hidden-txt")))
         self.assertFalse(os.path.isdir(os.path.join(self.output, "resources", "readme")))
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_stray_file_alongside_real_mismatch_only_moves_the_real_one(self, _):
         # A directory mixing a legitimately mis-detected CV file with junk:
         # only the CV file should move.
@@ -2333,7 +2333,7 @@ class TestConsolidateStdinCommand(unittest.TestCase):
         mock_client.chat.return_value = chat_return
         return mock_client
 
-    @patch("latex.compile_pdf")
+    @patch("backend.latex.compile_pdf")
     def test_stdout_is_exactly_one_json_line_with_expected_keys(self, mock_compile):
         mock_compile.return_value = "/tmp/fake/alice-smith_resume.pdf"
         mock_client = self._mock_client(json.dumps({
@@ -2365,7 +2365,7 @@ class TestConsolidateStdinCommand(unittest.TestCase):
         self.assertNotIn("[llm]", out)
         self.assertNotIn("[warn]", out)
 
-    @patch("latex.compile_pdf", return_value=None)
+    @patch("backend.latex.compile_pdf", return_value=None)
     def test_pdf_path_null_when_compile_fails(self, mock_compile):
         mock_client = self._mock_client(json.dumps({
             "name": "Alice Smith", "skills": {"languages": ["Python"]}, "experience": [],
@@ -2377,7 +2377,7 @@ class TestConsolidateStdinCommand(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIsNone(payload["pdf_path"])
 
-    @patch("latex.compile_pdf", return_value=None)
+    @patch("backend.latex.compile_pdf", return_value=None)
     def test_tmp_dir_always_reported_even_when_pdf_compile_fails(self, mock_compile):
         # Regression test: tmp_dir must be reported even when pdf_path is
         # null, since it's the only way the caller can find and clean up the
@@ -2400,7 +2400,7 @@ class TestConsolidateStdinCommand(unittest.TestCase):
         self.assertEqual(len(tex_files), 1, f"expected exactly one .tex file, found: {tex_files}")
         shutil.rmtree(payload["tmp_dir"], ignore_errors=True)
 
-    @patch("latex.compile_pdf", return_value=None)
+    @patch("backend.latex.compile_pdf", return_value=None)
     def test_non_json_llm_response_falls_back_to_raw(self, mock_compile):
         mock_client = self._mock_client("not valid json at all")
         buf = io.StringIO()
@@ -2411,7 +2411,7 @@ class TestConsolidateStdinCommand(unittest.TestCase):
         self.assertIn("_raw", payload["profile"])
         self.assertTrue(payload["score"]["critical"])
 
-    @patch("latex.compile_pdf", return_value=None)
+    @patch("backend.latex.compile_pdf", return_value=None)
     def test_no_extractable_text_falls_back_to_raw_without_calling_llm(self, mock_compile):
         # A .txt file with an unreadable path would still extract fine, so
         # simulate "no extractable text" via an unsupported extension instead.
@@ -2425,7 +2425,7 @@ class TestConsolidateStdinCommand(unittest.TestCase):
         self.assertIn("_raw", payload["profile"])
         mock_client.chat.assert_not_called()
 
-    @patch("latex.compile_pdf", return_value=None)
+    @patch("backend.latex.compile_pdf", return_value=None)
     def test_cli_wiring(self, mock_compile):
         mock_client = MagicMock(spec=LLMClient)
         mock_client.provider = "anthropic"
@@ -2434,7 +2434,7 @@ class TestConsolidateStdinCommand(unittest.TestCase):
             "name": "Alice Smith", "skills": {"languages": ["Python"]}, "experience": [],
         })
         buf = io.StringIO()
-        with patch("pipeline.LLMClient", return_value=mock_client):
+        with patch("backend.pipeline.LLMClient", return_value=mock_client):
             with patch.object(sys, "argv", ["pipeline.py", "consolidate-stdin", self.cv_path, "--llm", "anthropic"]):
                 with redirect_stdout(buf):
                     with self.assertRaises(SystemExit) as ctx:
@@ -2477,7 +2477,7 @@ class TestRescoreRedetectStatsCLI(unittest.TestCase):
             json.dumps({"name": "Alice Smith", "skills": {"languages": ["Python"]}, "experience": []}),
             "# Alice Smith",
         ]
-        with patch("pipeline.LLMClient", return_value=mock_client):
+        with patch("backend.pipeline.LLMClient", return_value=mock_client):
             with patch.object(sys, "argv", ["pipeline.py", "rescore", "--output", self.output, "--llm", "ollama"]):
                 with self.assertRaises(SystemExit) as ctx:
                     pipeline.main()
@@ -2485,7 +2485,7 @@ class TestRescoreRedetectStatsCLI(unittest.TestCase):
         self.assertTrue(os.path.isfile(
             os.path.join(self.output, "consolidated", "alice-smith_structured.json")))
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_cli_redetect_dry_run_default(self, _):
         _make_file(self.output, os.path.join("resources", "alice-smith", "alice_cv.txt"), "content")
         with patch.object(sys, "argv", ["pipeline.py", "redetect", "--output", self.output]):
@@ -2539,9 +2539,9 @@ class TestConsolidateFiles(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
 
-    @patch("latex.compile_pdf", return_value="/tmp/fake.pdf")
-    @patch("pipeline.llm_consolidate")
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.latex.compile_pdf", return_value="/tmp/fake.pdf")
+    @patch("backend.pipeline.llm_consolidate")
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_happy_path_txt_file(self, _aliases, mock_consolidate, mock_compile):
         """consolidate_files with a .txt file returns expected dict keys."""
         mock_consolidate.return_value = {
@@ -2564,9 +2564,9 @@ class TestConsolidateFiles(unittest.TestCase):
         self.assertIn("score", result["score"])
         self.assertIn("max_score", result["score"])
 
-    @patch("latex.compile_pdf", return_value=None)
-    @patch("pipeline.llm_consolidate")
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.latex.compile_pdf", return_value=None)
+    @patch("backend.pipeline.llm_consolidate")
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_no_extractable_text_path(self, _aliases, mock_consolidate, mock_compile):
         """consolidate_files with a .docx file (no text extraction) falls back to _raw."""
         docx_path = _make_file(self.tmp.name, "bob_jones_cv.docx", "fake docx binary content")
@@ -2594,7 +2594,7 @@ class TestRun(unittest.TestCase):
         self.output = os.path.join(self.tmp.name, "output")
         os.makedirs(self.src)
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_dry_run_no_output_dir_created(self, _):
         """Dry run should not create the output directory."""
         _make_cv_file(self.src, "alice smith", ".txt", "alice cv content")
@@ -2611,16 +2611,16 @@ class TestRun(unittest.TestCase):
                 0, "Dry run should not copy any files"
             )
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_empty_scan_graceful(self, _):
         """run() with no CV files should complete without error."""
         run([self.src], self.output)
         self.assertTrue(True)
 
-    @patch("latex.compile_pdf", return_value=None)
-    @patch("pipeline.llm_generate_resume", return_value="# Alice Smith\n\nSkills: Python")
-    @patch("pipeline.llm_consolidate")
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.latex.compile_pdf", return_value=None)
+    @patch("backend.pipeline.llm_generate_resume", return_value="# Alice Smith\n\nSkills: Python")
+    @patch("backend.pipeline.llm_consolidate")
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_with_llm_mock_creates_output_files(self, _aliases, mock_consolidate, _resume, _compile):
         """With LLM mock, output files should be created."""
         mock_consolidate.return_value = {
@@ -2647,28 +2647,28 @@ class TestRun(unittest.TestCase):
 class TestExtractPersonAdvanced(unittest.TestCase):
     """Additional edge-case tests for extract_person()."""
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_suffix_before_name_cv_john(self, _):
         """CV_John_Doe.pdf -> suffix-before-name pattern."""
         result = extract_person("CV_John_Doe.pdf")
         self.assertIsNotNone(result)
         self.assertIn("John", result)
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_suffix_before_name_cv_john_no_ext(self, _):
         """CV_John.pdf -> single name after suffix."""
         result = extract_person("CV_John.pdf")
         self.assertIsNotNone(result)
         self.assertIn("John", result)
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_linkedin_jane(self, _):
         """linkedin_jane.pdf -> fallback split pattern."""
         result = extract_person("linkedin_jane.pdf")
         self.assertIsNotNone(result)
         self.assertIn("Jane", result)
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_resume_alice_bob(self, _):
         """resume_alice_bob.pdf -> two-word name after suffix.
         Note: _format_name splits on whitespace, not underscores,
@@ -2678,7 +2678,7 @@ class TestExtractPersonAdvanced(unittest.TestCase):
         self.assertIn("Alice", result)
         self.assertIn("bob", result.lower())
 
-    @patch("pipeline._load_aliases", return_value={})
+    @patch("backend.pipeline._load_aliases", return_value={})
     def test_profile_marie_curie(self, _):
         """profile_marie_curie.pdf -> multi-word name.
         _format_name capitalizes first letter of each whitespace-separated
@@ -2695,7 +2695,7 @@ class TestExtractPersonAdvanced(unittest.TestCase):
 class TestLoadConfig(unittest.TestCase):
     """Tests for _load_config()."""
 
-    @patch("pipeline.CONFIG_PATH", "/nonexistent/path/config.json")
+    @patch("backend.pipeline.CONFIG_PATH", "/nonexistent/path/config.json")
     def test_missing_config_returns_empty(self):
         """Missing config file returns empty dict."""
         result = _load_config()
@@ -2710,7 +2710,7 @@ class TestLoadConfig(unittest.TestCase):
             f.write(cfg_content)
             cfg_path = f.name
         try:
-            with patch("pipeline.CONFIG_PATH", cfg_path):
+            with patch("backend.pipeline.CONFIG_PATH", cfg_path):
                 result = _load_config()
             self.assertEqual(result["provider"], "openai")
             self.assertEqual(result["model"], "gpt-4o")
@@ -2724,7 +2724,7 @@ class TestLoadConfig(unittest.TestCase):
             f.write("{invalid json!!!")
             cfg_path = f.name
         try:
-            with patch("pipeline.CONFIG_PATH", cfg_path):
+            with patch("backend.pipeline.CONFIG_PATH", cfg_path):
                 result = _load_config()
             self.assertEqual(result, {})
         finally:
@@ -2737,7 +2737,7 @@ class TestLoadConfig(unittest.TestCase):
             f.write(cfg_content)
             cfg_path = f.name
         try:
-            with patch("pipeline.CONFIG_PATH", cfg_path):
+            with patch("backend.pipeline.CONFIG_PATH", cfg_path):
                 result = _load_config()
             self.assertEqual(result, {})
         finally:

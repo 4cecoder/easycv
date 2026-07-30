@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-easycv = "pipeline:main"
+easycv = "backend.pipeline:main"
 
 [dependency-groups]
 dev = ["pytest>=8.0"]

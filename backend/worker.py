@@ -29,8 +29,8 @@ the job; the natural poll interval between claims acts as backoff. This
 process never retries a single upload in a tight loop.
 
 Usage:
-    uv run python worker.py
-    uv run python worker.py --poll-interval 5 --convex-url http://127.0.0.1:3210
+    uv run python -m backend.worker
+    uv run python -m backend.worker --poll-interval 5 --convex-url http://127.0.0.1:3210
 
 Config (env vars, loaded from web/.env.local if present -- same file
 Next.js itself reads -- explicit env vars always take precedence):
@@ -55,15 +55,15 @@ import requests
 from convex import ConvexClient
 from dotenv import load_dotenv
 
-import pipeline
-from pipeline import LLMClient
+from backend import pipeline
+from backend.pipeline import LLMClient
 
 DEFAULT_POLL_INTERVAL = 3  # seconds between claim attempts when idle
 DOWNLOAD_TIMEOUT = 60  # seconds, per resume file fetched from Convex storage
 
 
 def load_config() -> tuple[str, str]:
-    env_path = Path(__file__).parent / "web" / ".env.local"
+    env_path = Path(__file__).parent.parent / "web" / ".env.local"
     if env_path.exists():
         # override=True deliberately: web/.env.local is this project's own
         # canonical local config, not incidental ambient shell state.

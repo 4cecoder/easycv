@@ -1,0 +1,87 @@
+# =============================================================================
+# easyCV — Netlify Deployment Configuration (Next.js 16 App Router)
+# =============================================================================
+# Netlify auto-detects Next.js 16 and provisions the OpenNext adapter without
+# any manual plugin setup. This file pins build settings, documents required
+# environment variables, and configures function timeouts / redirects.
+# =============================================================================
+
+[build]
+  command = "bun run build"
+  publish = ".next"
+
+# ── Environment variables ────────────────────────────────────────────────────
+# Set these in the Netlify dashboard (Site Settings → Environment Variables).
+# .env.local / .env are NEVER committed — only .env.example with placeholder
+# values lives in the repo.  Variables prefixed NEXT_PUBLIC_ are also exposed
+# to client-side code; the rest are server-only.
+#
+# [build.environment]
+#   # Convex
+#   NEXT_PUBLIC_CONVEX_URL         = "https://<your-deployment>.convex.cloud"
+#   CONVEX_URL                     = "https://<your-deployment>.convex.cloud"
+#   CONVEX_SITE_URL                = "https://<your-deployment>.convex.site"
+#
+#   # Stripe (one-time Checkout)
+#   STRIPE_SECRET_KEY              = "sk_live_..."
+#   STRIPE_WEBHOOK_SECRET          = "whsec_..."
+#   STRIPE_PRICE_ID                = "price_..."
+#   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = "pk_live_..."
+#   NEXT_PUBLIC_STRIPE_CLIENT_ID   = "ca_..."
+#
+#   # App
+#   APP_URL                        = "https://easycv.example.com"
+#   ADMIN_PASSWORD                 = "<strong-admin-password>"
+#
+#   # Worker (shared secret between Convex and worker.py)
+#   WORKER_SECRET                  = "<openssl rand -hex 32>"
+#
+#   # PostHog analytics (optional — app still works without it)
+#   NEXT_PUBLIC_POSTHOG_KEY        = "phc_..."
+#   NEXT_PUBLIC_POSTHOG_HOST       = "https://us.i.posthog.com"
+#
+#   # LLM provider (job-match endpoint; defaults to "ollama" if unset)
+#   LLM_PROVIDER                   = "ollama"
+#   LLM_MODEL                      = ""
+#   OLLAMA_API_BASE                = ""
+
+# ── Serverless function defaults ─────────────────────────────────────────────
+# Next.js API routes and SSR pages run as Netlify Functions when deployed.
+# The upload route warns in its source that consolidation can take 90-300+ s
+# (that work is offloaded to a long-lived worker.py process), but API routes
+# in general need more headroom than the default 10 s timeout.
+[functions]
+  node_bundler = "esbuild"
+  # 26 s is the maximum Netlify allows on the Pro plan; 10 s is the default.
+  # Bump this if your Convex / Stripe round-trips need more room.  The upload
+  # route itself completes in << 1 s (it just saves files & queues), so this
+  # covers all other API handlers listed below.
+  timeout = 26
+
+# ── Redirect rules ───────────────────────────────────────────────────────────
+# Health-check endpoint for Netlify's built-in monitoring / external uptime
+# probes — returns a lightweight 200 without pulling in the full app shell.
+[[redirects]]
+  from = "/health"
+  to = "/api/health"
+  status = 200
+
+# SPA fallback: any unmatched path (excluding static assets and Next.js
+# internals) is passed to the server-side handler so that App Router pages
+# (e.g. /preview/[uploadId]) render correctly on direct navigation.
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/___netlify-server-handler"
+  status = 200
+
+  [redirects.conditions]
+    Path = ["!/api/*", "!/_next/*", "!/favicon.ico", "!/robots.txt", "!/sitemap.xml"]
+
+# ── Headers (security & caching) ─────────────────────────────────────────────
+# Basic security headers for all routes.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"

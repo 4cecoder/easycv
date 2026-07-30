@@ -1,5 +1,5 @@
 import unittest
-from ste100 import (
+from backend.ste100 import (
     count_words_ste100,
     validate_text_ste100,
     check_british_spelling,

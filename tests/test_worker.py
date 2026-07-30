@@ -26,7 +26,7 @@ Run with:
 
 import unittest
 
-from worker import profile_fields_from
+from backend.worker import profile_fields_from
 
 
 class TestProfileFieldsFrom(unittest.TestCase):
