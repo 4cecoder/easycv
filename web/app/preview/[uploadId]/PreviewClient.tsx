@@ -15,6 +15,7 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { CheckoutButton } from "./CheckoutButton";
 import { JobMatchWidget } from "./JobMatchWidget";
+import { exportHtmlResume } from "./exportHtml";
 import {
   Alert,
   AlertDescription,
@@ -458,24 +459,34 @@ export function PreviewClient({
       <Card className="border-primary/20 bg-primary/[0.03]">
         <CardContent className="flex flex-col items-center gap-3 py-2 text-center">
           {paymentStatus?.paid && paymentStatus.downloadToken ? (
-            <>
-              <p className="text-sm text-muted-foreground">
-                Payment received &mdash; your PDF is ready.
-              </p>
+            <div className="flex flex-col sm:flex-row gap-3 w-full justify-center items-center">
               <Button asChild size="lg" className="w-full sm:w-auto">
                 <a href={`/api/download/${paymentStatus.downloadToken}`}>
                   <Download />
                   Download PDF
                 </a>
               </Button>
-            </>
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => exportHtmlResume(profile, template, fontSize, primaryColor)}
+                className="w-full sm:w-auto border-primary/20 hover:bg-primary/5 text-primary"
+              >
+                Export Standalone HTML (Free)
+              </Button>
+            </div>
           ) : (
-            <>
-              <p className="text-sm text-muted-foreground">
-                Like what you see? Pay once to download the polished PDF.
-              </p>
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full justify-center">
               <CheckoutButton uploadId={uploadId} />
-            </>
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => exportHtmlResume(profile, template, fontSize, primaryColor)}
+                className="w-full sm:w-auto border-primary/20 hover:bg-primary/5 text-primary animate-pulse"
+              >
+                Export Standalone HTML (Free)
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>
