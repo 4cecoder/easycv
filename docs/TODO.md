@@ -44,6 +44,19 @@ Legend: ✅ Done | 🔧 In Progress | ⏳ Pending | ❌ Blocked
 
 ---
 
+## Phase 2b: Automation Pipeline (SHIPPED)
+
+- [x] `automation/steer.py` — CLI: `test`, `tdd`, `refine`, `playwright`, `improve`, `scout`, `status`, `chat`, `ocr`
+- [x] `automation/tdd.py` — TDD loop: run tests → LLM fix failures → re-test
+- [x] `automation/refine.py` — Alibaba OCR (OpenCodeReview) scan + LLM refactor + pytest verify
+- [x] `automation/improve.py` — Parse test failures → LLM suggest fixes
+- [x] `automation/playwright_agent.py` — Dev server → Playwright tests → stop
+- [x] `automation/llm_client.py` — 64k ctx custom endpoint (gentoo llama.cpp / Alibaba Qwen)
+- [x] `automation/scanner.py` — LLM server discovery on local network
+- [x] `automation/pipeline.py` — Test runners (pytest, typecheck, TS build, Playwright)
+
+---
+
 ## Phase 3: Deployment (READY — needs execution)
 
 - [x] `web/netlify.toml` — build config, env var docs, redirects, security headers
