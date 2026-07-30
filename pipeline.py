@@ -638,6 +638,46 @@ def llm_generate_resume(client: LLMClient, name: str, data: dict) -> Optional[st
     return client.chat(messages, max_tokens=2048)
 
 
+LLM_JOB_MATCH_SYSTEM = """You are a professional technical recruiter and career coach.
+Given a candidate's structured resume JSON profile and a target Job Description, perform a deep alignment analysis.
+Produce a structured JSON response with these exact keys:
+- "matchScore": an integer from 0 to 100 representing how well the candidate's skills and experience align with the job description.
+- "matchedKeywords": a list of keywords/skills/technologies mentioned in both the resume and the job description.
+- "missingKeywords": a list of key skills, technologies, or concepts requested in the job description that are missing from the resume.
+- "gapAnalysis": a paragraph summarizing the main experience or tech stack gaps.
+- "tailoredBullets": a list of specific action points or suggestions on how the candidate can modify their experience bullet points to better match this job description.
+
+Response MUST contain only the JSON block (and optionally wrapped in ```json ... ```).
+"""
+
+def llm_match_job(client: LLMClient, profile_data: dict, job_desc: str) -> Optional[dict]:
+    """Compare structured profile data with target job description using LLM."""
+    messages = [
+        {"role": "system", "content": LLM_JOB_MATCH_SYSTEM},
+        {"role": "user", "content": f"Candidate Profile JSON:\n{json.dumps(profile_data, indent=2)}\n\nTarget Job Description:\n{job_desc}"},
+    ]
+    print(f"  [llm] matching job description...")
+    result = client.chat(messages, max_tokens=4096)
+    if not result:
+        return None
+
+    # Try to extract JSON from response
+    json_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", result)
+    text = json_match.group(1) if json_match else result
+    try:
+        parsed = json.loads(text)
+        return parsed
+    except json.JSONDecodeError:
+        print(f"  [warn] LLM returned non-JSON for job match: {result[:200]}...")
+        return {
+            "matchScore": 50,
+            "matchedKeywords": [],
+            "missingKeywords": [],
+            "gapAnalysis": "Failed to parse LLM analysis response as valid JSON.",
+            "tailoredBullets": [f"Raw output: {result}"]
+        }
+
+
 # ── Consolidate & Resume (LLM-powered) ──────────
 
 
@@ -863,6 +903,36 @@ def validate_command(path: str) -> int:
 
     print()
     return exit_code
+
+
+def match_job_command(profile_path: str, job_desc_path: str, client: LLMClient) -> int:
+    """Compare structured profile data with target job description and print JSON analysis."""
+    if not os.path.exists(profile_path):
+        print(f"  [error] profile file not found: {profile_path}")
+        return 1
+    if not os.path.exists(job_desc_path):
+        print(f"  [error] job description file not found: {job_desc_path}")
+        return 1
+
+    try:
+        with open(profile_path) as f:
+            profile_data = json.load(f)
+    except Exception as e:
+        print(f"  [error] failed to read profile JSON: {e}")
+        return 1
+
+    try:
+        with open(job_desc_path) as f:
+            job_desc = f.read()
+    except Exception as e:
+        print(f"  [error] failed to read job description: {e}")
+        return 1
+
+    result = llm_match_job(client, profile_data, job_desc)
+    if result:
+        print(json.dumps(result, indent=2))
+        return 0
+    return 1
 
 
 # ── Rescore / Redetect / Stats ──────────────────
@@ -1216,6 +1286,16 @@ Examples:
     consolidate_stdin.add_argument("--model", default=None,
                                    help="LLM model override (e.g. gpt-4o, claude-3-opus)")
 
+    match_job = sub.add_parser(
+        "match-job",
+        help="Compare structured profile data with target job description and output analysis JSON")
+    match_job.add_argument("--profile", required=True, help="Path to consolidated structured JSON profile")
+    match_job.add_argument("--job-desc", required=True, help="Path to plain text job description file")
+    match_job.add_argument("--llm", required=True, choices=["openai", "anthropic", "ollama"],
+                           help="LLM provider to use (required)")
+    match_job.add_argument("--model", default=None,
+                           help="LLM model override (e.g. gpt-4o, claude-3-opus)")
+
     args = parser.parse_args()
 
     if args.command == "validate":
@@ -1238,6 +1318,10 @@ Examples:
     if args.command == "consolidate-stdin":
         llm_client = LLMClient(provider=args.llm, model=args.model)
         sys.exit(consolidate_stdin_command(args.paths, llm_client))
+
+    if args.command == "match-job":
+        llm_client = LLMClient(provider=args.llm, model=args.model)
+        sys.exit(match_job_command(args.profile, args.job_desc, llm_client))
 
     if args.set_key:
         provider, key = args.set_key

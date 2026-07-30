@@ -56,6 +56,7 @@ from pipeline import (
     LLMClient,
     llm_consolidate,
     llm_generate_resume,
+    llm_match_job,
     llm_process_all,
     # Data models
     FoundFile,
@@ -1078,6 +1079,32 @@ class TestConsolidate(unittest.TestCase):
             mock_client, "Test Person", {"name": "Test Person"}
         )
         self.assertIsNone(result)
+
+    # ── llm_match_job ─────────────────────────────────────────────────────
+
+    def test_llm_match_job_success(self):
+        """llm_match_job calls LLM and returns parsed JSON analysis."""
+        mock_client = MagicMock(spec=LLMClient)
+        mock_client.chat.return_value = json.dumps({
+            "matchScore": 85,
+            "matchedKeywords": ["Python", "Go"],
+            "missingKeywords": ["AWS"],
+            "gapAnalysis": "Needs cloud experience.",
+            "tailoredBullets": ["Add AWS keyword."]
+        })
+
+        result = llm_match_job(mock_client, {"name": "Test"}, "Need Python & AWS developer")
+        self.assertEqual(result["matchScore"], 85)
+        self.assertEqual(result["matchedKeywords"], ["Python", "Go"])
+
+    def test_llm_match_job_fallback(self):
+        """llm_match_job falls back gracefully on non-JSON response."""
+        mock_client = MagicMock(spec=LLMClient)
+        mock_client.chat.return_value = "This is raw text, not JSON"
+
+        result = llm_match_job(mock_client, {"name": "Test"}, "Need developer")
+        self.assertEqual(result["matchScore"], 50)
+        self.assertIn("Failed to parse", result["gapAnalysis"])
 
     # ── llm_process_all ───────────────────────────────────────────────────
 
