@@ -1,0 +1,29 @@
+# easyCV AI Rule Set & Codebase Guidelines
+
+Apply these instructions when generating, editing, or exploring this codebase:
+
+## 🗺️ System Overview & Workflow
+The application is a Next.js App Router app using Convex DB backend, with a backend worker process (`worker.py`) written in Python:
+- **Files upload**: `/api/upload` (Next.js route) -> Saves to Convex Storage -> Inserts uploads (`status: uploading` -> `queued`).
+- **Processing**: `worker.py` polls `claimNextQueued` (mutation verified by `WORKER_SECRET`), downloads CV files, extracts text, consolidates using LLMs, applies **Simplified Technical English (STE-100 Issue 9)** linting, builds LaTeX/PDFs, uploads PDF to Convex storage, and marks ready.
+- **Frontend**: Live updates on `/preview/[uploadId]` using Convex queries. One-time Stripe payment or Admin Bypass unlocks PDF downloads.
+
+## 📁 Key File Index
+- `pipeline.py`: CLI commands, LLM Prompts, completeness and STE scoring logic.
+- `ste100.py`: Rule validation for ASD-STE100 Issue 9 rules (spelling, tenses, active voice, semicolons, contractions, word limits).
+- `latex.py`: Compiles structured JSON to LaTeX and PDFs.
+- `worker.py`: Polling daemon process running backend Python tasks.
+- `web/convex/schema.ts`: Convex DB table definitions.
+- `web/convex/admin.ts`: Admin mutation functions (Stripe payment bypass, job retry, delete).
+- `web/app/admin/page.tsx`: Admin control dashboard.
+- `web/instrumentation.ts`: OpenTelemetry tracers.
+
+## 🛡️ Critical Guardrails
+1. **Access Gating**: All user-specific upload actions must authorize using the user's `sessionId` cookie validated via `ownedUpload` (`convex/authz.ts`).
+2. **Payment Bypass Safety**: Stripe callbacks/mutations like `markPaymentPaid` must use Convex `internalMutation` to prevent clients from calling them directly to mark sessions as paid.
+3. **LaTeX Escape**: All inputs rendered in `.tex` must be fully escaped to avoid LaTeX code injection or shell escape vulnerabilities.
+4. **Telemetry**: Keep PostHog event logging up to date on user actions (upload, checkout click, conversion).
+
+## ⚙️ Key Run Commands
+- **Frontend (Bun)**: `bun run dev`, `bun run test`, `bun run typecheck`, `bunx convex codegen`.
+- **Backend (Python)**: `uv run pytest`, `uv run python pipeline.py`.
