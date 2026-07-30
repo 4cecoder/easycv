@@ -11,11 +11,13 @@ wheels/
 
 # Personal data — never commit
 resources/
-consolidated_info.md
-resume_2026.md
 cv_pipeline_output/
 *.pdf
 ~/.config/cv-pipeline/
+
+# Generated / auto-built docs
+docs/resume_2026.md
+docs/consolidated_info.md
 
 # Local Netlify folder
 .netlify
