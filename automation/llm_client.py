@@ -38,8 +38,8 @@ def chat(
     model: Optional[str] = None,
     base_url: Optional[str] = None,
     temperature: float = 0.1,
-    max_tokens: int = 4096,
-    timeout: int = 120,
+    max_tokens: int = 64000,
+    timeout: int = 300,
 ) -> Optional[str]:
     env = get_env()
     url = f"{base_url or env['base_url']}/chat/completions"
