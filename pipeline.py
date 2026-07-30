@@ -41,6 +41,7 @@ from pathlib import Path
 from typing import Optional
 
 import latex
+import ste100
 
 
 # ── Config ─────────────────────────────────────
@@ -786,6 +787,23 @@ def score_structured_data(data: dict) -> dict:
             score += 1
         else:
             warnings.append(f"no {label} listed")
+
+    # ASD-STE100 Issue 9 Compliance checks
+    summary_text = data.get("summary")
+    if summary_text and isinstance(summary_text, str):
+        summary_warns = ste100.validate_text_ste100(summary_text, is_procedural=False)
+        for w in summary_warns:
+            warnings.append(f"STE-100 (Summary): {w}")
+
+    if isinstance(experience, list):
+        for i, entry in enumerate(experience, start=1):
+            if isinstance(entry, dict) and entry.get("bullets"):
+                label = entry.get("title") or entry.get("company") or f"entry {i}"
+                for bullet in entry.get("bullets", []):
+                    if isinstance(bullet, str):
+                        bullet_warns = ste100.validate_text_ste100(bullet, is_procedural=False)
+                        for w in bullet_warns:
+                            warnings.append(f"STE-100 ({label}): {w}")
 
     return {"score": score, "max_score": max_score, "warnings": warnings, "critical": critical}
 
