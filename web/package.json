@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@bytecats/ui-kit": "git+ssh://git@github.com/4cecoder/ui-kit.git",
+    "@bytecats/ui-kit": "github:4cecoder/ui-kit",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.221.0",
     "@opentelemetry/resources": "^2.10.0",
     "@opentelemetry/sdk-node": "^0.221.0",
