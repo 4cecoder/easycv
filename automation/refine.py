@@ -144,7 +144,7 @@ def main():
             print(f"[refine] Targeting single file: {target.relative_to(ROOT)}")
             results = [refine_file(target, env, dry_run=args.dry_run)]
         elif target.is_dir():
-            files = sorted(target.rglob("*.py")) + sorted(target.rglob("*.ts"))
+            files = sorted(target.rglob("*.py")) + sorted(target.rglob("*.ts")) + sorted(target.rglob("*.tsx"))
             print(f"[refine] Found {len(files)} files in target, processing up to {args.limit}")
             results = []
             for f in files[:args.limit]:
