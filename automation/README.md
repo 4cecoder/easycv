@@ -140,7 +140,18 @@ CC0 - Public Domain Dedication
 
 ## Version
 
-1.0.0 - 2026-08-01
+1.1.0 - 2026-08-01
+
+**Changes:**
+- Added frontend (.ts, .tsx) support to OCR refine loop
+- Fixed Stripe API version (2026-07-29.dahlia)
+- Switched to public @bytecats/ui-kit dependency
+- Updated documentation with guardrails
+
+## Known Issues
+
+- TypeScript tests pass, but Next.js build requires NEXT_PUBLIC_CONVEX_URL environment variable
+- This is expected — the variable should be set in production deployment
 
 ---
 
