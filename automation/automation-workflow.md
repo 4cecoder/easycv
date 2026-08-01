@@ -129,20 +129,26 @@ uv run python -m automation tdd
 ### Execute Complete Pipeline
 
 ```bash
-# Phase 1: OCR refinement
+# Phase 1: Backend OCR refinement
 uv run python -m automation refine --target backend/ --limit 10
 
-# Phase 2: TDD auto-fix
+# Phase 2: Frontend OCR refinement
+uv run python -m automation refine --target web/ --limit 50
+
+# Phase 3: TDD auto-fix
 uv run python -m automation tdd
 ```
 
 ### Expected Flow
 
-1. OCR scans backend files
-2. LLM refactors flagged code
-3. Tests verify each refactor
-4. TDD loop fixes any remaining failures
-5. Progress tracked in `progress.json`
+1. OCR scans backend files (.py)
+2. LLM refactors flagged backend code
+3. Tests verify each backend refactor
+4. OCR scans frontend files (.ts, .tsx)
+5. LLM refactors flagged frontend code
+6. Tests verify each frontend refactor
+7. TDD loop fixes any remaining failures
+8. Progress tracked in `progress.json`
 
 ### Stop Conditions
 

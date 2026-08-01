@@ -22,24 +22,40 @@ automation/
 cd /home/fource/bytecats/projects/web/easycv
 git pull
 
-# Phase 1: OCR refinement (scan backend, LLM refactor, verify)
+# Phase 1: Backend OCR refinement (scan backend, LLM refactor, verify)
 uv run python -m automation refine --target backend/ --limit 10
 
-# Phase 2: TDD auto-fix (run tests, LLM fix failures, loop)
+# Phase 2: Frontend OCR refinement (scan web/, LLM refactor, verify)
+uv run python -m automation refine --target web/ --limit 50
+
+# Phase 3: TDD auto-fix (run tests, LLM fix failures, loop)
 uv run python -m automation tdd
 
 # Check status
 uv run python -m automation status
 ```
 
-### Quick Commands
+### Quick Start Commands
 
 | Command | Purpose |
 |---------|---------|
 | `test` | Run all tests |
 | `tdd` | TDD auto-fix loop |
-| `refine` | OCR + LLM refactor |
+| `refine` | OCR + LLM refactor (supports .py, .ts, .tsx) |
 | `status` | Show progress |
+
+### Folder Guard Rails
+
+The automation system enforces clear folder isolation:
+
+| Target | Files | Purpose |
+|--------|-------|---------|
+| `backend/` | *.py | Python backend code |
+| `tests/` | *.py | Python test files |
+| `automation/` | *.py | Automation system code |
+| `web/` | *.ts, *.tsx | TypeScript/React frontend |
+
+**Safety**: Each target is processed independently with auto-revert on test failure.
 
 ## Documentation
 

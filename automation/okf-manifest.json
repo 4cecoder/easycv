@@ -35,9 +35,12 @@
   },
   "commands": {
     "full_loop": "uv run python -m automation refine --target backend/ --limit 10 && uv run python -m automation tdd",
+    "full_loop_with_frontend": "uv run python -m automation refine --target backend/ --limit 10 && uv run python -m automation refine --target web/ --limit 50 && uv run python -m automation tdd",
     "status": "uv run python -m automation status",
     "test_only": "uv run python -m automation test",
     "tdd_only": "uv run python -m automation tdd",
-    "refine_only": "uv run python -m automation refine --target backend/ --limit 5"
+    "refine_backend": "uv run python -m automation refine --target backend/ --limit 10",
+    "refine_frontend": "uv run python -m automation refine --target web/ --limit 50",
+    "refine_automation": "uv run python -m automation refine --target automation/ --limit 15"
   }
 }
