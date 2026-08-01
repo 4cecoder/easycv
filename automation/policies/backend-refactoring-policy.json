@@ -1,0 +1,78 @@
+{
+  "version": "1.0.0",
+  "target": "backend",
+  "language": "python",
+  "policies": {
+    "function_design": {
+      "max_function_length": 50,
+      "max_parameters": 5,
+      "require_type_hints": true,
+      "require_docstrings": true,
+      "forbid_nested_functions": false,
+      "forbid_global_variables": true
+    },
+    "naming_conventions": {
+      "snake_case_functions": true,
+      "snake_case_variables": true,
+      "upper_case_constants": true,
+      "pascal_case_classes": true,
+      "forbid_single_letter_vars": ["i", "j", "k", "l", "m", "n"]
+    },
+    "code_organization": {
+      "max_file_length": 500,
+      "max_class_length": 200,
+      "require_import_order": [
+        "standard_library",
+        "third_party",
+        "local_imports"
+      ],
+      "forbid_circular_imports": true
+    },
+    "error_handling": {
+      "require_specific_exceptions": true,
+      "forbid_bare_except": true,
+      "forbid_broad_exceptions": ["Exception", "BaseException"],
+      "require_logging_in_except": true
+    },
+    "security": {
+      "forbid_eval": true,
+      "forbid_exec": true,
+      "forbid_shell_injection": true,
+      "require_sql_parametrization": true,
+      "forbid_hardcoded_secrets": true
+    },
+    "testing": {
+      "require_test_coverage": 0.8,
+      "require_test_functions": true,
+      "max_test_length": 100,
+      "require_assertions": true
+    },
+    "documentation": {
+      "require_module_docstrings": true,
+      "require_class_docstrings": true,
+      "require_function_docstrings": true,
+      "docstring_style": "google"
+    }
+  },
+  "allowed_patterns": [
+    "async def",
+    "contextlib.contextmanager",
+    "dataclass",
+    "pydantic.BaseModel"
+  ],
+  "forbidden_patterns": [
+    "import *",
+    "from __future__ import",
+    "print(",
+    "pprint.pprint"
+  ],
+  "enforcement": {
+    "strict_mode": true,
+    "auto_fix": true,
+    "require_manual_review_for": [
+      "security",
+      "database_operations",
+      "file_operations"
+    ]
+  }
+}

@@ -1,0 +1,136 @@
+{
+  "version": "1.0.0",
+  "target": "frontend",
+  "language": ["typescript", "tsx"],
+  "policies": {
+    "function_design": {
+      "max_function_length": 50,
+      "max_parameters": 4,
+      "require_return_types": true,
+      "require_jSDoc": true,
+      "forbid_any": true,
+      "forbid_unknown": false
+    },
+    "component_design": {
+      "max_component_size": 300,
+      "max_props": 8,
+      "require_prop_types": true,
+      "require_default_props": false,
+      "forbid_nested_components": false,
+      "prefer_functional_components": true
+    },
+    "hooks_usage": {
+      "require_hooks_rules": true,
+      "forbid_conditional_hooks": true,
+      "forbid_nested_hooks": true,
+      "require_custom_hooks_directory": "hooks/"
+    },
+    "state_management": {
+      "prefer_server_components": true,
+      "forbid_complex_client_state": true,
+      "max_state_complexity": 3,
+      "prefer_use_reducer_over_useState": true
+    },
+    "naming_conventions": {
+      "camelCase_variables": true,
+      "PascalCase_components": true,
+      "PascalCase_interfaces": true,
+      "PascalCase_types": true,
+      "UPPER_CASE_constants": true,
+      "forbid_abbreviations": ["tmp", "temp", "data", "info"]
+    },
+    "code_organization": {
+      "max_file_length": 400,
+      "require_import_order": [
+        "react",
+        "next",
+        "third_party",
+        "components",
+        "lib",
+        "types"
+      ],
+      "require_barrel_exports": true,
+      "forbid_relative_imports_above": 2
+    },
+    "error_handling": {
+      "require_error_boundaries": true,
+      "forbid_silent_errors": true,
+      "require_user_facing_error_messages": true,
+      "forbid_alert": true
+    },
+    "performance": {
+      "require_memoization": true,
+      "require_code_splitting": true,
+      "forbid_unnecessary_re_renders": true,
+      "prefer_next_image_over_img": true
+    },
+    "accessibility": {
+      "require_alt_text": true,
+      "require_aria_labels": true,
+      "require_keyboard_navigation": true,
+      "forbid_color_only_indicators": true
+    },
+    "security": {
+      "forbid_dangerouslySetInnerHTML": true,
+      "forbid_eval": true,
+      "require_csp_headers": true,
+      "forbid_client_side_secrets": true
+    },
+    "testing": {
+      "require_component_tests": true,
+      "require_hook_tests": false,
+      "require_accessibility_tests": true,
+      "min_test_coverage": 0.7
+    },
+    "styling": {
+      "prefer_tailwind": true,
+      "forbid_inline_styles": true,
+      "require_css_modules": false,
+      "prefer_ui_kit_components": true
+    }
+  },
+  "allowed_patterns": [
+    "use client",
+    "use server",
+    "async function",
+    "export default function",
+    "export const"
+  ],
+  "forbidden_patterns": [
+    "any",
+    "as any",
+    "@ts-ignore",
+    "@ts-expect-error",
+    "alert(",
+    "confirm(",
+    "prompt("
+  ],
+  "nextjs_specific": {
+    "prefer_app_router": true,
+    "require_loading_states": true,
+    "require_error_states": true,
+    "prefer_server_actions_over_api_routes": true,
+    "require_metadata_export": true
+  },
+  "convex_specific": {
+    "require_type_safety": true,
+    "forbid_client_side_mutations": true,
+    "require_optimistic_updates": true,
+    "prefer_convex_react_over_http": true
+  },
+  "enforcement": {
+    "strict_mode": true,
+    "auto_fix": true,
+    "require_manual_review_for": [
+      "security",
+      "performance",
+      "accessibility",
+      "convex_mutations"
+    ],
+    "linting_tools": [
+      "eslint",
+      "typescript",
+      "vitest"
+    ]
+  }
+}

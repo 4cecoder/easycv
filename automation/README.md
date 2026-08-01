@@ -7,12 +7,36 @@ This package contains complete documentation for the EasyCV autonomous automatio
 ```
 automation/
 ├── okf-manifest.json         # OKF 0.2 metadata manifest
+├── README.md                 # Package overview and quick start
 ├── automation-workflow.md    # Main workflow documentation
 ├── command-reference.md      # Complete CLI reference
 ├── architecture.md           # System architecture
-└── progress-tracking.md      # Progress tracking system
+├── progress-tracking.md      # Progress tracking system
+├── policy-guardrails.md      # Policy-based guardrails documentation
+├── __main__.py               # CLI entry point
+├── steer.py                  # Command router
+├── tdd.py                    # TDD loop logic
+├── refine.py                 # OCR + LLM refactor loop (with policy)
+├── improve.py                # LLM fix suggestion
+├── test_orchestration.py     # Test runners
+├── llm_client.py             # LLM API client
+├── config.py                 # Configuration loader
+├── policy_enforcer.py        # Policy enforcement engine
+├── policy_only.py            # Policy-only check runner
+├── playwright_agent.py       # Playwright agent
+├── scanner.py                # Network scanner
+├── goals.py                  # Goals tracking
+├── progress.json             # Run history
+├── policies/                 # Policy configuration
+│   ├── backend-refactoring-policy.json
+│   └── frontend-refactoring-policy.json
+├── .ocr-tmp/                 # OCR temporary files
+└── core/                     # Core automation modules
+    ├── git_ops.py
+    ├── product_manager.py
+    ├── ticket.py
+    └── types.py
 ```
-
 ## Quick Start
 
 ### Full Automation Loop

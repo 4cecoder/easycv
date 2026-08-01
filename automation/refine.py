@@ -68,9 +68,46 @@ def verify_with_tests(file_path: Path, backup_path: Path) -> bool:
     return False
 
 
-def refine_file(file_path: Path, env: dict, dry_run: bool = False) -> dict:
+def refine_file(file_path: Path, env: dict, dry_run: bool = False, enforce_policy: bool = True) -> dict:
     rel = file_path.relative_to(ROOT)
     print(f"\n[refine] Scanning {rel}...")
+
+    # Phase 0: Policy enforcement (hard-coded guardrails)
+    if enforce_policy:
+        try:
+            from automation.policy_enforcer import get_policy_enforcer
+
+            # Determine target based on file path
+            if str(file_path).startswith(str(WEB_DIR)):
+                target = "frontend"
+            else:
+                target = "backend"
+
+            enforcer = get_policy_enforcer(target)
+            code = file_path.read_text()
+            violations = enforcer.check_file(file_path, code)
+
+            if violations:
+                print(f"  [policy] {rel}: {len(violations)} violation(s) found")
+                # Format violations for display
+                formatted = enforcer.format_violations(violations)
+                for line in formatted.split("\n")[:15]:  # Show first 15 lines
+                    print(f"  [policy] {line}")
+
+                # Auto-fix critical errors if not dry-run
+                critical_violations = [v for v in violations if v.severity == "critical"]
+                if critical_violations and not dry_run:
+                    print(f"  [policy] {rel}: {len(critical_violations)} critical violation(s) - manual review required")
+                    return {
+                        "file": str(rel),
+                        "status": "policy_critical",
+                        "violations": len(violations),
+                        "critical": len(critical_violations),
+                    }
+        except Exception as e:
+            print(f"  [policy] {rel}: policy check failed ({e}) - continuing with OCR")
+
+    # Phase 1: OCR scan
     comments = run_ocr(file_path)
     if not comments:
         print(f"  [refine] {rel}: clean (no issues found)")
@@ -130,9 +167,11 @@ def main():
     parser.add_argument("--target", type=str, help="File or directory to refine")
     parser.add_argument("--dry-run", action="store_true", help="Show suggested changes without applying")
     parser.add_argument("--limit", type=int, default=5, help="Max files to refine")
+    parser.add_argument("--no-policy", action="store_true", help="Disable policy enforcement")
     args = parser.parse_args()
 
     env = get_env()
+    enforce_policy = not args.no_policy
     target_dir = args.target or "backend/"
     print(f"\n[refine] Starting refinement loop on: {target_dir}")
     print(f"[refine] Limit: {args.limit} file(s), Dry-run: {args.dry_run}")
@@ -148,7 +187,7 @@ def main():
             print(f"[refine] Found {len(files)} files in target, processing up to {args.limit}")
             results = []
             for f in files[:args.limit]:
-                r = refine_file(f, env, dry_run=args.dry_run)
+                r = refine_file(f, env, dry_run=args.dry_run, enforce_policy=enforce_policy)
                 results.append(r)
         else:
             print(f"[refine] Error: target not found: {args.target}")
@@ -158,15 +197,17 @@ def main():
         print(f"[refine] Using default backend+tests, processing up to {args.limit}")
         results = []
         for f in files[:args.limit]:
-            r = refine_file(f, env, dry_run=args.dry_run)
+            r = refine_file(f, env, dry_run=args.dry_run, enforce_policy=enforce_policy)
             results.append(r)
 
     print("\n[refine] Summary:")
     print("-" * 60)
     for r in results:
         status = r["status"]
-        icon = {"clean": "✓", "fixed": "✓", "dry_run": "~", "reverted": "✗", "llm_failed": "!", "error": "!"}.get(status, "?")
+        icon = {"clean": "✓", "fixed": "✓", "dry_run": "~", "reverted": "✗", "llm_failed": "!", "error": "!", "policy_critical": "🔴"}.get(status, "?")
         print(f"  {icon} {r['file']}: {status}")
+        if r.get("violations"):
+            print(f"    violations: {r['violations']} ({r.get('critical', 0)} critical)")
         if r.get("error"):
             print(f"    error: {r['error']}")
     print("=" * 60)

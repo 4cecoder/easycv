@@ -53,6 +53,12 @@ def main() -> int:
     p_refine.add_argument("--target", type=str, default="", help="File or directory to refine")
     p_refine.add_argument("--dry-run", action="store_true", help="Show changes without applying")
     p_refine.add_argument("--limit", type=int, default=5, help="Max files to refine")
+    p_refine.add_argument("--no-policy", action="store_true", help="Disable policy enforcement")
+
+    # ── policy ─────────────────────────────────────────────────────────────────
+    p_policy = sub.add_parser("policy", help="Run policy-only enforcement (hard-coded guardrails)")
+    p_policy.add_argument("--target", type=str, help="File or directory to check")
+    p_policy.add_argument("--limit", type=int, default=20, help="Max files to check")
 
     # ── ocr ────────────────────────────────────────────────────────────────────
     sub.add_parser("ocr", help="List available OCR (OpenCodeReview) rules")
@@ -137,8 +143,19 @@ def main() -> int:
         if args.dry_run:
             refine_argv.append("--dry-run")
         refine_argv.extend(["--limit", str(args.limit)])
+        if args.no_policy:
+            refine_argv.append("--no-policy")
         sys.argv = refine_argv
         return refine_main()
+
+    elif args.command == "policy":
+        from automation.policy_only import main as policy_main
+        policy_argv = [sys.argv[0]]
+        if args.target:
+            policy_argv.extend(["--target", args.target])
+        policy_argv.extend(["--limit", str(args.limit)])
+        sys.argv = policy_argv
+        return policy_main()
 
     elif args.command == "ocr":
         rules = discover_ocr_rules()
