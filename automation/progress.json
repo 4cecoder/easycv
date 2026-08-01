@@ -1,0 +1,112 @@
+{
+  "runs": [
+    {
+      "type": "ocr_scan",
+      "target": "automation/llm_client.py",
+      "timestamp": "2026-07-30T12:55:00Z",
+      "comments": 5,
+      "conclusion": "success"
+    },
+    {
+      "type": "llm_fix",
+      "target": "automation/llm_client.py",
+      "timestamp": "2026-07-30T13:00:00Z",
+      "issues_fixed": 4,
+      "conclusion": "success"
+    },
+    {
+      "type": "test_run",
+      "timestamp": "2026-07-30T13:05:00Z",
+      "passed": 195,
+      "failed": 1,
+      "conclusion": "minor_failure"
+    },
+    {
+      "type": "tdd",
+      "target": "tests/test_pipeline.py",
+      "rounds": [
+        {
+          "round": 1,
+          "passed": 196,
+          "failed": 0,
+          "fixes": []
+        }
+      ],
+      "started_at": "2026-07-31T18:08:45.657596+00:00",
+      "conclusion": "all_pass"
+    },
+    {
+      "type": "tdd",
+      "target": "tests/",
+      "rounds": [
+        {
+          "round": 1,
+          "passed": 222,
+          "failed": 0,
+          "fixes": []
+        }
+      ],
+      "started_at": "2026-07-31T18:49:33.604676+00:00",
+      "conclusion": "all_pass"
+    },
+    {
+      "type": "tdd",
+      "target": "tests/",
+      "rounds": [
+        {
+          "round": 1,
+          "passed": 222,
+          "failed": 0,
+          "fixes": []
+        }
+      ],
+      "started_at": "2026-07-31T18:53:13.338083+00:00",
+      "conclusion": "all_pass"
+    },
+    {
+      "type": "tdd",
+      "target": "tests/test_pipeline.py",
+      "rounds": [
+        {
+          "round": 1,
+          "passed": 196,
+          "failed": 0,
+          "fixes": []
+        }
+      ],
+      "started_at": "2026-07-31T18:53:58.165949+00:00",
+      "conclusion": "all_pass"
+    }
+  ],
+  "fixes": [
+    {
+      "file": "automation/llm_client.py",
+      "issue": "security",
+      "severity": "high",
+      "description": "ReDoS in extract_code_block",
+      "status": "fixed"
+    },
+    {
+      "file": "automation/llm_client.py",
+      "issue": "bug",
+      "severity": "high",
+      "description": "Empty choices array access",
+      "status": "fixed"
+    },
+    {
+      "file": "automation/llm_client.py",
+      "issue": "bug",
+      "severity": "high",
+      "description": "Unsafe dictionary access",
+      "status": "fixed"
+    },
+    {
+      "file": "automation/llm_client.py",
+      "issue": "bug",
+      "severity": "high",
+      "description": "Truthiness checks on strings",
+      "status": "fixed"
+    }
+  ],
+  "last_updated": "2026-07-31T18:54:04.308508+00:00"
+}

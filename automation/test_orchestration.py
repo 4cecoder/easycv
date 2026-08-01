@@ -1,3 +1,26 @@
+"""
+Test orchestration for EasyCV autonomous coding framework.
+
+This module provides test runners and orchestration utilities:
+- run_pytest(): Execute Python tests
+- run_typecheck(): TypeScript type checking
+- run_ts_tests(): Run TypeScript tests
+- run_ts_build(): TypeScript build
+- run_all_tests(): Full test suite execution
+- run_playwright(): E2E browser tests
+- summarize(): Format test results
+- load_progress()/save_progress(): Track automation runs
+
+NOT to be confused with backend/pipeline.py, which is the EasyCV resume
+processing pipeline (OCR, LLM, STE-100, LaTeX generation).
+
+This module is part of the autonomous coding framework with heavy LLM rails:
+- automation/tdd.py: TDD loop with LLM auto-fix
+- automation/refine.py: OCR-based code review + LLM refactor
+- automation/improve.py: Parse failures, suggest fixes
+- automation/steer.py: CLI entry point for all automation commands
+"""
+
 import json
 import subprocess
 import sys
@@ -37,6 +60,7 @@ def run_pytest(target: Optional[str] = None, extra_args: Optional[list[str]] = N
     if extra_args:
         cmd.extend(extra_args)
     cmd.extend(["-v", "--tb=short"])
+    print(f"[pytest] Running: {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=str(ROOT))
     passed = failed = 0
     failures = []
@@ -52,6 +76,7 @@ def run_pytest(target: Optional[str] = None, extra_args: Optional[list[str]] = N
     summary_match = re.search(r"=+ ([\d]+) passed", result.stdout)
     total_passed = int(summary_match.group(1)) if summary_match else passed
     total_failed = int(re.search(r"=+ ([\d]+) failed", result.stdout).group(1)) if re.search(r"=+ ([\d]+) failed", result.stdout) else failed
+    print(f"[pytest] Result: {total_passed} passed, {total_failed} failed (exit {result.returncode})")
     return {
         "stdout": result.stdout,
         "stderr": result.stderr,
@@ -76,21 +101,12 @@ def run_playwright(headless: bool = True, target: Optional[str] = None) -> dict:
     }
 
 
-def run_ts_tests(target: Optional[str] = None) -> dict:
-    cmd = ["bun", "run", "test"]
-    if target:
-        cmd.append(target)
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=str(WEB_DIR))
-    return {
-        "stdout": result.stdout,
-        "stderr": result.stderr,
-        "returncode": result.returncode,
-    }
-
-
 def run_typecheck() -> dict:
     cmd = ["bun", "run", "typecheck"]
+    print(f"[typecheck] Running: {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=str(WEB_DIR))
+    status = "PASS" if result.returncode == 0 else "FAIL"
+    print(f"[typecheck] Result: {status}")
     return {
         "stdout": result.stdout,
         "stderr": result.stderr,
@@ -100,7 +116,25 @@ def run_typecheck() -> dict:
 
 def run_ts_build() -> dict:
     cmd = ["bun", "run", "build"]
+    print(f"[ts_build] Running: {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=180, cwd=str(WEB_DIR))
+    status = "PASS" if result.returncode == 0 else "FAIL"
+    print(f"[ts_build] Result: {status}")
+    return {
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+        "returncode": result.returncode,
+    }
+
+
+def run_ts_tests(target: Optional[str] = None) -> dict:
+    cmd = ["bun", "run", "test"]
+    if target:
+        cmd.append(target)
+    print(f"[ts_tests] Running: {' '.join(cmd)}")
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=str(WEB_DIR))
+    status = "PASS" if result.returncode == 0 else "FAIL"
+    print(f"[ts_tests] Result: {status}")
     return {
         "stdout": result.stdout,
         "stderr": result.stderr,
@@ -112,26 +146,41 @@ def run_ts_build() -> dict:
 
 def run_all_tests() -> dict:
     results = {}
+    print("\n[all_tests] Running full test suite...")
+    print("=" * 60)
     results["pytest"] = run_pytest()
     results["typecheck"] = run_typecheck()
     results["ts_tests"] = run_ts_tests()
     results["ts_build"] = run_ts_build()
     all_pass = all(r["returncode"] == 0 for r in results.values())
+    print("=" * 60)
+    print(f"[all_tests] Overall: {'PASS' if all_pass else 'FAIL'}")
     return {"results": results, "all_pass": all_pass}
 
 
 def summarize(result: dict) -> str:
     lines = []
+    print("\n[summary] Test Results:")
+    print("-" * 60)
     if "pytest" in result:
         pr = result["pytest"]
-        lines.append(f"pytest: {pr['passed']} passed, {pr['failed']} failed")
+        line = f"pytest: {pr['passed']} passed, {pr['failed']} failed"
+        lines.append(line)
+        print(f"  {line}")
     if "typecheck" in result:
         tr = result["typecheck"]
-        lines.append(f"typecheck: {'PASS' if tr['returncode'] == 0 else 'FAIL'}")
+        line = f"typecheck: {'PASS' if tr['returncode'] == 0 else 'FAIL'}"
+        lines.append(line)
+        print(f"  {line}")
     if "ts_tests" in result:
         tr = result["ts_tests"]
-        lines.append(f"ts_tests: {'PASS' if tr['returncode'] == 0 else 'FAIL'}")
+        line = f"ts_tests: {'PASS' if tr['returncode'] == 0 else 'FAIL'}"
+        lines.append(line)
+        print(f"  {line}")
     if "ts_build" in result:
         tr = result["ts_build"]
-        lines.append(f"ts_build: {'PASS' if tr['returncode'] == 0 else 'FAIL'}")
+        line = f"ts_build: {'PASS' if tr['returncode'] == 0 else 'FAIL'}"
+        lines.append(line)
+        print(f"  {line}")
+    print("-" * 60)
     return " | ".join(lines)

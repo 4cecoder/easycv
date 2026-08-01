@@ -1,9 +1,19 @@
 #!/usr/bin/env python3
 """
-CV/Resume Consolidation Pipeline
-=================================
-Scans directories for CV/resume/LinkedIn PDFs, sorts by person, extracts text,
-then uses an LLM to consolidate and generate compact tech-focused resumes.
+EasyCV Resume Processing Pipeline
+===================================
+This is the CORE resume processing pipeline for EasyCV.
+
+NOT to be confused with automation/test_suite.py, which provides test runners
+for the automation framework (pytest, typecheck, playwright, etc.).
+
+This pipeline handles:
+- PDF text extraction (OCR, PyPDF2)
+- Resume content parsing
+- LLM-based consolidation (OpenAI, Anthropic, Ollama)
+- STE-100 Simplified Technical English validation
+- LaTeX/PDF generation
+- Worker daemon for background processing
 
 Usage:
     # Basic — scan common dirs, use Ollama (default, no API key needed)

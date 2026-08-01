@@ -1,0 +1,43 @@
+{
+  "okf_version": "0.2",
+  "package_id": "easycv-automation-orchestration",
+  "name": "EasyCV Autonomous Automation Loop",
+  "version": "1.0.0",
+  "description": "Complete automation pipeline for EasyCV: OCR code review, LLM refactoring, TDD auto-fix, and continuous integration",
+  "author": "fource",
+  "created": "2026-08-01T12:00:00Z",
+  "last_updated": "2026-08-01T12:00:00Z",
+  "language": "en",
+  "license": "CC0",
+  "standard": "ASD-STE100",
+  "categories": ["automation", "devops", "tdd", "ocr", "llm"],
+  "tags": ["python", "nextjs", "pytest", "playwright", "alibaba-ocr"],
+  "format": "okf-v0.2",
+  "structure": {
+    "type": "distribution",
+    "main_content": "automation-workflow.md",
+    "reference": [
+      "command-reference.md",
+      "architecture.md",
+      "progress-tracking.md"
+    ]
+  },
+  "metadata": {
+    "project": "easyCV",
+    "location": "bytecats/projects/web/easycv/automation/",
+    "requires": [
+      "uv (Python package manager)",
+      "bun (JavaScript runtime)",
+      "OpenCodeReview (@alibaba-group/open-code-review CLI)",
+      "LLM endpoint (local or remote)"
+    ],
+    "platform": "Linux (Gentoo)"
+  },
+  "commands": {
+    "full_loop": "uv run python -m automation refine --target backend/ --limit 10 && uv run python -m automation tdd",
+    "status": "uv run python -m automation status",
+    "test_only": "uv run python -m automation test",
+    "tdd_only": "uv run python -m automation tdd",
+    "refine_only": "uv run python -m automation refine --target backend/ --limit 5"
+  }
+}

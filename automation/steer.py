@@ -2,7 +2,7 @@ import argparse
 import sys
 
 from automation.config import get_env, ROOT, BACKEND_DIR, WEB_DIR, TESTS_DIR
-from automation.pipeline import (
+from automation.test_orchestration import (
     run_pytest,
     run_playwright,
     run_ts_tests,
@@ -71,23 +71,28 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.command == "test":
+        print("\n[test] Running test suite...")
+        print("=" * 60)
         if args.target:
+            print(f"[test] Targeting: {args.target}")
             result = run_pytest(target=args.target)
             if result["returncode"] == 0:
-                print(f"pytest: {result['passed']} passed, {result['failed']} failed")
+                print(f"\n[test] ✓ PASS: {result['passed']} passed, {result['failed']} failed")
                 return 0
             else:
-                print(f"pytest: {result['passed']} passed, {result['failed']} failed")
+                print(f"\n[test] ✗ FAIL: {result['passed']} passed, {result['failed']} failed")
                 return 1
         elif args.skip_ts:
+            print(f"[test] Running pytest only (skipping TypeScript)")
             result = run_pytest()
             if result["returncode"] == 0:
-                print(f"pytest: {result['passed']} passed, {result['failed']} failed")
+                print(f"\n[test] ✓ PASS: {result['passed']} passed, {result['failed']} failed")
                 return 0
             else:
-                print(f"pytest: {result['passed']} passed, {result['failed']} failed")
+                print(f"\n[test] ✗ FAIL: {result['passed']} passed, {result['failed']} failed")
                 return 1
         else:
+            print(f"[test] Running full suite (pytest + typecheck + ts_tests + ts_build)")
             result = run_all_tests()
             print(summarize(result))
             return 0 if result["all_pass"] else 1

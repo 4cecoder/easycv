@@ -722,6 +722,11 @@ class TestLLM(unittest.TestCase):
 
     def test_llm_init_defaults(self):
         """Default provider is 'ollama' with matching model."""
+        # Clear env vars to test true defaults
+        env_keys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OLLAMA_API_KEY"]
+        for key in env_keys:
+            if key in os.environ:
+                del os.environ[key]
         client = LLMClient()
         self.assertEqual(client.provider, "ollama")
         self.assertEqual(client.model, "llama3.2")

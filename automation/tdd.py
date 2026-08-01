@@ -1,6 +1,6 @@
 import sys
 from automation.config import ROOT, get_env
-from automation.pipeline import run_pytest, run_typecheck, load_progress, save_progress
+from automation.test_orchestration import run_pytest, run_typecheck, load_progress, save_progress
 from automation.improve import parse_test_failures, llm_suggest_fix, read_source_for_failure
 
 
@@ -27,13 +27,14 @@ def tdd_loop(target: str = "", max_rounds: int = 0, max_failures: int = 0) -> in
         print(f"{'='*60}")
 
         # ── Run tests ──────────────────────────────────────────────────────
+        print("\n[TDD] Running tests...")
         pytest_result = run_pytest(target if target else None)
         passed = pytest_result["passed"]
         failed = pytest_result["failed"]
-        print(f"  pytest: {passed} passed, {failed} failed")
+        print(f"  [TDD] pytest: {passed} passed, {failed} failed")
 
         failures = parse_test_failures(pytest_result)
-        print(f"  parsed failures: {len(failures)}")
+        print(f"  [TDD] parsed failures: {len(failures)}")
 
         round_record = {
             "round": round_num,

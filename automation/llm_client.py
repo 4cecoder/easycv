@@ -26,7 +26,7 @@ def make_request(url, method="GET", data=None, headers=None, timeout=60):
     except urllib.error.HTTPError as e:
         try:
             body = json.loads(e.read().decode("utf-8"))
-        except Exception:
+        except json.JSONDecodeError:
             body = str(e)
         return e.code, body
     except Exception as e:
@@ -53,9 +53,32 @@ def chat(
     for attempt in range(3):
         status, resp = make_request(url, method="POST", data=payload, timeout=timeout)
         if status == 200:
-            content = resp["choices"][0]["message"].get("content", "")
-            reasoning = resp["choices"][0]["message"].get("reasoning_content", "")
-            return content or reasoning or None
+            # Fix: Guard against empty choices array
+            choices = resp.get("choices", [])
+            if not choices:
+                print(f"[LLM] no choices in response: {resp}")
+                return None
+            
+            # Fix: Use nested .get() to avoid KeyError/TypeError
+            first_choice = choices[0]
+            if not isinstance(first_choice, dict):
+                print(f"[LLM] first choice is not a dict: {first_choice}")
+                return None
+            
+            message = first_choice.get("message", {})
+            if not isinstance(message, dict):
+                print(f"[LLM] message is not a dict: {message}")
+                return None
+            
+            content = message.get("content", "")
+            reasoning = message.get("reasoning_content", "")
+            
+            # Fix: Use explicit if/else instead of truthiness checks
+            if content is not None and content != "":
+                return content
+            if reasoning is not None and reasoning != "":
+                return reasoning
+            return None
         if status == 429:
             wait = 2 ** attempt
             print(f"[LLM] rate limited, retrying in {wait}s...")
@@ -68,7 +91,9 @@ def chat(
 
 def extract_code_block(text: str, language: str = "") -> Optional[str]:
     import re
-    pattern = rf"```{language}\n(.*?)```"
+    # Fix: Escape the language parameter to prevent ReDoS
+    escaped_language = re.escape(language)
+    pattern = rf"```{escaped_language}\n(.*?)```"
     matches = re.findall(pattern, text, re.DOTALL)
     if matches:
         return matches[0].strip()

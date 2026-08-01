@@ -8,7 +8,7 @@ from typing import Optional
 
 from automation.config import ROOT, WEB_DIR, get_env
 from automation.llm_client import chat, extract_code_block
-from automation.pipeline import run_playwright
+from automation.test_orchestration import run_playwright
 
 
 def start_dev_server(timeout: int = 30) -> subprocess.Popen:
