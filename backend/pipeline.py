@@ -63,8 +63,6 @@ from backend.constants import (
     STDERR_LINE_LIMIT,
     TEXT_TRUNCATION_LENGTH,
 )
-from backend.ste100 import STE100Validator
-
 logger = logging.getLogger(__name__)
 
 from backend import latex
