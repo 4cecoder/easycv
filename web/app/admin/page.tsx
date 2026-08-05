@@ -1,20 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { 
-  BarChart3, 
   DollarSign, 
   TrendingUp, 
   Users, 
   Lock, 
-  Loader2, 
   RefreshCw,
-  CheckCircle2,
-  FileDown
 } from "lucide-react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 
 type StripeMetrics = {
   grossVolume: number;
@@ -77,38 +74,38 @@ export default function AdminDashboard() {
       .catch(() => setLoadingMetrics(false));
   }
 
-  async function handleBypassPayment(uploadId: any) {
+  async function handleBypassPayment(uploadId: Id<"uploads">) {
     setActionLoading(`bypass-${uploadId}`);
     try {
       await bypassPaymentMutation({ passcode: password, uploadId });
       alert("Payment bypassed successfully!");
-    } catch (err: any) {
-      alert(`Bypass failed: ${err.message}`);
+    } catch (err) {
+      alert(`Bypass failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setActionLoading(null);
     }
   }
 
-  async function handleRetry(uploadId: any) {
+  async function handleRetry(uploadId: Id<"uploads">) {
     setActionLoading(`retry-${uploadId}`);
     try {
       await retryUploadMutation({ passcode: password, uploadId });
       alert("Upload status reset to queued!");
-    } catch (err: any) {
-      alert(`Retry failed: ${err.message}`);
+    } catch (err) {
+      alert(`Retry failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setActionLoading(null);
     }
   }
 
-  async function handleDelete(uploadId: any) {
+  async function handleDelete(uploadId: Id<"uploads">) {
     if (!confirm("Are you sure you want to delete this upload and all associated records?")) return;
     setActionLoading(`delete-${uploadId}`);
     try {
       await deleteUploadMutation({ passcode: password, uploadId });
       alert("Upload deleted successfully!");
-    } catch (err: any) {
-      alert(`Delete failed: ${err.message}`);
+    } catch (err) {
+      alert(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setActionLoading(null);
     }
