@@ -19,7 +19,8 @@ Rules Implemented:
 """
 
 import re
-from typing import List, Dict, Any
+from typing import List
+
 
 # British vs American English spelling map (Rule 1.14)
 BRITISH_TO_AMERICAN_SPELLING = {
@@ -70,7 +71,10 @@ _PASSIVE_PATTERN = re.compile(
     _BE_VERBS_PATTERN.pattern + r"\s+(?:[a-zA-Z]+ly\s+)?(?:[a-zA-Z]+ed|[a-zA-Z]+en)\b",
     re.IGNORECASE,
 )
-_BY_PATTERN = re.compile(_BE_VERBS_PATTERN.pattern + r"\s+.+?\s+\bby\b", re.IGNORECASE)
+_BY_PATTERN = re.compile(
+    _BE_VERBS_PATTERN.pattern + r"\s+(?:[a-zA-Z]+ly\s+)?[a-zA-Z]+ed\b\s+by\b\s+[a-zA-Z]+",
+    re.IGNORECASE,
+)
 _ING_WORD_PATTERN = re.compile(r"\b([a-zA-Z]+ing)\b", re.IGNORECASE)
 _PERFECT_PATTERN = re.compile(
     r"\b(?:has|have|had)\s+(?:[a-zA-Z]+ly\s+)?(?:[a-zA-Z]+ed|[a-zA-Z]+en|been)\b",
@@ -81,17 +85,20 @@ _PROGRESSIVE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _ABBR_PATTERN = re.compile(r"\b(e\.g\.|i\.e\.|a\.m\.|p\.m\.|vs\.|no\.|approx\.)", re.IGNORECASE)
+_MULTI_DOT_ABBR_PATTERN = re.compile(r"\b([A-Z])(\.[A-Z])+\.")
 _SENTENCE_SPLIT_PATTERN = re.compile(r"(?<=[.!?])\s+")
 
 
 def split_into_sentences(text: str) -> List[str]:
     """Split text into sentences using standard punctuation boundaries,
-    preserving abbreviations like 'e.g.', 'i.e.', 'a.m.', 'p.m.' etc.
+    preserving abbreviations like 'e.g.', 'i.e.', 'a.m.', 'p.m.', 'U.S.', 'N.A.T.O.', 'Ph.D.' etc.
     """
     if not text:
         return []
-    # Temporarily hide dots in common abbreviations
+    
+    # Temporarily hide dots in common abbreviations (single and multi-dot)
     temp_text = _ABBR_PATTERN.sub(lambda m: m.group(0).replace(".", "___DOT___"), text)
+    temp_text = _MULTI_DOT_ABBR_PATTERN.sub(lambda m: m.group(0).replace(".", "___DOT___"), temp_text)
     
     # Split on period, exclamation, or question mark followed by whitespace
     sentences = _SENTENCE_SPLIT_PATTERN.split(temp_text)
@@ -114,20 +121,19 @@ def count_words_ste100(sentence: str) -> int:
     - Numbers, units of measurement, abbreviations, and proper nouns count as ONE word.
     """
     # 1. Handle Parenthesized text (Rule 8.5): Replace contents with a single token
-    cleaned_sentence = sentence
-    while True:
-        next_sentence, count = re.subn(r"\([^)]*\)", "___PAREN___", cleaned_sentence)
-        if count == 0:
-            break
-        cleaned_sentence = next_sentence
+    # Use a single-pass approach with non-greedy matching to handle nested parentheses efficiently
+    cleaned_sentence = re.sub(r"\([^)]*(?:\([^)]*\)[^)]*)*\)", "___PAREN___", sentence)
 
     # 2. Handle Quoted text (Rule 8.6): Replace quoted substring with a single token
     cleaned_sentence = re.sub(r'"[^"]*"', "___QUOTE___", cleaned_sentence)
 
-    # 3. Handle numbers together with units of measurement (Rule 8.6): e.g., '10 mA', '10 °C', '20 kg'
+    # 3. Handle abbreviations (Rule 8.6): Replace e.g., i.e., a.m., p.m., etc. with single tokens
+    cleaned_sentence = _ABBR_PATTERN.sub("___ABBR___", cleaned_sentence)
+    
+    # 4. Handle numbers together with units of measurement (Rule 8.6): e.g., '10 mA', '10 °C', '20 kg'
     cleaned_sentence = _UNIT_PATTERN.sub("___NUM_UNIT___", cleaned_sentence)
 
-    # 4. Tokenize by splitting on spaces, ignoring punctuation except internal hyphens (Rule 8.7)
+    # 5. Tokenize by splitting on spaces, ignoring punctuation except internal hyphens (Rule 8.7)
     tokens = []
     for raw_token in cleaned_sentence.split():
         token = re.sub(r"^[^\w_@]+|[^\w_@]+$", "", raw_token)
@@ -152,8 +158,7 @@ def check_contractions(sentence: str) -> List[str]:
     """Flags contractions to ensure all words are written in full (Rule 4.2)."""
     warnings = []
     for compiled_pattern in _CONTRACTION_PATTERNS:
-        match = compiled_pattern.search(sentence)
-        if match:
+        for match in compiled_pattern.finditer(sentence):
             warnings.append(f"Contraction '{match.group(0)}' is not permitted; write it in full")
     return warnings
 
