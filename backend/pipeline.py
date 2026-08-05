@@ -37,6 +37,7 @@ Config:
 import argparse
 import contextlib
 import json
+import logging
 import os
 import re
 import shutil
@@ -49,6 +50,22 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+from backend.constants import (
+    BYTES_PER_KB,
+    DEFAULT_MAX_TOKENS_CONSOLIDATION,
+    DEFAULT_MAX_TOKENS_JOB_MATCH,
+    DEFAULT_MAX_TOKENS_RESUME,
+    DEFAULT_SORT_PRIORITY,
+    LATEX_COMPILE_TIMEOUT,
+    PDF_TEXT_TIMEOUT,
+    STDERR_CHAR_LIMIT,
+    STDERR_LINE_LIMIT,
+    TEXT_TRUNCATION_LENGTH,
+)
+from backend.ste100 import STE100Validator
+
+logger = logging.getLogger(__name__)
 
 from backend import latex
 from backend import ste100
@@ -189,8 +206,10 @@ def should_skip_dir(dirpath: str) -> bool:
     return any(s in Path(dirpath).parts for s in SKIP_DIRS)
 
 def fmt_size(path: str) -> int:
-    try: return round(os.path.getsize(path) / 1024)
-    except OSError: return 0
+    try:
+        return round(os.path.getsize(path) / BYTES_PER_KB)
+    except OSError:
+        return 0
 
 
 # ── Scan & Organize ────────────────────────────
@@ -242,7 +261,7 @@ def _merge_bundles(bundles: dict[str, PersonBundle]) -> dict[str, PersonBundle]:
             aliased["unknown"] = unknown
     cat_order = {"cv": 0, "resume": 1, "linkedin": 2, "profile": 3}
     for b in aliased.values():
-        b.files.sort(key=lambda f: (cat_order.get(f.category, 99), f.filename))
+        b.files.sort(key=lambda f: (cat_order.get(f.category, DEFAULT_SORT_PRIORITY), f.filename))
     return aliased
 
 def _unique_dest(dir_path: str, filename: str) -> str:
@@ -334,7 +353,7 @@ def extract_text(filepath: str) -> Optional[str]:
     if ext in SUPPORTED_EXTRACT_EXT:
         if ext == ".pdf":
             try:
-                r = subprocess.run(["pdftotext", filepath, "-"], capture_output=True, text=True, timeout=30)
+                r = subprocess.run(["pdftotext", filepath, "-"], capture_output=True, text=True, timeout=PDF_TEXT_TIMEOUT)
                 if r.returncode == 0 and r.stdout.strip(): return r.stdout
             except (FileNotFoundError, subprocess.TimeoutExpired): pass
             try:
@@ -375,8 +394,10 @@ def _load_config() -> dict:
     cfg = {}
     if os.path.exists(CONFIG_PATH):
         try:
-            with open(CONFIG_PATH) as f: cfg = json.load(f)
-        except (json.JSONDecodeError, OSError): pass
+            with open(CONFIG_PATH) as f:
+                cfg = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug(f"Could not load config: {e}")
     return cfg.get("llm", {})
 
 def _write_config(updates: dict):
@@ -384,8 +405,10 @@ def _write_config(updates: dict):
     cfg = {}
     if os.path.exists(CONFIG_PATH):
         try:
-            with open(CONFIG_PATH) as f: cfg = json.load(f)
-        except: pass
+            with open(CONFIG_PATH) as f:
+                cfg = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug(f"Could not load config for writing: {e}")
     llm = cfg.get("llm", {})
     llm.update(updates)
     cfg["llm"] = llm
@@ -418,7 +441,7 @@ class LLMClient:
         elif self.provider == "ollama":
             return self._chat_ollama(messages, max_tokens)
         else:
-            print(f"  [error] unknown LLM provider: {self.provider}")
+            logger.error(f"unknown LLM provider: {self.provider}")
             return None
 
     def _chat_openai(self, messages: list[dict], max_tokens: int) -> Optional[str]:
