@@ -105,7 +105,7 @@ M1 (web mvp) ──────────────────┘       │
 
 ## Resource Notes
 
-- **Worker**: Deploy once (M3), run forever — only needs updates if `backend/pipeline.py` changes
+- **Worker**: Deploy once (M3), run forever — only needs updates if `pipeline.py` changes
 - **Editor/Builder (M4)**: Largest dev investment — new route, new Convex tables, drag-drop UI
 - **Monetization (M6)**: Depends on conversion data from M1 — don't start until you have at least 2-4 weeks of real user data
 - **Auth (M7)**: Can be fast-tracked if users are churning on session loss; otherwise deferred

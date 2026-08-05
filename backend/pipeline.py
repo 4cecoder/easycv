@@ -59,8 +59,6 @@ from backend.constants import (
     DEFAULT_SORT_PRIORITY,
     LATEX_COMPILE_TIMEOUT,
     PDF_TEXT_TIMEOUT,
-    STDERR_CHAR_LIMIT,
-    STDERR_LINE_LIMIT,
     TEXT_TRUNCATION_LENGTH,
 )
 logger = logging.getLogger(__name__)
@@ -629,7 +627,7 @@ def llm_consolidate(client: LLMClient, bundle: PersonBundle) -> Optional[dict]:
     """Send extracted texts to LLM and get structured JSON."""
     combined = []
     for fname, text in sorted(bundle.extracted_texts.items()):
-        combined.append(f"--- {fname} ---\n{text.strip()[:5000]}")
+        combined.append(f"--- {fname} ---\n{text.strip()[:TEXT_TRUNCATION_LENGTH]}")
     payload = "\n\n".join(combined)
 
     messages = [
@@ -638,7 +636,7 @@ def llm_consolidate(client: LLMClient, bundle: PersonBundle) -> Optional[dict]:
     ]
 
     print(f"  [llm] sending {len(payload)} chars to {client.provider}/{client.model}...")
-    result = client.chat(messages, max_tokens=4096)
+    result = client.chat(messages, max_tokens=DEFAULT_MAX_TOKENS_CONSOLIDATION)
     if not result:
         return None
 
@@ -666,7 +664,7 @@ def llm_generate_resume(client: LLMClient, name: str, data: dict) -> Optional[st
         {"role": "user", "content": f"Generate a compact resume from this data:\n\n{json.dumps(data, indent=2)}"},
     ]
     print(f"  [llm] generating resume for {name}...")
-    return client.chat(messages, max_tokens=2048)
+    return client.chat(messages, max_tokens=DEFAULT_MAX_TOKENS_RESUME)
 
 
 LLM_JOB_MATCH_SYSTEM = """You are a professional technical recruiter and career coach.
@@ -688,7 +686,7 @@ def llm_match_job(client: LLMClient, profile_data: dict, job_desc: str) -> Optio
         {"role": "user", "content": f"Candidate Profile JSON:\n{json.dumps(profile_data, indent=2)}\n\nTarget Job Description:\n{job_desc}"},
     ]
     print(f"  [llm] matching job description...")
-    result = client.chat(messages, max_tokens=4096)
+    result = client.chat(messages, max_tokens=DEFAULT_MAX_TOKENS_JOB_MATCH)
     if not result:
         return None
 

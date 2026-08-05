@@ -56,10 +56,8 @@ from convex import ConvexClient
 from dotenv import load_dotenv
 
 from backend import pipeline
+from backend.constants import DEFAULT_POLL_INTERVAL, WORKER_DOWNLOAD_TIMEOUT as DOWNLOAD_TIMEOUT
 from backend.pipeline import LLMClient
-
-DEFAULT_POLL_INTERVAL = 3  # seconds between claim attempts when idle
-DOWNLOAD_TIMEOUT = 60  # seconds, per resume file fetched from Convex storage
 
 
 def load_config() -> tuple[str, str]:

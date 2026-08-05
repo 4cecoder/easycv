@@ -19,17 +19,25 @@ Properties:
 
 import os
 import re
+import shutil
 import subprocess
 import tempfile
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
 from automation.config import ROOT, get_env
+from backend.constants import WORKER_DOWNLOAD_TIMEOUT
 
 BRANCH_PREFIX = "automation"
 IN_WORKTREE_ENV = "EASYCV_IN_WORKTREE"
 RUN_BRANCH_ENV = "EASYCV_RUN_BRANCH"
+
+DEFAULT_GIT_TIMEOUT = 120
+DEFAULT_HEALTH_TIMEOUT = 8
+MAX_SLUG_LEN = 24
+HTTP_OK = 200
 
 _HUNK_FUNC_RE = re.compile(r"^\+.*(?P<kind>def |class |async def )(?P<name>[A-Za-z_][A-Za-z0-9_]*)")
 
@@ -54,7 +62,7 @@ def run_git(cwd, *args: str, check: bool = True, capture: bool = True):
         ["git", "-C", str(cwd), *args],
         capture_output=capture,
         text=True,
-        timeout=120,
+        timeout=DEFAULT_GIT_TIMEOUT,
     )
     if check and res.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed (rc {res.returncode}): {res.stderr.strip()}")
@@ -62,11 +70,13 @@ def run_git(cwd, *args: str, check: bool = True, capture: bool = True):
 
 
 def current_branch(cwd: Optional[Path] = None) -> str:
+    """Return the name of the currently checked out git branch."""
     res = run_git(cwd or ROOT, "branch", "--show-current")
     return res.stdout.strip()
 
 
 def is_master(cwd: Optional[Path] = None) -> bool:
+    """Check if the current branch is master or main."""
     return current_branch(cwd) in ("master", "main")
 
 
@@ -79,25 +89,25 @@ def dirty_paths(cwd: Optional[Path] = None) -> List[str]:
 def llm_health_check() -> bool:
     """True if the configured LLM endpoint answers /health. No exceptions."""
     try:
-        import urllib.request
-
         env = get_env()
         base = env["base_url"].rstrip("/")
         req = urllib.request.Request(base + "/health", method="GET")
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            return resp.status == 200
+        with urllib.request.urlopen(req, timeout=DEFAULT_HEALTH_TIMEOUT) as resp:
+            return resp.status == HTTP_OK
     except Exception:
         return False
 
 
 def run_branch_name(target: str) -> str:
+    """Generate a structured run branch name given a target module or prompt."""
     slug = re.sub(r"[^A-Za-z0-9]+", "-", target.strip()).strip("-").lower() or "all"
-    slug = slug[:24]
+    slug = slug[:MAX_SLUG_LEN]
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     return f"{BRANCH_PREFIX}/{stamp}-{slug}"
 
 
 def has_remote(cwd: Optional[Path] = None) -> bool:
+    """Check if git repository has a remote configured."""
     return bool(run_git(cwd or ROOT, "remote").stdout.strip())
 
 
@@ -119,8 +129,6 @@ def create_worktree(branch: str) -> Path:
     wt = _worktree_path_for(branch)
     run_git(ROOT, "worktree", "prune", check=False)
     if wt.exists():
-        import shutil
-
         shutil.rmtree(wt)
     try:
         run_git(ROOT, "worktree", "add", "-q", "-b", branch, str(wt), base)
@@ -131,6 +139,7 @@ def create_worktree(branch: str) -> Path:
 
 
 def has_changes_for(cwd: Path, rel_path: str) -> bool:
+    """Check whether a specific relative path has pending git changes."""
     res = run_git(cwd, "status", "--porcelain", "--", rel_path)
     return bool(res.stdout.strip())
 
@@ -248,3 +257,4 @@ def cleanup_worktree(worktree: Path, branch: str, merged: bool = False, keep_on_
         run_git(ROOT, "branch", "-D", branch, check=False)
     else:
         print(f"[gitops] run branch left for review: {branch}")
+

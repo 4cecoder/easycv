@@ -1,8 +1,13 @@
+"""TDD execution loop for running tests, analyzing failures, and auto-applying LLM fix suggestions."""
+
 import sys
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional
+
+from automation import gitops
 from automation.config import ROOT, get_env
-from automation.test_orchestration import run_pytest, run_typecheck, load_progress, save_progress
-from automation.improve import parse_test_failures, llm_suggest_fix, find_source_file
+from automation.improve import apply_fix, find_source_file, llm_suggest_fix, parse_test_failures
+from automation.test_orchestration import load_progress, run_pytest, run_typecheck, save_progress
 
 
 def resolve_test_target(target: str) -> Optional[str]:
@@ -26,6 +31,7 @@ def resolve_test_target(target: str) -> Optional[str]:
 
 
 def tdd_loop(target: str = "", max_rounds: int = 0, max_failures: int = 0, commit_changes: bool = False) -> int:
+    """Execute the iterative test-driven development loop until all tests pass or constraints are hit."""
     env = get_env()
     max_rounds = max_rounds or env["tdd_max_rounds"]
     max_failures = max_failures or env["tdd_max_failures"]
@@ -35,9 +41,7 @@ def tdd_loop(target: str = "", max_rounds: int = 0, max_failures: int = 0, commi
         "type": "tdd",
         "target": target,
         "rounds": [],
-        "started_at": __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc
-        ).isoformat(),
+        "started_at": datetime.now(timezone.utc).isoformat(),
     }
 
     print(f"[TDD] Target: {target or '(all tests)'}")
@@ -66,7 +70,8 @@ def tdd_loop(target: str = "", max_rounds: int = 0, max_failures: int = 0, commi
         }
 
         if failed == 0:
-            print(f"\n[TDD] All tests pass!") if round_num > 1 else None
+            if round_num > 1:
+                print("\n[TDD] All tests pass!")
             run_record["rounds"].append(round_record)
             run_record["conclusion"] = "all_pass"
             progress["runs"].append(run_record)
@@ -87,7 +92,7 @@ def tdd_loop(target: str = "", max_rounds: int = 0, max_failures: int = 0, commi
             print(f"  [fix] {test_name}")
             target_file = find_source_file(f)
             if not target_file:
-                print(f"    -> cannot locate source, skipping")
+                print("    -> cannot locate source, skipping")
                 round_record["fixes"].append({"test": test_name, "status": "no_source"})
                 continue
             print(f"    -> fixing source: {target_file.relative_to(ROOT)}")
@@ -95,17 +100,15 @@ def tdd_loop(target: str = "", max_rounds: int = 0, max_failures: int = 0, commi
             src = target_file.read_text()
             fix_code = llm_suggest_fix(f, src, env, source_path=target_file)
             if not fix_code:
-                print(f"    -> LLM returned no fix, skipping")
+                print("    -> LLM returned no fix, skipping")
                 round_record["fixes"].append({"test": test_name, "status": "no_llm_fix"})
                 continue
 
-            from automation.improve import apply_fix
             ok = apply_fix(target_file, fix_code, test_name)
             round_record["fixes"].append({"test": test_name, "status": "applied" if ok else "write_failed"})
             print(f"    -> {'applied' if ok else 'write failed'}")
             # Atomic verified per-file commit on the run branch.
             if ok and commit_changes:
-                from automation import gitops
                 rel = target_file.relative_to(ROOT)
                 gitops.commit_file(ROOT, str(rel))
                 print(f"    -> committed {rel} on run branch")
@@ -117,3 +120,4 @@ def tdd_loop(target: str = "", max_rounds: int = 0, max_failures: int = 0, commi
     progress["runs"].append(run_record)
     save_progress(progress)
     return 1
+

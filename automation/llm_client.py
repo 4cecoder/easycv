@@ -1,25 +1,31 @@
-import json
-import urllib.request
-import urllib.error
-import urllib.parse
-import time
-from typing import Optional
-
-from automation.config import get_env
-
+"""HTTP LLM client for invoking OpenAI-compatible chat completion APIs."""
 
 import json
+import re
 import time
-from typing import Optional
-from urllib.request import Request, urlopen
+from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from automation.config import get_env
+from backend.constants import WORKER_DOWNLOAD_TIMEOUT
 
 TRANSIENT_STATUS = {408, 429, 500, 502, 503, 504}
+DEFAULT_HTTP_TIMEOUT = WORKER_DOWNLOAD_TIMEOUT
+DEFAULT_MAX_RETRIES = 3
+DEFAULT_TEMPERATURE = 0.1
+DEFAULT_MAX_TOKENS = 64000
+CUSTOM_ERROR_STATUS = 599
 
 
-def make_request(url, method="GET", data=None, headers=None, timeout=60):
+def make_request(
+    url: str,
+    method: str = "GET",
+    data: Optional[Dict[str, Any]] = None,
+    headers: Optional[Dict[str, str]] = None,
+    timeout: int = DEFAULT_HTTP_TIMEOUT,
+) -> Tuple[int, Any]:
+    """Execute an HTTP request and return the status code along with the decoded JSON body."""
     req = Request(url, method=method)
     if data is not None or method in ("POST", "PUT", "PATCH"):
         req.add_header("Content-Type", "application/json")
@@ -42,20 +48,21 @@ def make_request(url, method="GET", data=None, headers=None, timeout=60):
             body = str(e)
         return e.code, body
     except (URLError, TimeoutError, OSError) as e:
-        return 599, {"error": str(e)}
+        return CUSTOM_ERROR_STATUS, {"error": str(e)}
     except Exception as e:
         return 500, {"error": str(e)}
 
 
 def chat(
-    messages: list[dict],
+    messages: List[Dict[str, Any]],
     model: Optional[str] = None,
     base_url: Optional[str] = None,
-    temperature: float = 0.1,
-    max_tokens: int = 64000,
+    temperature: float = DEFAULT_TEMPERATURE,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
     timeout: Optional[int] = None,
-    max_retries: int = 3,
+    max_retries: int = DEFAULT_MAX_RETRIES,
 ) -> Optional[str]:
+    """Send a chat completion request to the configured LLM backend with retries on transient errors."""
     env = get_env()
     url = f"{base_url or env['base_url']}/chat/completions"
     model = model or env["model"]
@@ -70,13 +77,11 @@ def chat(
     for attempt in range(max_retries):
         status, resp = make_request(url, method="POST", data=payload, timeout=timeout)
         if status == 200:
-            # Fix: Guard against empty choices array
             choices = resp.get("choices", [])
             if not choices:
                 print(f"[LLM] no choices in response: {resp}")
                 return None
 
-            # Fix: Use nested .get() to avoid KeyError/TypeError
             first_choice = choices[0]
             if not isinstance(first_choice, dict):
                 print(f"[LLM] first choice is not a dict: {first_choice}")
@@ -90,7 +95,6 @@ def chat(
             content = message.get("content", "")
             reasoning = message.get("reasoning_content", "")
 
-            # Fix: Use explicit if/else instead of truthiness checks
             if content is not None and content != "":
                 return content
             if reasoning is not None and reasoning != "":
@@ -110,8 +114,7 @@ def chat(
 
 
 def extract_code_block(text: str, language: str = "") -> Optional[str]:
-    import re
-    # Fix: Escape the language parameter to prevent ReDoS
+    """Extract code block contents from markdown text matching an optional language identifier."""
     escaped_language = re.escape(language)
     pattern = rf"```{escaped_language}\n(.*?)```"
     matches = re.findall(pattern, text, re.DOTALL)

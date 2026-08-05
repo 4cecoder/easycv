@@ -60,7 +60,7 @@ Easy CV is a modern, modular resume and CV building application. The platform is
 ### Data Flow
 
 1. **Upload**: User uploads CV files via drag-drop on `/`. Files go to Convex storage via signed URL. Upload row created in `uploads` table with `sessionId` cookie.
-2. **Queue**: Worker poll-clams the upload via `claimNextQueued` mutation with shared secret auth.
+2. **Queue**: Worker poll-claims the upload via `claimNextQueued` mutation with shared secret auth.
 3. **Process**: Worker downloads files, runs `pipeline.consolidate_files()` (extract → LLM consolidate → score → LaTeX compile → PDF).
 4. **Save**: Structured profile, quality score, and optional job-match (if job description provided) saved to Convex.
 5. **Preview**: Browser subscribes to `getStructuredProfile` via reactive Convex query — auto-updates when worker finishes.
@@ -116,10 +116,10 @@ Easy CV is a modern, modular resume and CV building application. The platform is
 
 | Module | Responsibilities |
 |--------|-----------------|
-| `backend/pipeline.py` | CLI entry point (`easycv`), directory scanning, text extraction (PDF/TXT/MD), LLM consolidation (Anthropic/OpenAI/Ollama), resume generation, quality scoring, job matching |
-| `backend/latex.py` | LaTeX rendering from structured JSON → .tex → PDF compilation via pdflatex |
-| `backend/ste100.py` | ASD-STE100 Issue 9 validator — British spelling, passive voice, contractions, sentence length, -ing forms, semicolons |
-| `backend/worker.py` | Long-lived process — polls Convex, claims queued uploads, runs consolidation, saves results, handles graceful shutdown |
+| `pipeline.py` | CLI entry point (`easycv`), directory scanning, text extraction (PDF/TXT/MD), LLM consolidation (Anthropic/OpenAI/Ollama), resume generation, quality scoring, job matching |
+| `latex.py` | LaTeX rendering from structured JSON → .tex → PDF compilation via pdflatex |
+| `ste100.py` | ASD-STE100 Issue 9 validator — British spelling, passive voice, contractions, sentence length, -ing forms, semicolons |
+| `worker.py` | Long-lived process — polls Convex, claims queued uploads, runs consolidation, saves results, handles graceful shutdown |
 
 ### Utilities
 

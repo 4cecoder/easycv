@@ -13,10 +13,10 @@ Legend: ✅ Done | 🔧 In Progress | ⏳ Pending | ❌ Blocked
 - [x] `easycv redetect` — re-run person detection after alias edits
 - [x] `easycv stats` — summarize output directory
 - [x] `easycv match-job` — keyword alignment analysis against job description
-- [x] LaTeX rendering + PDF compilation (`backend/latex.py`)
-- [x] ASD-STE100 Issue 9 validator (`backend/ste100.py`)
+- [x] LaTeX rendering + PDF compilation ([latex.py](file:///Users/fource/bytecats/easycv/latex.py))
+- [x] ASD-STE100 Issue 9 validator ([ste100.py](file:///Users/fource/bytecats/easycv/ste100.py))
 - [x] 222 passing tests (pipeline + STE100 + worker + profile mapping)
-- [x] Package structure: `backend/` package with `uv` / `pyproject.toml`
+- [x] Package structure: Python root modules with `uv` / `pyproject.toml`
 
 ---
 

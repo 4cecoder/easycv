@@ -58,9 +58,9 @@
 | Python pipeline | 174+ | `tests/test_pipeline.py` |
 | Python STE-100 | 53 | `tests/test_ste100.py` |
 | Python worker | — | `tests/test_worker.py` |
-| Vitest (profile mapping) | — | `lib/profileMapping.test.ts` |
-| Vitest (checkout) | — | `api/checkout/route.test.ts` |
-| Convex (schema) | — | `convex/schema.test.ts` |
+| Vitest (profile mapping) | — | `web/lib/profileMapping.test.ts` |
+| Vitest (checkout) | — | `web/app/api/checkout/route.test.ts` |
+| Convex (schema) | — | `web/convex/schema.test.ts` |
 
 ---
 
@@ -70,8 +70,7 @@
 |------|--------|
 | Google OAuth | Explicitly deferred — session cookie is sufficient for v1 |
 | Subscription billing | Deprioritized — rf-2 confirms one-time payment converts better |
-| Worker.py Docker/VPS deployment | Known gap noted in backlog — run on same box as Ollama for now |
-| Job-description→keyword match | Pending backlog item (cheap to build on existing structured JSON) |
+| Worker Docker/VPS deployment | Known gap noted in backlog — run on same box as Ollama for now |
 | Ollama message-type guard | Pending backlog item (narrow non-blocking edge case) |
 
 ## Next Feature to Ship
