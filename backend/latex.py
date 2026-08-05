@@ -18,6 +18,13 @@ import subprocess
 from typing import Optional
 
 
+from backend.constants import (
+    LATEX_COMPILE_TIMEOUT,
+    STDERR_CHAR_LIMIT,
+    STDERR_LINE_LIMIT,
+)
+
+
 # ── Escaping ────────────────────────────────────
 
 # This function performs a single character-by-character pass over the input,
@@ -265,7 +272,7 @@ def compile_pdf(tex_path: str, output_dir: str) -> Optional[str]:
 
     try:
         result = subprocess.run(
-            args, cwd=output_dir, capture_output=True, text=True, timeout=30,
+            args, cwd=output_dir, capture_output=True, text=True, timeout=LATEX_COMPILE_TIMEOUT,
         )
     except Exception as e:
         print(f"  [warn] pdflatex failed with {type(e).__name__}: {e}; skipping PDF compilation")
@@ -280,11 +287,11 @@ def compile_pdf(tex_path: str, output_dir: str) -> Optional[str]:
         stderr_excerpt = ""
         if result.stderr:
             lines = result.stderr.strip().splitlines()
-            if len(lines) > 10:
-                lines = lines[-10:]
+            if len(lines) > STDERR_LINE_LIMIT:
+                lines = lines[-STDERR_LINE_LIMIT:]
             stderr_excerpt = "\n".join(lines)
-            if len(stderr_excerpt) > 500:
-                stderr_excerpt = stderr_excerpt[:500] + "... (truncated)"
+            if len(stderr_excerpt) > STDERR_CHAR_LIMIT:
+                stderr_excerpt = stderr_excerpt[:STDERR_CHAR_LIMIT] + "... (truncated)"
         print(f"  [warn] pdflatex failed (exit {result.returncode}); stderr: {stderr_excerpt}")
         return None
 
