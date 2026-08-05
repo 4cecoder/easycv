@@ -25,7 +25,7 @@ def resolve_test_target(target: str) -> Optional[str]:
     return target
 
 
-def tdd_loop(target: str = "", max_rounds: int = 0, max_failures: int = 0) -> int:
+def tdd_loop(target: str = "", max_rounds: int = 0, max_failures: int = 0, commit_changes: bool = False) -> int:
     env = get_env()
     max_rounds = max_rounds or env["tdd_max_rounds"]
     max_failures = max_failures or env["tdd_max_failures"]
@@ -103,6 +103,12 @@ def tdd_loop(target: str = "", max_rounds: int = 0, max_failures: int = 0) -> in
             ok = apply_fix(target_file, fix_code, test_name)
             round_record["fixes"].append({"test": test_name, "status": "applied" if ok else "write_failed"})
             print(f"    -> {'applied' if ok else 'write failed'}")
+            # Atomic verified per-file commit on the run branch.
+            if ok and commit_changes:
+                from automation import gitops
+                rel = target_file.relative_to(ROOT)
+                gitops.commit_file(ROOT, str(rel))
+                print(f"    -> committed {rel} on run branch")
 
         run_record["rounds"].append(round_record)
 

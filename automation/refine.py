@@ -30,7 +30,12 @@ def run_ocr(file_path: Path, env: dict) -> str:
         return ""
     # Scan the tracked file directly. OCR is git-aware and skips untracked
     # files, so the previous .ocr-tmp copy silently produced 0 comments.
-    rel = file_path.relative_to(ROOT)
+    try:
+        rel = file_path.relative_to(ROOT)
+    except ValueError:
+        # File is outside ROOT (e.g., temp file during testing)
+        rel = file_path.name
+    
     cmd = [
         "ocr", "scan",
         "--path", str(rel),
@@ -76,6 +81,127 @@ def run_ocr(file_path: Path, env: dict) -> str:
         seen.add(key)
         unique.append("\n".join(block).strip())
     return "\n\n".join(unique).strip()
+
+
+def _chunked_refactor(file_path: Path, code: str, comments: str, env: dict, dry_run: bool, enforce_policy: bool) -> dict:
+    """Refactor large files by splitting into chunks, processing each separately."""
+    try:
+        rel = file_path.relative_to(ROOT)
+    except ValueError:
+        # File is outside ROOT (e.g., temp file during testing)
+        rel = file_path.name
+    
+    lines = code.splitlines()
+    
+    # Split into chunks (target ~400 lines per chunk for safety)
+    chunk_size = 400
+    chunks = []
+    for i in range(0, len(lines), chunk_size):
+        chunk_lines = lines[i:i + chunk_size]
+        chunk_code = "\n".join(chunk_lines)
+        chunks.append({
+            "start": i + 1,  # 1-indexed line numbers
+            "end": i + len(chunk_lines),
+            "code": chunk_code,
+            "original": chunk_code
+        })
+    
+    print(f"  [chunked] split {len(lines)} lines into {len(chunks)} chunks")
+    
+    # Process each chunk with OCR and LLM
+    refactored_chunks = []
+    for i, chunk in enumerate(chunks, 1):
+        print(f"  [chunked] processing chunk {i}/{len(chunks)} (lines {chunk['start']}-{chunk['end']})")
+        
+        # Create a temporary file for this chunk
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix=file_path.suffix, delete=False) as tmp:
+            tmp.write(chunk['code'])
+            tmp_path = Path(tmp.name)
+        
+        try:
+            # Run OCR on the chunk
+            chunk_comments = run_ocr(tmp_path, env)
+            if not chunk_comments:
+                print(f"  [chunked] chunk {i}: clean (no issues)")
+                refactored_chunks.append(chunk['code'])
+                continue
+            
+            # Request refactor for this chunk
+            chunk_refactored = request_refactor(chunk['code'], chunk_comments, env)
+            if not chunk_refactored:
+                print(f"  [chunked] chunk {i}: LLM refactor failed, using original")
+                refactored_chunks.append(chunk['code'])
+                continue
+            
+            # Validate Python syntax if applicable
+            if file_path.suffix == ".py":
+                syntax_err = _validate_python(chunk_refactored)
+                if syntax_err:
+                    print(f"  [chunked] chunk {i}: syntax error ({syntax_err}), using original")
+                    refactored_chunks.append(chunk['code'])
+                    continue
+            
+            print(f"  [chunked] chunk {i}: refactor successful")
+            refactored_chunks.append(chunk_refactored)
+            
+        finally:
+            tmp_path.unlink()
+    
+    # Recombine chunks
+    refactored_code = "\n".join(refactored_chunks)
+    
+    # Final compile gate on the full refactored code
+    if file_path.suffix == ".py":
+        syntax_err = _validate_python(refactored_code)
+        if syntax_err:
+            print(f"  [chunked] final recombination failed ({syntax_err})")
+            return {
+                "file": str(rel),
+                "status": "recombination_failed",
+                "comments": comments,
+                "lines": len(lines),
+            }
+    
+    if dry_run:
+        print(f"  [chunked] dry-run mode, skipping apply")
+        return {
+            "file": str(rel),
+            "status": "dry_run",
+            "comments": comments,
+            "lines": len(lines),
+            "chunks": len(chunks),
+        }
+    
+    # Apply the refactored code
+    backup = file_path.with_suffix(file_path.suffix + ".refine.bak")
+    shutil.copy2(file_path, backup)
+    try:
+        print(f"  [chunked] applying refactored code...")
+        file_path.write_text(refactored_code)
+        print(f"  [chunked] verifying with tests...")
+        passed = verify_with_tests(file_path, backup)
+        if backup.exists():
+            backup.unlink()
+        
+        return {
+            "file": str(rel),
+            "status": "fixed" if passed else "reverted",
+            "comments": comments,
+            "lines": len(lines),
+            "chunks": len(chunks),
+        }
+    except Exception as e:
+        if backup.exists():
+            shutil.copy2(backup, file_path)
+            backup.unlink()
+        print(f"  [chunked] error: {e}")
+        return {
+            "file": str(rel),
+            "status": "error",
+            "error": str(e),
+            "comments": comments,
+        }
 
 
 def _exceeds_refactor_limit(file_path: Path, lines: int, size_kb: float) -> bool:
@@ -183,12 +309,13 @@ def refine_file(file_path: Path, env: dict, dry_run: bool = False, enforce_polic
     lines = len(code.splitlines())
     size_kb = len(code.encode("utf-8")) / 1024
     if _exceeds_refactor_limit(file_path, lines, size_kb):
-        return {
-            "file": str(rel),
-            "status": "too_large",
-            "comments": comments,
-            "lines": lines,
-        }
+        print(f"  [refine] {rel}: large file ({lines} lines, {size_kb:.1f}KB), attempting chunked refactor...")
+        chunk_result = _chunked_refactor(file_path, code, comments, env, dry_run, enforce_policy)
+        if chunk_result["status"] == "fixed":
+            print(f"  [refine] {rel}: ✓ chunked refactor applied and verified")
+        else:
+            print(f"  [refine] {rel}: ✗ chunked refactor failed ({chunk_result['status']})")
+        return chunk_result
 
     print(f"  [refine] {rel}: {len(comment_blocks)} comment(s) found, requesting refactor...")
     refactored = request_refactor(code, comments, env)
