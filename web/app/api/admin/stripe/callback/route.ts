@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     }
 
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "mock-key", {
-      apiVersion: "2026-07-29.dahlia",
+      apiVersion: "2026-06-24.dahlia",
     });
 
     // Exchange Connect OAuth code for connected account credentials

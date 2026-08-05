@@ -20,9 +20,8 @@ from typing import Optional
 
 # ── Escaping ────────────────────────────────────
 
-# Order-independent because we do a single character-by-character pass —
-# this avoids the classic bug of re-escaping characters introduced by an
-# earlier replacement (e.g. the "{" and "}" in "\textbackslash{}").
+# This function performs a single character-by-character pass over the input,
+# replacing each special LaTeX character with its escaped counterpart.
 _LATEX_SPECIAL_CHARS = {
     "\\": r"\textbackslash{}",
     "&": r"\&",
@@ -235,12 +234,24 @@ def compile_pdf(tex_path: str, output_dir: str) -> Optional[str]:
     """Compile ``tex_path`` with ``pdflatex`` into ``output_dir``.
 
     Returns the path to the produced PDF, or None on any failure (missing
-    pdflatex, timeout, or a nonzero exit / missing output file). Never
-    raises — .tex generation must succeed independently of whether PDF
-    compilation is available.
+    pdflatex, timeout, permission error, or a nonzero exit / missing output
+    file). Never raises — .tex generation must succeed independently of
+    whether PDF compilation is available.
     """
     tex_path = os.path.abspath(tex_path)
     output_dir = os.path.abspath(output_dir)
+
+    # Validate that the resolved output directory stays within the directory
+    # containing the tex file to prevent path-traversal attacks (e.g. an
+    # attacker supplying ``../../../etc/cron.d/`` as ``output_dir``).
+    base_dir = os.path.dirname(tex_path)
+    if not (output_dir == base_dir or output_dir.startswith(base_dir + os.sep)):
+        print(
+            f"  [error] output_dir ({output_dir}) is outside base_dir "
+            f"({base_dir}); aborting PDF compilation"
+        )
+        return None
+
     os.makedirs(output_dir, exist_ok=True)
 
     args = [
@@ -256,18 +267,25 @@ def compile_pdf(tex_path: str, output_dir: str) -> Optional[str]:
         result = subprocess.run(
             args, cwd=output_dir, capture_output=True, text=True, timeout=30,
         )
-    except FileNotFoundError:
-        print("  [warn] pdflatex not found; skipping PDF compilation (tex file still written)")
-        return None
-    except subprocess.TimeoutExpired:
-        print("  [warn] pdflatex timed out after 30s; skipping PDF compilation")
+    except Exception as e:
+        print(f"  [warn] pdflatex failed with {type(e).__name__}: {e}; skipping PDF compilation")
         return None
 
     pdf_name = os.path.splitext(os.path.basename(tex_path))[0] + ".pdf"
     pdf_path = os.path.join(output_dir, pdf_name)
 
     if result.returncode != 0 or not os.path.isfile(pdf_path):
-        print(f"  [warn] pdflatex failed (exit {result.returncode}); see logs in {output_dir}")
+        # Surface a truncated excerpt of the stderr so operators can diagnose
+        # LaTeX compilation failures without needing to dig through log files.
+        stderr_excerpt = ""
+        if result.stderr:
+            lines = result.stderr.strip().splitlines()
+            if len(lines) > 10:
+                lines = lines[-10:]
+            stderr_excerpt = "\n".join(lines)
+            if len(stderr_excerpt) > 500:
+                stderr_excerpt = stderr_excerpt[:500] + "... (truncated)"
+        print(f"  [warn] pdflatex failed (exit {result.returncode}); stderr: {stderr_excerpt}")
         return None
 
     return pdf_path

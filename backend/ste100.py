@@ -51,12 +51,37 @@ CONTRACTION_PATTERNS = [
     r"\bca\s*n't\b", r"\bwo\s*n't\b", r"\bdon't\b", r"\bisn't\b", r"\baren't\b",
     r"\bwasn't\b", r"\bweren't\b", r"\bhasn't\b", r"\bhaven't\b", r"\bhadn't\b",
     r"\bshouldn't\b", r"\bwouldn't\b", r"\bcouldn't\b", r"\bdoesn't\b", r"\bdidn't\b",
-    r"\bshan't\b", r"\bmustn't\b", r"\bi'm\b", r"\byou're\b", r"\bhe's\b", r"\bshe's\b",
-    r"\bit's\b", r"\bwe're\b", r"\bthey're\b", r"\bi've\b", r"\byou've\b", r"\bwe've\b",
-    r"\bthey've\b", r"\bi'd\b", r"\byou'd\b", r"\bhe'd\b", r"\bshe'd\b", r"\bwe'd\b",
+    r"\bi'm\b", r"\byou're\b", r"\bhe's\b", r"\bshe's\b", r"\bit's\b", r"\bwe're\b",
+    r"\bthey're\b", r"\bi've\b", r"\byou've\b", r"\bwe've\b", r"\bthey've\b",
+    r"\bi'd\b", r"\byou'd\b", r"\bhe'd\b", r"\bshe'd\b", r"\bwe'd\b",
     r"\bthey'd\b", r"\bi'll\b", r"\byou'll\b", r"\bhe'll\b", r"\bshe'll\b", r"\bwe'll\b",
     r"\bthey'll\b", r"\blet's\b", r"\bthat's\b", r"\bthere's\b", r"\bwhat's\b", r"\bwho's\b"
 ]
+
+# Pre-compiled regex patterns for performance
+_BRITISH_SPELLING_PATTERNS = [re.compile(p) for p in BRITISH_TO_AMERICAN_SPELLING.keys()]
+_CONTRACTION_PATTERNS = [re.compile(p) for p in CONTRACTION_PATTERNS]
+_UNIT_PATTERN = re.compile(
+    r"\b\d+(?:\.\d+)?\s*(?:mA|°C|kg|kilograms|degrees\s+Celsius|ohms|V|dB|mm|in|knots|h|min|s|seconds|meters|L|l)\b",
+    re.IGNORECASE,
+)
+_BE_VERBS_PATTERN = re.compile(r"\b(?:am|is|are|was|were|be|been|being)\b")
+_PASSIVE_PATTERN = re.compile(
+    _BE_VERBS_PATTERN.pattern + r"\s+(?:[a-zA-Z]+ly\s+)?(?:[a-zA-Z]+ed|[a-zA-Z]+en)\b",
+    re.IGNORECASE,
+)
+_BY_PATTERN = re.compile(_BE_VERBS_PATTERN.pattern + r"\s+.+?\s+\bby\b", re.IGNORECASE)
+_ING_WORD_PATTERN = re.compile(r"\b([a-zA-Z]+ing)\b", re.IGNORECASE)
+_PERFECT_PATTERN = re.compile(
+    r"\b(?:has|have|had)\s+(?:[a-zA-Z]+ly\s+)?(?:[a-zA-Z]+ed|[a-zA-Z]+en|been)\b",
+    re.IGNORECASE,
+)
+_PROGRESSIVE_PATTERN = re.compile(
+    r"\b(?:am|is|are|was|were)\s+(?:[a-zA-Z]+ly\s+)?[a-zA-Z]+ing\b",
+    re.IGNORECASE,
+)
+_ABBR_PATTERN = re.compile(r"\b(e\.g\.|i\.e\.|a\.m\.|p\.m\.|vs\.|no\.|approx\.)", re.IGNORECASE)
+_SENTENCE_SPLIT_PATTERN = re.compile(r"(?<=[.!?])\s+")
 
 
 def split_into_sentences(text: str) -> List[str]:
@@ -66,11 +91,10 @@ def split_into_sentences(text: str) -> List[str]:
     if not text:
         return []
     # Temporarily hide dots in common abbreviations
-    abbr_pattern = r"\b(e\.g\.|i\.e\.|a\.m\.|p\.m\.|vs\.|no\.|approx\.)"
-    temp_text = re.sub(abbr_pattern, lambda m: m.group(0).replace(".", "___DOT___"), text, flags=re.IGNORECASE)
+    temp_text = _ABBR_PATTERN.sub(lambda m: m.group(0).replace(".", "___DOT___"), text)
     
     # Split on period, exclamation, or question mark followed by whitespace
-    sentences = re.split(r"(?<=[.!?])\s+", temp_text)
+    sentences = _SENTENCE_SPLIT_PATTERN.split(temp_text)
     
     # Restore dots
     cleaned = []
@@ -90,7 +114,6 @@ def count_words_ste100(sentence: str) -> int:
     - Numbers, units of measurement, abbreviations, and proper nouns count as ONE word.
     """
     # 1. Handle Parenthesized text (Rule 8.5): Replace contents with a single token
-    # We do this iteratively to support nested parentheses if any.
     cleaned_sentence = sentence
     while True:
         next_sentence, count = re.subn(r"\([^)]*\)", "___PAREN___", cleaned_sentence)
@@ -102,16 +125,11 @@ def count_words_ste100(sentence: str) -> int:
     cleaned_sentence = re.sub(r'"[^"]*"', "___QUOTE___", cleaned_sentence)
 
     # 3. Handle numbers together with units of measurement (Rule 8.6): e.g., '10 mA', '10 °C', '20 kg'
-    # We replace 'number + unit' with a single token
-    unit_pattern = r"\b\d+(?:\.\d+)?\s*(?:mA|°C|kg|kilograms|degrees\s+Celsius|ohms|V|dB|mm|in| knots| knots|h|min|s|seconds|meters|L|l)\b"
-    cleaned_sentence = re.sub(unit_pattern, "___NUM_UNIT___", cleaned_sentence, flags=re.IGNORECASE)
+    cleaned_sentence = _UNIT_PATTERN.sub("___NUM_UNIT___", cleaned_sentence)
 
     # 4. Tokenize by splitting on spaces, ignoring punctuation except internal hyphens (Rule 8.7)
-    # Remove outer punctuation but keep hyphens inside words
     tokens = []
-    # Split by whitespace
     for raw_token in cleaned_sentence.split():
-        # Strip trailing/leading non-alphanumeric chars, except internal hyphens or tokens we created
         token = re.sub(r"^[^\w_@]+|[^\w_@]+$", "", raw_token)
         if token:
             tokens.append(token)
@@ -122,20 +140,21 @@ def count_words_ste100(sentence: str) -> int:
 def check_british_spelling(sentence: str) -> List[str]:
     """Flags British English spelling variants (Rule 1.14)."""
     warnings = []
-    for pattern, preferred in BRITISH_TO_AMERICAN_SPELLING.items():
-        matches = re.findall(pattern, sentence, flags=re.IGNORECASE)
-        if matches:
-            warnings.append(f"British spelling variant '{matches[0]}' detected (use American '{preferred}')")
+    for compiled_pattern, preferred in zip(_BRITISH_SPELLING_PATTERNS, BRITISH_TO_AMERICAN_SPELLING.values()):
+        for match in compiled_pattern.finditer(sentence):
+            warnings.append(
+                f"British spelling variant '{match.group(0)}' detected (use American '{preferred}')"
+            )
     return warnings
 
 
 def check_contractions(sentence: str) -> List[str]:
     """Flags contractions to ensure all words are written in full (Rule 4.2)."""
     warnings = []
-    for pattern in CONTRACTION_PATTERNS:
-        matches = re.findall(pattern, sentence, flags=re.IGNORECASE)
-        if matches:
-            warnings.append(f"Contraction '{matches[0]}' is not permitted; write it in full")
+    for compiled_pattern in _CONTRACTION_PATTERNS:
+        match = compiled_pattern.search(sentence)
+        if match:
+            warnings.append(f"Contraction '{match.group(0)}' is not permitted; write it in full")
     return warnings
 
 
@@ -145,19 +164,14 @@ def check_passive_voice(sentence: str) -> List[str]:
     followed by a verb ending in 'ed' (simplistic past participle heuristic) or 'by' preposition.
     """
     warnings = []
-    # Pattern: to-be verb + optional adverb/whitespace + past participle ending in 'ed' or 'en'
-    be_verbs = r"\b(?:am|is|are|was|were|be|been|being)\b"
-    passive_pattern = be_verbs + r"\s+(?:[a-zA-Z]+ly\s+)?(?:[a-zA-Z]+ed|[a-zA-Z]+en)\b"
     
-    matches = re.findall(passive_pattern, sentence, flags=re.IGNORECASE)
-    if matches:
-        warnings.append(f"Passive voice pattern detected: '{matches[0]}' (prefer active voice)")
+    match = _PASSIVE_PATTERN.search(sentence)
+    if match:
+        warnings.append(f"Passive voice pattern detected: '{match.group(0)}' (prefer active voice)")
         
-    # Check for direct 'by <agent>' indicators in combination with a verb
-    by_pattern = be_verbs + r"\s+.+?\s+\bby\b"
-    by_matches = re.findall(by_pattern, sentence, flags=re.IGNORECASE)
-    if by_matches:
-        warnings.append(f"Passive helper with agent 'by' detected: '{by_matches[0]}' (rewrite in active voice)")
+    match = _BY_PATTERN.search(sentence)
+    if match:
+        warnings.append(f"Passive helper with agent 'by' detected: '{match.group(0)}' (rewrite in active voice)")
 
     return warnings
 
@@ -165,17 +179,16 @@ def check_passive_voice(sentence: str) -> List[str]:
 def check_ing_forms(sentence: str) -> List[str]:
     """Flags non-approved '-ing' forms unless they belong to allowed lists (Rule 3.5)."""
     warnings = []
-    # Find all words ending in 'ing'
-    ing_words = re.findall(r"\b([a-zA-Z]+ing)\b", sentence, flags=re.IGNORECASE)
+    ing_words = _ING_WORD_PATTERN.findall(sentence)
     for word in ing_words:
         low = word.lower()
-        # Skip if it is in approved words
         if low in APPROVED_ING_WORDS:
             continue
-        # Skip common compound technical nouns with hyphen e.g. air-conditioning
         if f"-{low}" in sentence.lower() or f"{low}-" in sentence.lower():
             continue
-        warnings.append(f"'-ing' form '{word}' is not recommended (Rule 3.5) unless it functions as an approved technical noun")
+        warnings.append(
+            f"'-ing' form '{word}' is not recommended (Rule 3.5) unless it functions as an approved technical noun"
+        )
     return warnings
 
 
@@ -185,17 +198,14 @@ def check_perfect_progressive_tenses(sentence: str) -> List[str]:
     - Progressive tenses: 'is/was/were/am' + '-ing'.
     """
     warnings = []
-    # Perfect tenses
-    perfect_pattern = r"\b(?:has|have|had)\s+(?:[a-zA-Z]+ly\s+)?(?:[a-zA-Z]+ed|[a-zA-Z]+en|been)\b"
-    perfect_matches = re.findall(perfect_pattern, sentence, flags=re.IGNORECASE)
-    if perfect_matches:
-        warnings.append(f"Perfect tense helper '{perfect_matches[0]}' detected (use simple past or present instead)")
+    
+    match = _PERFECT_PATTERN.search(sentence)
+    if match:
+        warnings.append(f"Perfect tense helper '{match.group(0)}' detected (use simple past or present instead)")
         
-    # Progressive tenses
-    progressive_pattern = r"\b(?:am|is|are|was|were)\s+(?:[a-zA-Z]+ly\s+)?[a-zA-Z]+ing\b"
-    progressive_matches = re.findall(progressive_pattern, sentence, flags=re.IGNORECASE)
-    if progressive_matches:
-        warnings.append(f"Progressive tense helper '{progressive_matches[0]}' detected (use simple present or past instead)")
+    match = _PROGRESSIVE_PATTERN.search(sentence)
+    if match:
+        warnings.append(f"Progressive tense helper '{match.group(0)}' detected (use simple present or past instead)")
         
     return warnings
 
@@ -234,7 +244,6 @@ def validate_text_ste100(text: str, is_procedural: bool = False) -> List[str]:
     for s in sentences:
         s_warnings = validate_sentence(s, is_procedural)
         for w in s_warnings:
-            # Format the warning with a snippet of the sentence
             snippet = s[:40] + "..." if len(s) > 40 else s
             warnings.append(f"[{snippet}] {w}")
     return warnings

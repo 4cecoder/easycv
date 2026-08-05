@@ -1,4 +1,5 @@
 import argparse
+import ast
 import json
 import re
 import shutil
@@ -12,38 +13,92 @@ from automation.llm_client import chat, extract_code_block, make_request
 from automation.test_orchestration import run_pytest
 
 
-def run_ocr(file_path: Path) -> str:
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+# The 35B local model truncates large single-shot rewrites (~600-700 output
+# lines). Files above these limits are reported but not auto-refactored.
+MAX_REFACTOR_LINES = 800
+MAX_REFACTOR_KB = 35
+
+
+def _strip_ansi(text: str) -> str:
+    return ANSI_RE.sub("", text)
+
+
+def run_ocr(file_path: Path, env: dict) -> str:
     if not file_path.exists():
         return ""
+    # Scan the tracked file directly. OCR is git-aware and skips untracked
+    # files, so the previous .ocr-tmp copy silently produced 0 comments.
     rel = file_path.relative_to(ROOT)
-    temp = ROOT / "automation" / ".ocr-tmp" / rel
-    temp.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(file_path, temp)
     cmd = [
         "ocr", "scan",
-        "--path", str(temp),
+        "--path", str(rel),
         "--audience", "agent",
         "--no-plan", "--no-summary", "--no-dedup",
     ]
-    res = subprocess.run(
-        cmd, capture_output=True, text=True, cwd=str(ROOT), timeout=120
-    )
-    if temp.exists():
-        temp.unlink()
-    output = res.stdout.strip()
-    comments = []
-    if output and "Summary: 1 file(s) reviewed" in output:
-        capture = False
-        for line in output.split("\n"):
-            if "───" in line and str(temp.name) in line:
-                capture = True
-            if capture:
-                line = line.replace(str(temp), str(file_path))
-                comments.append(line)
-    return "\n".join(comments).strip()
+    try:
+        res = subprocess.run(
+            cmd, capture_output=True, text=True, cwd=str(ROOT),
+            timeout=env.get("ocr_timeout", 600),
+        )
+    except subprocess.TimeoutExpired:
+        print(f"  [refine] {rel}: OCR scan timed out ({env.get('ocr_timeout', 600)}s)")
+        return ""
+
+    output = _strip_ansi(res.stdout)
+    if "Summary:" not in output or "comment(s)" not in output:
+        return ""
+
+    # Each comment block begins with a "─── path:line-range ───" header.
+    blocks: list[list[str]] = []
+    current: list[str] = []
+    in_block = False
+    for line in output.split("\n"):
+        if "───" in line and str(file_path.name) in line:
+            if current:
+                blocks.append(current)
+            current = [line]
+            in_block = True
+        elif in_block and line.strip():
+            current.append(line)
+    if current:
+        blocks.append(current)
+
+    # Dedupe blocks that share the same header + severity tag (OCR often
+    # emits the same finding twice).
+    seen = set()
+    unique: list[str] = []
+    for block in blocks:
+        key = _strip_ansi(block[0] + block[1] if len(block) > 1 else block[0])
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append("\n".join(block).strip())
+    return "\n\n".join(unique).strip()
 
 
-def request_refactor(code: str, comments: str, env: dict) -> Optional[str]:
+def _exceeds_refactor_limit(file_path: Path, lines: int, size_kb: float) -> bool:
+    if lines > MAX_REFACTOR_LINES or size_kb > MAX_REFACTOR_KB:
+        print(
+            f"  [refine] {file_path.name}: {lines} lines ({size_kb:.0f}KB) exceeds auto-refactor limit "
+            f"({MAX_REFACTOR_LINES} lines / {MAX_REFACTOR_KB}KB); comments recorded for manual review"
+        )
+        return True
+    return False
+
+
+def _validate_python(code: str) -> Optional[str]:
+    """Return a SyntaxError description, or None if the code compiles."""
+    try:
+        ast.parse(code)
+        return None
+    except SyntaxError as e:
+        where = f":{e.lineno}" if e.lineno else ""
+        return f"SyntaxError{where} {e.msg}"
+
+
+def request_refactor(code: str, comments: str, env: dict, feedback: Optional[str] = None) -> Optional[str]:
     prompt = (
         f"Here is a source file from the easyCV codebase:\n\n"
         f"```python\n{code}\n```\n\n"
@@ -53,6 +108,11 @@ def request_refactor(code: str, comments: str, env: dict) -> Optional[str]:
         f"Preserve all existing functionality, imports, and signatures. "
         f"Return only the refactored code in a single ```python code block."
     )
+    if feedback:
+        prompt += (
+            f"\n\nYour previous attempt did not compile and was rejected: {feedback}. "
+            f"Fix the syntax error and return the complete refactored file again."
+        )
     response = chat([{"role": "user", "content": prompt}], temperature=0.1, max_tokens=64000)
     if not response:
         return None
@@ -60,7 +120,12 @@ def request_refactor(code: str, comments: str, env: dict) -> Optional[str]:
 
 
 def verify_with_tests(file_path: Path, backup_path: Path) -> bool:
-    result = run_pytest()
+    is_ts = file_path.suffix in (".ts", ".tsx")
+    if is_ts:
+        from automation.test_orchestration import run_typecheck
+        result = run_typecheck()
+    else:
+        result = run_pytest()
     if result["returncode"] == 0:
         return True
     print(f"  tests failed after edit, restoring backup")
@@ -108,17 +173,45 @@ def refine_file(file_path: Path, env: dict, dry_run: bool = False, enforce_polic
             print(f"  [policy] {rel}: policy check failed ({e}) - continuing with OCR")
 
     # Phase 1: OCR scan
-    comments = run_ocr(file_path)
+    comments = run_ocr(file_path, env)
     if not comments:
         print(f"  [refine] {rel}: clean (no issues found)")
         return {"file": str(rel), "status": "clean", "comments": None}
 
     code = file_path.read_text()
-    print(f"  [refine] {rel}: {len(comments)} comment(s) found, requesting refactor...")
+    comment_blocks = [c for c in comments.split("\n\n") if c.strip()]
+    lines = len(code.splitlines())
+    size_kb = len(code.encode("utf-8")) / 1024
+    if _exceeds_refactor_limit(file_path, lines, size_kb):
+        return {
+            "file": str(rel),
+            "status": "too_large",
+            "comments": comments,
+            "lines": lines,
+        }
+
+    print(f"  [refine] {rel}: {len(comment_blocks)} comment(s) found, requesting refactor...")
     refactored = request_refactor(code, comments, env)
     if not refactored:
         print(f"  [refine] {rel}: LLM refactor failed")
         return {"file": str(rel), "status": "llm_failed", "comments": comments}
+
+    # Deterministic gate: reject code that does not even compile before
+    # touching the file (cheap vs. a full pytest run). Retry once with the
+    # syntax error fed back to the model.
+    if file_path.suffix == ".py":
+        syntax_err = _validate_python(refactored)
+        if syntax_err:
+            print(f"  [refine] {rel}: refactor invalid ({syntax_err}), retrying once...")
+            retry = request_refactor(code, comments, env, feedback=syntax_err)
+            if not retry:
+                print(f"  [refine] {rel}: LLM retry failed")
+                return {"file": str(rel), "status": "llm_failed", "comments": comments}
+            refactored = retry
+            syntax_err = _validate_python(refactored)
+            if syntax_err:
+                print(f"  [refine] {rel}: retry still invalid ({syntax_err}), skipping")
+                return {"file": str(rel), "status": "llm_failed", "comments": comments}
 
     if dry_run:
         print(f"  [refine] {rel}: dry-run mode, skipping apply")
@@ -204,7 +297,7 @@ def main():
     print("-" * 60)
     for r in results:
         status = r["status"]
-        icon = {"clean": "✓", "fixed": "✓", "dry_run": "~", "reverted": "✗", "llm_failed": "!", "error": "!", "policy_critical": "🔴"}.get(status, "?")
+        icon = {"clean": "✓", "fixed": "✓", "dry_run": "~", "reverted": "✗", "llm_failed": "!", "error": "!", "policy_critical": "🔴", "too_large": "⛔"}.get(status, "?")
         print(f"  {icon} {r['file']}: {status}")
         if r.get("violations"):
             print(f"    violations: {r['violations']} ({r.get('critical', 0)} critical)")

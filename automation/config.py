@@ -13,19 +13,50 @@ class ConfigError(Exception):
     pass
 
 
+_dotenv_loaded = False
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in ("1", "true", "yes", "on")
+
+
+def _env_int(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None or value.strip() == "":
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        print(f"[config] warning: invalid integer for {name}={value!r}, using {default}")
+        return default
+
+
 def load_dotenv():
-    env_path = ROOT / ".env"
-    if not env_path.exists():
+    global _dotenv_loaded
+    if _dotenv_loaded:
         return
-    with open(env_path) as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            k, v = line.split("=", 1)
-            k, v = k.strip(), v.strip()
-            if k not in os.environ:
-                os.environ[k] = v
+    env_path = ROOT / ".env"
+    if env_path.exists():
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                # Support both `KEY=VALUE` and `export KEY=VALUE` forms.
+                if line.startswith("export "):
+                    line = line[len("export "):].strip()
+                if "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                k, v = k.strip(), v.strip()
+                if not k:
+                    continue
+                if k not in os.environ:
+                    os.environ[k] = v
+    _dotenv_loaded = True
 
 
 def get_env():
@@ -43,10 +74,12 @@ def get_env():
         "model": os.environ.get("AUTOMATION_MODEL", "ornith-35b-q4k"),
         "base_url": base_url,
         "api_key": os.environ.get("AUTOMATION_API_KEY", ""),
-        "tdd_max_rounds": int(os.environ.get("AUTOMATION_TDD_MAX_ROUNDS", "5")),
-        "tdd_max_failures": int(os.environ.get("AUTOMATION_TDD_MAX_FAILURES", "10")),
+        "tdd_max_rounds": _env_int("AUTOMATION_TDD_MAX_ROUNDS", 5),
+        "tdd_max_failures": _env_int("AUTOMATION_TDD_MAX_FAILURES", 10),
+        "ocr_timeout": _env_int("AUTOMATION_OCR_TIMEOUT", 600),
+        "llm_timeout": _env_int("AUTOMATION_LLM_TIMEOUT", 300),
         "playwright_url": os.environ.get("AUTOMATION_PLAYWRIGHT_URL", "http://localhost:3000"),
-        "verbose": os.environ.get("AUTOMATION_VERBOSE", "0") == "1",
+        "verbose": _env_bool("AUTOMATION_VERBOSE", False),
     }
 
 

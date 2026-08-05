@@ -32,6 +32,12 @@ uv run python -m automation test
 # Run only pytest (skip TypeScript)
 uv run python -m automation test --skip-ts
 
+# Self-driving improvement cycle: policy → OCR refine → TDD → tests → optional commit
+uv run python -m automation loop --limit 5
+
+# Same, but auto-commit when all tests pass (for cron/launchd)
+uv run python -m automation loop --limit 3 --commit
+
 # Run TDD loop with LLM auto-fix
 uv run python -m automation tdd --target tests/ --rounds 3 --max-failures 5
 
@@ -47,6 +53,15 @@ The autonomous coding framework has **heavy LLM rails**:
 - OCR (OpenCodeReview) scans code for issues
 - LLM refactors code while preserving functionality
 - All changes are verified by tests before being applied
+- Runs entirely against a self-hosted llama.cpp endpoint (`AUTOMATION_LLM_BASE_URL`) — no cloud tokens
+
+Scheduled autonomous runs (macOS):
+
+```bash
+chmod +x automation/schedule.sh
+automation/schedule.sh                # one pass, logs to automation/logs/
+launchctl load automation/com.easycv.automation.plist   # daily 03:00
+```
 
 | Command | Description |
 |---|---|

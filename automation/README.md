@@ -42,22 +42,57 @@ automation/
 ### Full Automation Loop
 
 ```bash
-# Pull latest code
-cd /home/fource/bytecats/projects/web/easycv
-git pull
+# Phase 0-3: One self-driving cycle — policy guardrails, OCR refine, TDD fix, full tests
+uv run python -m automation loop --limit 10
 
-# Phase 1: Backend OCR refinement (scan backend, LLM refactor, verify)
-uv run python -m automation refine --target backend/ --limit 10
+# Scheduled autonomous passes (macOS launchd, daily 03:00)
+chmod +x automation/schedule.sh
+launchctl load automation/com.easycv.automation.plist
 
-# Phase 2: Frontend OCR refinement (scan web/, LLM refactor, verify)
-uv run python -m automation refine --target web/ --limit 50
-
-# Phase 3: TDD auto-fix (run tests, LLM fix failures, loop)
-uv run python -m automation tdd
-
-# Check status
+# Individual phases
+uv run python -m automation refine --target backend/ --limit 10   # OCR + LLM refactor
+uv run python -m automation tdd                                    # LLM auto-fix failing tests
 uv run python -m automation status
 ```
+
+### Self-Hosted LLM (no cloud tokens)
+
+The pipeline runs entirely against a self-hosted llama.cpp endpoint. Configure in `.env`:
+
+```bash
+AUTOMATION_LLM_PROVIDER=llama.cpp
+AUTOMATION_LLM_BASE_URL=http://gentoo.tail125a6c.ts.net:8081/v1
+AUTOMATION_MODEL=/home/ubuntu/llama.cpp/Ornith-1.0-35B-MTP-APEX-I-Mini.gguf
+```
+
+The OCR CLI (`@alibaba-group/open-code-review`) must point at the same endpoint so it never
+calls a cloud provider:
+
+```bash
+ocr config set custom_providers.gentoo.url http://gentoo.tail125a6c.ts.net:8081/v1
+ocr config set custom_providers.gentoo.protocol openai
+ocr config set custom_providers.gentoo.model /home/ubuntu/llama.cpp/Ornith-1.0-35B-MTP-APEX-I-Mini.gguf
+ocr config set custom_providers.gentoo.api_key no-key-needed
+ocr config set provider gentoo
+```
+
+Verify with: `uv run python -m automation chat --prompt "Reply with: OK"`
+
+### Refine safety rails
+
+Every refactor is guarded before and after apply:
+
+1. **Size guard** — files over 800 lines / 35KB are reported for manual review only
+   (the 35B local model truncates large single-shot rewrites). Status: `too_large`.
+2. **Compile gate** — `.py` output is parsed with `ast.parse` before the file is
+   touched; invalid output is rejected and retried once with the exact syntax
+   error fed back to the model. Status: `llm_failed` if still broken.
+3. **Test verify** — after apply, the full suite runs; any failure restores the
+   `.refine.bak` backup and reverts the file. Status: `reverted`.
+
+A `fixed` status means the change is real: applied, compiled, and verified by the
+full test suite. Unbuffered logs (`PYTHONUNBUFFERED=1`) show live progress in
+background/launchd runs.
 
 ### Quick Start Commands
 
@@ -164,13 +199,16 @@ CC0 - Public Domain Dedication
 
 ## Version
 
-1.1.0 - 2026-08-01
+1.2.0 - 2026-08-04
 
 **Changes:**
-- Added frontend (.ts, .tsx) support to OCR refine loop
-- Fixed Stripe API version (2026-07-29.dahlia)
-- Switched to public @bytecats/ui-kit dependency
-- Updated documentation with guardrails
+- `loop` command: self-driving cycle (policy → refine → tdd → tests → optional commit)
+- launchd/cron scheduler (`schedule.sh`, `com.easycv.automation.plist`)
+- OCR comment parsing: block-based capture, ANSI stripping, dedup
+- Refactor safety rails: size guard (800 lines / 35KB), `ast.parse` compile gate
+  with one feedback retry, test-verify with auto-revert
+- Proven fixes: `ste100.py` precompiled regexes + unit-pattern bug, `latex.py`
+  path-traversal guard + stderr surfacing
 
 ## Known Issues
 

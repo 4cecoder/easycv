@@ -1,68 +1,130 @@
-import os
 import re
-import sys
 from pathlib import Path
 from typing import Optional
 
 from automation.config import ROOT, BACKEND_DIR, WEB_DIR, TESTS_DIR, get_env
 from automation.llm_client import chat, extract_code_block
 
+# Traceback frame line: "backend/pipeline.py:123: in function_name"
+TRACEBACK_FRAME = re.compile(r"^\s*([\w./\\-]+\.py):(\d+): in (.+)$")
+
 
 def parse_test_failures(pytest_result: dict) -> list[dict]:
-    failures = []
-    current = {}
-    for line in pytest_result.get("stdout", "").splitlines():
-        if "FAILED" in line and "::" in line:
-            m = re.match(r"(.*?)::(.*?) FAILED", line)
-            if m:
-                current = {"test_file": m.group(1), "test_name": m.group(2), "error": ""}
+    failures: list[dict] = []
+    current: dict = {}
+    stdout = pytest_result.get("stdout", "")
     stderr = pytest_result.get("stderr", "")
-    if stderr:
-        for line in stderr.splitlines():
-            if current and current.get("test_name"):
-                current["error"] += line + "\n"
-    for line in pytest_result.get("stdout", "").splitlines():
-        if "Error" in line or "AssertionError" in line or "raise" in line:
-            if current:
-                current["error"] += line + "\n"
-    if current and current.get("test_name"):
-        failures.append(current)
+
+    all_lines = (stdout + "\n" + stderr).splitlines()
+
+    for line in all_lines:
+        # Marker: "tests/test_pipeline.py::TestFoo::test_bar FAILED"
+        m = re.match(r"(.*?)::(.*?)\s+FAILED", line)
+        if m:
+            test_file = m.group(1).split()[0]
+            test_name = m.group(2).split()[0]
+            current = {
+                "test_file": test_file,
+                "test_name": test_name,
+                "error": "",
+                "traceback_files": [],
+            }
+            failures.append(current)
+            continue
+        if not current:
+            continue
+        # Capture traceback frames so we can locate the real source file
+        frame = TRACEBACK_FRAME.match(line)
+        if frame:
+            src = frame.group(1).replace("\\", "/")
+            if src not in current["traceback_files"]:
+                current["traceback_files"].append(src)
+        # Capture error detail lines (bounded to keep prompt size sane)
+        if current["error"]:
+            current["error"] += "\n"
+        current["error"] += line
+        if len(current["error"]) > 8000:
+            current["error"] = current["error"][:8000] + "\n...[truncated]"
+
+    # Fallback: parse "FAILED file::name - reason" lines with no preceding detail
     if not failures:
-        for line in pytest_result.get("stdout", "").splitlines():
+        for line in stdout.splitlines():
             m = re.match(r"FAILED (.*?)::(.*?) - (.*)", line)
             if m:
-                failures.append({"test_file": m.group(1), "test_name": m.group(2), "error": m.group(3)})
+                failures.append(
+                    {
+                        "test_file": m.group(1),
+                        "test_name": m.group(2),
+                        "error": m.group(3),
+                        "traceback_files": [],
+                    }
+                )
     return failures
 
 
-def read_source_for_failure(failure: dict) -> Optional[str]:
+def find_source_file(failure: dict) -> Optional[Path]:
+    """Locate the source module that caused the failure.
+
+    Prefers the deepest non-test file found in the traceback, then falls back
+    to the test file itself.
+    """
     test_file = failure.get("test_file", "")
-    test_name = failure.get("test_name", "")
-    src_path = ROOT / test_file
-    if not src_path.exists():
-        src_path = TESTS_DIR / f"{test_file}.py"
-    if not src_path.exists():
-        src_path = TESTS_DIR / test_file
-    if src_path.exists():
-        return src_path.read_text()
-    parts = test_file.replace(".py", "").split("::")
-    for candidate in [TESTS_DIR / f"{parts[-1]}.py", ROOT / f"{parts[-1]}.py"]:
-        if candidate.exists():
-            return candidate.read_text()
+    candidates = [ROOT / test_file]
+    if test_file:
+        candidates.append(TESTS_DIR / test_file)
+        candidates.append(TESTS_DIR / f"{test_file}.py")
+
+    for rel in failure.get("traceback_files", []):
+        candidate = ROOT / rel
+        if candidate.exists() and not rel.startswith("tests/"):
+            candidates.insert(0, candidate)
+
+    # Order: traceback-derived first, then test path guesses
+    seen = set()
+    for candidate in candidates:
+        key = str(candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        if candidate.exists() and candidate.is_file():
+            return candidate
     return None
 
 
-def llm_suggest_fix(failure: dict, source_code: str, env: dict) -> Optional[str]:
+def read_source_for_failure(failure: dict) -> Optional[str]:
+    src_path = find_source_file(failure)
+    if src_path:
+        return src_path.read_text()
+    return None
+
+
+def llm_suggest_fix(failure: dict, source_code: str, env: dict, source_path: Optional[Path] = None) -> Optional[str]:
+    src_path = source_path or find_source_file(failure)
+    test_file = failure.get("test_file", "")
+    test_content = ""
+    test_candidate = ROOT / test_file
+    if not test_candidate.exists() and test_file:
+        test_candidate = TESTS_DIR / test_file
+    if test_candidate.exists():
+        test_content = test_candidate.read_text()
+        if len(test_content) > 8000:
+            test_content = test_content[:8000] + "\n...[truncated]"
+
+    target_label = src_path.relative_to(ROOT) if src_path else "unknown"
     prompt = (
         f"A test failed in the easyCV codebase:\n\n"
-        f"Test file: {failure.get('test_file')}\n"
+        f"Test file: {test_file}\n"
         f"Test name: {failure.get('test_name')}\n"
         f"Error:\n{failure.get('error', 'unknown')}\n\n"
-        f"Relevant source code:\n```python\n{source_code}\n```\n\n"
-        f"Analyze the failure and suggest a fix. Return ONLY the fixed code in a ```python code block. "
-        f"Focus on the minimal change needed to make the test pass."
+        f"The failing test:\n```python\n{test_content}\n```\n\n"
+        f"Source file to fix: {target_label}\n"
+        f"Current source code:\n```python\n{source_code}\n```\n\n"
+        f"Analyze the failure and fix the SOURCE FILE ({target_label}). "
+        f"Do NOT modify the test. Return ONLY the fixed source code in a single ```python code block. "
+        f"Preserve all existing imports, function signatures, and public behavior. "
+        f"Make the minimal change needed to make the test pass."
     )
-    response = chat([{"role": "user", "content": prompt}], temperature=0.1, max_tokens=2048)
+    response = chat([{"role": "user", "content": prompt}], temperature=0.1, max_tokens=16384)
     if not response:
         return None
     return extract_code_block(response, "python")
