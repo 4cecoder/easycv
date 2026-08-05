@@ -15,8 +15,11 @@ automation/
 ├── policy-guardrails.md      # Policy-based guardrails documentation
 ├── __main__.py               # CLI entry point
 ├── steer.py                  # Command router
+├── loop.py                   # Main automation orchestrator with worktree support
+├── gitops.py                 # Git worktree, branch, and commit orchestration
+├── install-hooks.sh          # Pre-commit hook installer
 ├── tdd.py                    # TDD loop logic
-├── refine.py                 # OCR + LLM refactor loop (with policy)
+├── refine.py                 # OCR + LLM refactor loop (with policy + chunking)
 ├── improve.py                # LLM fix suggestion
 ├── test_orchestration.py     # Test runners
 ├── llm_client.py             # LLM API client
@@ -44,6 +47,9 @@ automation/
 ```bash
 # Phase 0-3: One self-driving cycle — policy guardrails, OCR refine, TDD fix, full tests
 uv run python -m automation loop --limit 10
+
+# With auto-commit (worktree + run branch, per-file verified commits, merge on green)
+uv run python -m automation loop --limit 10 --commit
 
 # Scheduled autonomous passes (macOS launchd, daily 03:00)
 chmod +x automation/schedule.sh
@@ -82,8 +88,9 @@ Verify with: `uv run python -m automation chat --prompt "Reply with: OK"`
 
 Every refactor is guarded before and after apply:
 
-1. **Size guard** — files over 800 lines / 35KB are reported for manual review only
-   (the 35B local model truncates large single-shot rewrites). Status: `too_large`.
+1. **Size guard** — files over 800 lines / 35KB are automatically refactored in chunks
+   (~400 lines per chunk) to stay within the 35B model's output limit. Final recombination
+   is validated with the compile gate.
 2. **Compile gate** — `.py` output is parsed with `ast.parse` before the file is
    touched; invalid output is rejected and retried once with the exact syntax
    error fed back to the model. Status: `llm_failed` if still broken.
@@ -94,6 +101,28 @@ A `fixed` status means the change is real: applied, compiled, and verified by th
 full test suite. Unbuffered logs (`PYTHONUNBUFFERED=1`) show live progress in
 background/launchd runs.
 
+### Git strategy (enforced)
+
+When `--commit` is used, the automation loop uses an enforced git workflow:
+
+1. **Worktree isolation** — each run creates a temporary worktree at `/tmp/easycv-*`
+   and a new run branch named `automation/YYYYMMDD-HHMM-<target-slug>`.
+2. **Per-file verified commits** — every successful refactor or TDD fix is committed
+   immediately on the run branch with a deterministic message (subject + diff stats).
+3. **Plumbing merge** — only when the full test suite passes (pytest + typecheck + ts_tests),
+   the run branch is merged to master using `git merge-tree` + `git commit-tree`, avoiding
+   any working tree disturbance. The merge commit is pushed to origin/master.
+4. **Branch preservation** — on failure, the run branch is left for review (automatic cleanup
+   only on success).
+
+The master branch is protected by a pre-commit hook (installed via `automation/install-hooks.sh`)
+that blocks direct commits, forcing all changes through the automation loop.
+
+```bash
+# Install git hooks (blocks direct commits to master)
+./automation/install-hooks.sh
+```
+
 ### Quick Start Commands
 
 | Command | Purpose |
@@ -101,6 +130,8 @@ background/launchd runs.
 | `test` | Run all tests |
 | `tdd` | TDD auto-fix loop |
 | `refine` | OCR + LLM refactor (supports .py, .ts, .tsx) |
+| `loop` | Full automation cycle (policy → refine → tdd → tests → commit) |
+| `chat --prompt "text"` | Test LLM endpoint |
 | `status` | Show progress |
 
 ### Folder Guard Rails

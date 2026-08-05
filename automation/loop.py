@@ -7,7 +7,9 @@ Chains the deterministic + LLM-guided phases into one autonomous cycle:
 Runs entirely against the self-hosted LLM endpoint (no cloud tokens).
 """
 
+import os
 import subprocess
+import sys
 from pathlib import Path
 from typing import List, Optional
 
@@ -22,6 +24,7 @@ from automation.test_orchestration import (
 from automation.tdd import tdd_loop
 from automation.refine import refine_file
 from automation.policy_enforcer import get_policy_enforcer
+from automation import gitops
 
 
 EXCLUDE_PARTS = {
@@ -87,7 +90,7 @@ def run_policy_check(targets: List[str]) -> dict:
     return {"files": files, "total": total, "critical": critical}
 
 
-def run_refine(target: str, limit: int, dry_run: bool, enforce_policy: bool) -> List[dict]:
+def run_refine(target: str, limit: int, dry_run: bool, enforce_policy: bool, commit: bool = False) -> List[dict]:
     print("\n" + "=" * 60)
     print(f"[loop] Phase 1: OCR refine on {target or 'backend+tests'}")
     print("=" * 60)
@@ -97,6 +100,11 @@ def run_refine(target: str, limit: int, dry_run: bool, enforce_policy: bool) -> 
     for f in files[:limit]:
         r = refine_file(f, env, dry_run=dry_run, enforce_policy=enforce_policy)
         results.append(r)
+        # Atomic, verified, per-file commit on the run branch.
+        if commit and not dry_run and r["status"] == "fixed":
+            rel = r["file"]
+            gitops.commit_file(ROOT, rel)
+            print(f"  [loop] committed {rel} on run branch")
     fixed = sum(1 for r in results if r["status"] == "fixed")
     reverted = sum(1 for r in results if r["status"] == "reverted")
     print(f"  refined {len(results)} files, {fixed} fixed, {reverted} reverted")
@@ -109,10 +117,20 @@ def run_loop(
     rounds: int = 0,
     dry_run: bool = False,
     commit: bool = False,
+    push: bool = True,
     no_policy: bool = False,
     skip_refine: bool = False,
     skip_tdd: bool = False,
 ) -> int:
+    # Outer orchestrator: isolate everything in a run worktree + run branch,
+    # then merge to master only when the inner run is fully green.
+    if commit and not os.environ.get(gitops.IN_WORKTREE_ENV):
+        return _run_in_worktree(
+            target=target, limit=limit, rounds=rounds, dry_run=dry_run,
+            push=push, no_policy=no_policy, skip_refine=skip_refine, skip_tdd=skip_tdd,
+        )
+
+    in_worktree = bool(os.environ.get(gitops.IN_WORKTREE_ENV))
     env = get_env()
     progress = load_progress()
     run_record = {
@@ -126,6 +144,8 @@ def run_loop(
 
     print("[loop] EasyCV self-driving improvement cycle")
     print(f"[loop] Target: {target or 'backend+tests+web'}, limit: {limit} files")
+    if in_worktree:
+        print(f"[loop] in worktree on branch {gitops.current_branch(ROOT)}")
 
     # Phase 0: policy guardrails
     if no_policy:
@@ -144,7 +164,10 @@ def run_loop(
             print(f"[loop] skipping refine: target not found ({target})")
             refine_results = []
         else:
-            refine_results = run_refine(refine_target, limit, dry_run, enforce_policy=not no_policy)
+            refine_results = run_refine(
+                refine_target, limit, dry_run, enforce_policy=not no_policy,
+                commit=in_worktree,
+            )
     run_record["phases"]["refine"] = {
         "files": len(refine_results),
         "fixed": sum(1 for r in refine_results if r["status"] == "fixed"),
@@ -159,7 +182,7 @@ def run_loop(
         print("[loop] skipping TDD phase")
         tdd_rc = 0
     else:
-        tdd_rc = tdd_loop(target=target if target else "", max_rounds=rounds, max_failures=0)
+        tdd_rc = tdd_loop(target=target if target else "", max_rounds=rounds, max_failures=0, commit_changes=in_worktree)
     run_record["phases"]["tdd"] = {"exit_code": tdd_rc}
 
     # Phase 3: full test suite
@@ -191,26 +214,71 @@ def run_loop(
     print(f"  ts_tests: {'PASS' if ts_pass else 'FAIL'}")
     print("=" * 60)
 
-    # Phase 4: optional commit
-    if commit and all_pass:
-        return commit_changes(target)
+    if in_worktree:
+        # Per-file verified commits already landed on the run branch. The
+        # outer orchestrator merges to master iff this returns 0.
+        if not all_pass:
+            print("[loop] not merging: full suite not green")
+        return 0 if all_pass else 1
 
+    # No --commit: nothing to merge, just report.
     return 0 if all_pass else 1
 
 
-def commit_changes(target: str) -> int:
-    print("\n[loop] Phase 4: committing changes...")
-    res = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, cwd=str(ROOT))
-    changed = [line.strip() for line in res.stdout.splitlines() if line.strip()]
-    if not changed:
-        print("[loop] no changes to commit")
-        return 0
-    subprocess.run(["git", "add", "-A"], cwd=str(ROOT))
-    target_label = target or "codebase"
-    commit_res = subprocess.run(
-        ["git", "commit", "-m", f"automation: self-improvement pass on {target_label}"],
-        capture_output=True, text=True, cwd=str(ROOT),
+def _run_in_worktree(
+    target: str,
+    limit: int,
+    rounds: int,
+    dry_run: bool,
+    push: bool,
+    no_policy: bool,
+    skip_refine: bool,
+    skip_tdd: bool,
+) -> int:
+    """Outer orchestrator: run the cycle in a throwaway worktree + run branch,
+    then merge to master (and push) only when the inner run is fully green."""
+    print("[loop] commit mode: isolating run in a worktree + run branch")
+    branch = gitops.run_branch_name(target)
+    try:
+        wt = gitops.create_worktree(branch)
+    except RuntimeError as e:
+        print(f"[loop] {e}")
+        return 1
+
+    env = os.environ.copy()
+    env[gitops.IN_WORKTREE_ENV] = "1"
+    args = ["loop", "--commit"]
+    if target:
+        args += ["--target", target]
+    args += ["--limit", str(limit)]
+    if rounds:
+        args += ["--rounds", str(rounds)]
+    if dry_run:
+        args += ["--dry-run"]
+    if no_policy:
+        args += ["--no-policy"]
+    if skip_refine:
+        args += ["--skip-refine"]
+    if skip_tdd:
+        args += ["--skip-tdd"]
+
+    print(f"[loop] worktree: {wt}")
+    print(f"[loop] branch: {branch}")
+    res = subprocess.run(
+        [sys.executable, "-m", "automation", *args],
+        cwd=str(wt),
+        env=env,
     )
-    print(commit_res.stdout.strip())
-    print(commit_res.stderr.strip())
-    return 0 if commit_res.returncode == 0 else 1
+
+    if res.returncode != 0:
+        print(f"[loop] inner run NOT green (rc {res.returncode}); run branch left for review: {branch}")
+        gitops.cleanup_worktree(wt, branch, merged=False, keep_on_failure=True)
+        return res.returncode
+
+    merged = gitops.merge_to_master(wt, branch, push=push)
+    gitops.cleanup_worktree(wt, branch, merged=merged, keep_on_failure=not merged)
+    if not merged:
+        print(f"[loop] merge to master failed; run branch left for review: {branch}")
+        return 2
+    print("[loop] ALL GREEN and merged to master")
+    return 0

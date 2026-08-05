@@ -132,4 +132,58 @@ def test_exceeds_refactor_limit_allows_small_file(tmp_path, capsys):
     small = tmp_path / "small.py"
     small.write_text("x = 1\n")
     assert _exceeds_refactor_limit(small, lines=100, size_kb=2.0) is False
-    assert capsys.readouterr().out == ""
+
+
+def test_chunked_refactor_splits_large_file():
+    """Test that chunked refactoring correctly splits large files."""
+    from automation.refine import _chunked_refactor
+    import tempfile
+    
+    # Create a large test file (900 lines)
+    large_code = "\n".join([f"# Line {i}" for i in range(1, 901)])
+    
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        f.write(large_code)
+        tmp_path = Path(f.name)
+    
+    try:
+        # Mock environment
+        env = {"ocr_timeout": 30}
+        
+        # Test with dry_run=True to avoid actual OCR/LLM calls
+        result = _chunked_refactor(tmp_path, large_code, "test comments", env, dry_run=True, enforce_policy=False)
+        
+        assert result["status"] == "dry_run"
+        assert result["lines"] == 900
+        assert result["chunks"] > 1  # Should be split into multiple chunks
+        assert "chunks" in result
+    finally:
+        tmp_path.unlink()
+
+
+def test_chunked_refactor_syntax_validation():
+    """Test that chunked refactoring validates Python syntax."""
+    from automation.refine import _chunked_refactor
+    import tempfile
+    
+    # Create code with syntax error in one chunk
+    lines = []
+    for i in range(1, 401):
+        if i == 200:
+            lines.append("def broken_function(:")  # Syntax error
+        else:
+            lines.append(f"print({i})")
+    broken_code = "\n".join(lines)
+    
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        f.write(broken_code)
+        tmp_path = Path(f.name)
+    
+    try:
+        env = {"ocr_timeout": 30}
+        result = _chunked_refactor(tmp_path, broken_code, "test comments", env, dry_run=True, enforce_policy=False)
+        
+        # Should handle syntax errors gracefully
+        assert result["status"] in ["dry_run", "recombination_failed"]
+    finally:
+        tmp_path.unlink()

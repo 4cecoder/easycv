@@ -39,7 +39,8 @@ def main() -> int:
     p_loop.add_argument("--limit", type=int, default=5, help="Max files to OCR-refine")
     p_loop.add_argument("--rounds", type=int, default=0, help="Max TDD rounds (0 = env default)")
     p_loop.add_argument("--dry-run", action="store_true", help="Show refine changes without applying")
-    p_loop.add_argument("--commit", action="store_true", help="Auto-commit if all tests pass")
+    p_loop.add_argument("--commit", action="store_true", help="Auto-commit on a run branch (worktree) and merge to master if all tests pass")
+    p_loop.add_argument("--no-push", action="store_true", help="Merge to master locally but do not push to origin")
     p_loop.add_argument("--no-policy", action="store_true", help="Skip policy guardrail phase")
     p_loop.add_argument("--skip-refine", action="store_true", help="Skip OCR refine phase")
     p_loop.add_argument("--skip-tdd", action="store_true", help="Skip TDD auto-fix phase")
@@ -122,6 +123,7 @@ def main() -> int:
             rounds=args.rounds,
             dry_run=args.dry_run,
             commit=args.commit,
+            push=not args.no_push,
             no_policy=args.no_policy,
             skip_refine=args.skip_refine,
             skip_tdd=args.skip_tdd,
