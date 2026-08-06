@@ -355,14 +355,24 @@ def extract_text(filepath: str) -> Optional[str]:
             try:
                 import fitz
                 doc = fitz.open(filepath)
-                text = "\n".join(page.get_text() for page in doc)
+                pages_text = []
+                is_linkedin = "linkedin" in os.path.basename(filepath).lower()
+                for page in doc:
+                    if is_linkedin:
+                        w = page.rect.width
+                        h = page.rect.height
+                        split_x = w * 0.33
+                        main_rect = fitz.Rect(split_x, 0, w, h)
+                        side_rect = fitz.Rect(0, 0, split_x, h)
+                        main_t = page.get_text("text", clip=main_rect)
+                        side_t = page.get_text("text", clip=side_rect)
+                        pages_text.append(f"--- BODY ---\n{main_t}\n--- SIDEBAR ---\n{side_t}")
+                    else:
+                        pages_text.append(page.get_text())
                 doc.close()
+                text = "\n".join(pages_text)
                 if text.strip(): return text
-            # Broad catch is intentional: fitz isn't installed today (ImportError
-            # is the only path exercised), but once added as a dependency,
-            # fitz.open() on a corrupt/malicious PDF can raise its own
-            # exceptions (e.g. FileDataError/RuntimeError) that aren't
-            # ImportError. Don't narrow this back down without handling those.
+            # Broad catch is intentional: fitz may not be installed in all envs.
             except Exception: pass
         else:  # .txt, .md
             try:

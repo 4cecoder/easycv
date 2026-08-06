@@ -96,4 +96,77 @@ describe("checkout", () => {
       expect.objectContaining({ uploadId: "upload1", sessionId: "session1" }),
     );
   });
+
+  test("creates a checkout session with mode 'subscription' and custom price ID when requested", async () => {
+    process.env.STRIPE_PRO_PRICE_ID = "price_pro_14";
+    retrievePriceMock.mockResolvedValueOnce({ unit_amount: 1400, currency: "usd" });
+
+    const res = await POST(makeRequest({ uploadId: "upload1", mode: "subscription" }));
+    expect(res.status).toBe(200);
+    expect(createSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "subscription",
+        line_items: [{ price: "price_pro_14", quantity: 1 }],
+        metadata: { uploadId: "upload1", mode: "subscription" },
+      }),
+    );
+    expect(retrievePriceMock).toHaveBeenCalledWith("price_pro_14");
+    expect(mutationMock).toHaveBeenCalledWith(
+      "payments:createPaymentRecord",
+      expect.objectContaining({
+        uploadId: "upload1",
+        sessionId: "session1",
+        amountCents: 1400,
+        currency: "usd",
+      }),
+    );
+  });
+
+  test("supports subscription mode via plan='pro'", async () => {
+    process.env.STRIPE_PRO_PRICE_ID = "price_pro_14";
+
+    const res = await POST(makeRequest({ uploadId: "upload1", plan: "pro" }));
+    expect(res.status).toBe(200);
+    expect(createSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "subscription",
+        line_items: [{ price: "price_pro_14", quantity: 1 }],
+      }),
+    );
+  });
+
+  test("supports subscription mode configured via STRIPE_CHECKOUT_MODE env var", async () => {
+    process.env.STRIPE_CHECKOUT_MODE = "subscription";
+
+    const res = await POST(makeRequest({ uploadId: "upload1" }));
+    expect(res.status).toBe(200);
+    expect(createSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "subscription",
+      }),
+    );
+    delete process.env.STRIPE_CHECKOUT_MODE;
+  });
+
+  test("falls back to STRIPE_PRICE_ID if STRIPE_PRO_PRICE_ID is not set for subscription mode", async () => {
+    delete process.env.STRIPE_PRO_PRICE_ID;
+
+    const res = await POST(makeRequest({ uploadId: "upload1", mode: "subscription" }));
+    expect(res.status).toBe(200);
+    expect(createSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "subscription",
+        line_items: [{ price: "price_test", quantity: 1 }],
+      }),
+    );
+  });
+
+  test("returns 500 when subscription mode is requested but no price ID is configured", async () => {
+    delete process.env.STRIPE_PRICE_ID;
+    delete process.env.STRIPE_PRO_PRICE_ID;
+
+    const res = await POST(makeRequest({ uploadId: "upload1", mode: "subscription" }));
+    expect(res.status).toBe(500);
+    expect(createSessionMock).not.toHaveBeenCalled();
+  });
 });

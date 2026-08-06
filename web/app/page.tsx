@@ -2,19 +2,31 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, type DragEvent, type FormEvent } from "react";
-import { AlertCircle, FileText, Loader2, Sparkles, UploadCloud, X } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  FileText,
+  Link as LinkIcon,
+  Loader2,
+  Sparkles,
+  UploadCloud,
+  X,
+} from "lucide-react";
 import { usePostHog } from "posthog-js/react";
 
 import {
   Alert,
   AlertDescription,
   AlertTitle,
+  Badge,
   Button,
   Card,
   CardContent,
   CardHeader,
   Skeleton,
 } from "@bytecats/ui-kit";
+
+import { detectJobUrls } from "@/lib/jobUrlDetector";
 
 // Plain HTML upload form under the hood -- styling only (see
 // web-frontend-scaffold). Accepts only the extensions pipeline.py's
@@ -30,7 +42,10 @@ export default function UploadPage() {
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
+  const [jobDescription, setJobDescription] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const detectedJobInfo = detectJobUrls(jobDescription);
 
   function syncInputFiles(next: File[]) {
     if (!fileInputRef.current) return;
@@ -76,6 +91,9 @@ export default function UploadPage() {
       posthog.capture("cv_uploaded", {
         file_count: files.length,
         upload_id: body.uploadId,
+        has_job_description: Boolean(jobDescription.trim()),
+        has_job_url: detectedJobInfo.hasUrl,
+        detected_platforms: detectedJobInfo.detectedPlatforms.map((p) => p.id),
       });
       router.push(`/preview/${body.uploadId}`);
     } catch (err) {
@@ -145,20 +163,109 @@ export default function UploadPage() {
             </label>
 
             <div className="flex flex-col gap-2 border-t pt-4">
-              <label htmlFor="jobDescription" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <Sparkles className="size-4 text-primary animate-pulse" />
-                Target Job Description (Optional)
-              </label>
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="jobDescription"
+                  className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
+                >
+                  <Sparkles className="size-4 text-primary animate-pulse" />
+                  Target Job Description (Optional)
+                </label>
+
+                {jobDescription.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setJobDescription("")}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                    aria-label="Clear job description"
+                  >
+                    <X className="size-3" />
+                    Clear
+                  </button>
+                )}
+              </div>
+
               <p className="text-xs text-muted-foreground pb-1">
-                Paste the target job description to automatically analyze compatibility and tailor experience bullets on upload.
+                Paste the target job description or job posting link (Indeed, LinkedIn, etc.) to automatically analyze compatibility and tailor experience bullets on upload.
               </p>
-              <textarea
-                id="jobDescription"
-                name="jobDescription"
-                placeholder="Paste the target job description here..."
-                rows={4}
-                className="w-full rounded-md border border-border bg-card p-3 text-xs focus:border-primary focus:outline-none"
-              />
+
+              {/* Auto-detected platform badges */}
+              {detectedJobInfo.hasUrl && (
+                <div
+                  className="flex flex-wrap items-center gap-2 py-1"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <LinkIcon className="size-3.5 text-primary" />
+                    Auto-detected:
+                  </span>
+                  {detectedJobInfo.detectedPlatforms.map((platform) => {
+                    if (platform.id === "indeed") {
+                      return (
+                        <Badge
+                          key="indeed"
+                          variant="secondary"
+                          className="gap-1.5 bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20 font-medium text-xs px-2.5 py-0.5"
+                        >
+                          <span className="size-1.5 rounded-full bg-blue-500 animate-pulse" />
+                          Indeed Job Link
+                        </Badge>
+                      );
+                    }
+                    if (platform.id === "linkedin") {
+                      return (
+                        <Badge
+                          key="linkedin"
+                          variant="secondary"
+                          className="gap-1.5 bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20 font-medium text-xs px-2.5 py-0.5"
+                        >
+                          <span className="size-1.5 rounded-full bg-sky-500 animate-pulse" />
+                          LinkedIn Job Link
+                        </Badge>
+                      );
+                    }
+                    return (
+                      <Badge
+                        key="other"
+                        variant="secondary"
+                        className="gap-1.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20 font-medium text-xs px-2.5 py-0.5"
+                      >
+                        <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Job Posting Link
+                      </Badge>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="relative">
+                <textarea
+                  id="jobDescription"
+                  name="jobDescription"
+                  value={jobDescription}
+                  onChange={(e) => setJobDescription(e.target.value)}
+                  placeholder="Paste job post text or Indeed/LinkedIn link here..."
+                  rows={4}
+                  className={`w-full rounded-md border p-3 text-xs transition-colors focus:outline-none ${
+                    detectedJobInfo.hasUrl
+                      ? "border-primary/60 bg-primary/[0.02] focus:border-primary ring-1 ring-primary/20"
+                      : "border-border bg-card focus:border-primary"
+                  }`}
+                />
+                {detectedJobInfo.primaryUrl && (
+                  <input type="hidden" name="jobLink" value={detectedJobInfo.primaryUrl} />
+                )}
+              </div>
+
+              {detectedJobInfo.hasUrl && (
+                <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="size-3.5 shrink-0" />
+                  <span>
+                    URL detected! We will auto-extract and match job requirements during resume consolidation.
+                  </span>
+                </p>
+              )}
             </div>
 
             {files.length > 0 && (
@@ -226,33 +333,63 @@ export default function UploadPage() {
         </Card>
       )}
 
+      {/* Product Feature Showcase */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <Card className="p-4 bg-muted/20 border-border flex flex-col gap-1.5">
+          <h3 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+            ⚡ Batch Extraction
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            Recursively scans all old PDFs, Markdown files, & LinkedIn exports to extract your complete employment timeline automatically.
+          </p>
+        </Card>
+
+        <Card className="p-4 bg-muted/20 border-border flex flex-col gap-1.5">
+          <h3 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+            🛡️ STE-100 ATS Verification
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            Validates sentence length & action verb structures against Simplified Technical English rules for guaranteed parser readability.
+          </p>
+        </Card>
+
+        <Card className="p-4 bg-muted/20 border-border flex flex-col gap-1.5">
+          <h3 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+            🎯 Tailored Matching
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            Optional job description match scoring highlights key technical alignment and customizes experience bullets in real-time.
+          </p>
+        </Card>
+      </div>
+
       {/* Trust & Conversion Optimization Panel */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Card className="border-green-500/10 bg-green-500/[0.01]">
+        <Card className="border-emerald-500/20 bg-emerald-500/[0.02]">
           <CardHeader className="pb-2">
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
               🛡️ 30-Day Call-Back Guarantee
             </h3>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">
-            Our Simplified Technical English (STE-100) ATS format check guarantees standard parsing compatibility. If you do not receive more interview invitations within 30 days, request a full refund instantly.
+            Our STE-100 ATS format check guarantees standard parsing compatibility across major hiring platforms.
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-              💼 Pre-Validated Niche Success
+              🔒 Private & Token-Free
             </h3>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">
-            Built following the Y Combinator Requests for Startups model: focusing purely on eliminating operational format violations rather than complex subscription lock-ins.
+            Uses local fallback options & strict privacy boundaries so your career history stays under your control.
           </CardContent>
         </Card>
       </div>
 
       <div className="border-t pt-8 text-center text-xs text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} easyCV. All rights reserved. Gated by Stripe checkout secure network.</p>
+        <p>&copy; {new Date().getFullYear()} easyCV. All rights reserved. Powered by local & cloud LLMs.</p>
       </div>
     </main>
   );

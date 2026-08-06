@@ -26,7 +26,12 @@ function getAppOrigin(): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json().catch(() => ({}))) as { uploadId?: string };
+    const body = (await request.json().catch(() => ({}))) as {
+      uploadId?: string;
+      mode?: "payment" | "subscription" | "single" | "pro";
+      plan?: "single" | "pro" | "subscription";
+      isSubscription?: boolean;
+    };
     const uploadId = body.uploadId;
     if (!uploadId) {
       return NextResponse.json({ error: "uploadId is required" }, { status: 400 });
@@ -42,10 +47,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing session" }, { status: 401 });
     }
 
-    const priceId = process.env.STRIPE_PRICE_ID;
+    // Determine checkout mode: "subscription" ($14/mo Pro membership) vs "payment" (single unlock)
+    const isSubscription =
+      body.mode === "subscription" ||
+      body.mode === "pro" ||
+      body.plan === "pro" ||
+      body.plan === "subscription" ||
+      body.isSubscription === true ||
+      (body.mode === undefined &&
+        body.plan === undefined &&
+        body.isSubscription === undefined &&
+        process.env.STRIPE_CHECKOUT_MODE === "subscription");
+
+    const checkoutMode: Stripe.Checkout.SessionCreateParams.Mode = isSubscription
+      ? "subscription"
+      : "payment";
+
+    const priceId = isSubscription
+      ? (process.env.STRIPE_PRO_PRICE_ID ||
+          process.env.STRIPE_SUBSCRIPTION_PRICE_ID ||
+          process.env.STRIPE_PRICE_ID)
+      : (process.env.STRIPE_PRICE_ID || process.env.STRIPE_SINGLE_PRICE_ID);
+
     if (!priceId) {
       return NextResponse.json(
-        { error: "Server is not configured with STRIPE_PRICE_ID" },
+        {
+          error: isSubscription
+            ? "Server is not configured with STRIPE_PRO_PRICE_ID or STRIPE_PRICE_ID"
+            : "Server is not configured with STRIPE_PRICE_ID",
+        },
         { status: 500 },
       );
     }
@@ -54,13 +84,11 @@ export async function POST(request: NextRequest) {
     const origin = getAppOrigin();
 
     const session = await stripe.checkout.sessions.create({
-      // One-time purchase per rf-2 ("one-time Stripe pricing, not
-      // subscription, is the differentiator") -- never "subscription".
-      mode: "payment",
+      mode: checkoutMode,
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${origin}/preview/${uploadId}?paid=1`,
       cancel_url: `${origin}/preview/${uploadId}`,
-      metadata: { uploadId },
+      metadata: { uploadId, mode: checkoutMode },
     });
 
     if (!session.url) {
@@ -70,9 +98,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // The price (and thus the $9-19 rf-2 cites) lives entirely in Stripe's
-    // dashboard via STRIPE_PRICE_ID -- retrieve it here only to record an
-    // accurate amountCents/currency snapshot on the payment row.
+    // Retrieve the price object to record an accurate amountCents/currency snapshot.
     const price = await stripe.prices.retrieve(priceId);
 
     const convex = getConvexClient();
