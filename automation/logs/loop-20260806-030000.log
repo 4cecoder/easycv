@@ -1,0 +1,4 @@
+>>> EasyCV automation pass started Thu Aug  6 03:00:00 EDT 2026
+>>> Target: all limit: 3 push: 
+/Users/fource/bytecats/easycv/automation/schedule.sh: line 28: uv: command not found
+>>> Automation pass finished (exit 127) Thu Aug  6 03:00:01 EDT 2026

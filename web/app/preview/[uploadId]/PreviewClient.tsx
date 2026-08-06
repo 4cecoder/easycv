@@ -7,15 +7,20 @@ import {
   AlertTriangle,
   Briefcase,
   Download,
+  FileCheck,
   GraduationCap,
   Loader2,
   ShieldAlert,
+  Sparkles,
+  Target,
 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { CheckoutButton } from "./CheckoutButton";
 import { JobMatchWidget } from "./JobMatchWidget";
+import { STE100BulletWidget } from "./STE100BulletWidget";
 import { exportHtmlResume } from "./exportHtml";
+import { analyzeProfileBulletsSTE100, validateBulletSTE100 } from "../../../lib/ste100";
 import {
   Alert,
   AlertDescription,
@@ -181,14 +186,60 @@ export function PreviewClient({
   const skills = profile.skills;
   const hasWarnings = profile.qualityWarnings && profile.qualityWarnings.length > 0;
 
+  const allBullets = (profile.experience || []).flatMap((e) => e.bullets || []);
+  const ste100Summary = analyzeProfileBulletsSTE100(allBullets);
+
   return (
     <PageChrome>
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge
-          variant={profile.qualityCritical ? "destructive" : hasWarnings ? "warning" : "secondary"}
-        >
-          Quality score: {profile.qualityScore}/{profile.qualityMaxScore}
-        </Badge>
+      <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-lg border border-border bg-card/50 p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge
+            variant={profile.qualityCritical ? "destructive" : hasWarnings ? "warning" : "secondary"}
+            className="text-xs font-semibold px-2.5 py-1"
+          >
+            Quality score: {profile.qualityScore}/{profile.qualityMaxScore}
+          </Badge>
+
+          <Badge
+            variant={
+              ste100Summary.overallScore >= 85
+                ? "outline"
+                : ste100Summary.overallScore >= 65
+                ? "warning"
+                : "destructive"
+            }
+            className="text-xs font-semibold px-2.5 py-1 flex items-center gap-1.5"
+          >
+            <FileCheck className="size-3.5 text-primary" />
+            STE-100 ATS: {ste100Summary.overallScore}/100
+          </Badge>
+
+          {jobMatch ? (
+            <Badge
+              variant={
+                jobMatch.matchScore >= 80
+                  ? "outline"
+                  : jobMatch.matchScore >= 50
+                  ? "warning"
+                  : "destructive"
+              }
+              className="text-xs font-semibold px-2.5 py-1 flex items-center gap-1.5"
+            >
+              <Sparkles className="size-3.5" />
+              Job Match: {jobMatch.matchScore}%
+            </Badge>
+          ) : (
+            <a href="#job-match-widget">
+              <Badge
+                variant="outline"
+                className="text-xs font-semibold px-2.5 py-1 text-primary border-primary/40 hover:bg-primary/5 cursor-pointer flex items-center gap-1.5"
+              >
+                <Target className="size-3.5" />
+                Job Match: Not Analyzed &rarr;
+              </Badge>
+            </a>
+          )}
+        </div>
       </div>
 
       {profile.qualityCritical ? (
@@ -392,10 +443,32 @@ export function PreviewClient({
                         </p>
                       </div>
                       {entry.bullets.length > 0 && (
-                        <ul className="ml-4 list-outside list-disc text-sm text-pretty leading-relaxed text-muted-foreground">
-                          {entry.bullets.map((bullet, j) => (
-                            <li key={j}>{bullet}</li>
-                          ))}
+                        <ul className="ml-4 list-outside list-disc text-sm text-pretty leading-relaxed text-muted-foreground space-y-1.5">
+                          {entry.bullets.map((bullet, j) => {
+                            const steRes = validateBulletSTE100(bullet);
+                            return (
+                              <li key={j} className="group">
+                                <div className="flex items-start justify-between gap-2">
+                                  <span className="flex-1">{bullet}</span>
+                                  <Badge
+                                    variant={steRes.isCompliant ? "outline" : "warning"}
+                                    className={`text-[9px] shrink-0 font-medium px-1.5 py-0.2 ${
+                                      steRes.isCompliant
+                                        ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/10"
+                                        : "border-amber-500/30 text-amber-600 bg-amber-500/10"
+                                    }`}
+                                    title={
+                                      steRes.improvementTips.length > 0
+                                        ? steRes.improvementTips.join("\n")
+                                        : "STE-100 Compliant"
+                                    }
+                                  >
+                                    {steRes.isCompliant ? "STE-100" : `${steRes.violations.length} Tips`}
+                                  </Badge>
+                                </div>
+                              </li>
+                            );
+                          })}
                         </ul>
                       )}
                     </article>
@@ -457,6 +530,8 @@ export function PreviewClient({
           )}
         </CardContent>
       </Card>
+
+      <STE100BulletWidget experience={profile.experience} />
 
       <JobMatchWidget uploadId={uploadId} initialMatch={jobMatch ?? undefined} />
 
