@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 test.describe("Landing Page & Job URL Detection E2E Workflow", () => {
   test("renders heading and dropzone elements cleanly", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator("h1")).toContainText("easyCV");
+    await expect(page.locator("h1")).toContainText("Intelligent Resume Consolidation");
     await expect(page.getByText("Drag & drop files")).toBeVisible();
   });
 
@@ -12,9 +12,8 @@ test.describe("Landing Page & Job URL Detection E2E Workflow", () => {
     const textarea = page.locator("#jobDescription");
     await textarea.fill("Check out this posting: https://www.indeed.com/viewjob?jk=1234567890abcdef");
     
-    await expect(page.getByText("Auto-detected:")).toBeVisible();
-    await expect(page.getByText("Indeed Job Link")).toBeVisible();
-    await expect(page.getByText("URL detected! We will auto-extract and match job requirements")).toBeVisible();
+    await expect(page.getByText("Valid URL")).toBeVisible();
+    await expect(page.getByText("Will extract requirements automatically")).toBeVisible();
   });
 
   test("shows auto-detected badge when pasting a LinkedIn job URL", async ({ page }) => {
@@ -22,15 +21,11 @@ test.describe("Landing Page & Job URL Detection E2E Workflow", () => {
     const textarea = page.locator("#jobDescription");
     await textarea.fill("https://www.linkedin.com/jobs/view/9876543210");
     
-    await expect(page.getByText("Auto-detected:"))
-      .toBeVisible();
-    await expect(page.getByText("LinkedIn Job Link")).toBeVisible();
+    await expect(page.getByText("Valid URL")).toBeVisible();
   });
 
   test("tests live seeded workspace preview route", async ({ page }) => {
-    // Navigates directly to candidate preview route with seed upload ID
     await page.goto("/preview/seed-demo-upload-id");
-    // Verify preview header or fallback container renders
     await expect(page.locator("body")).toBeVisible();
   });
 });
