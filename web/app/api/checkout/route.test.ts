@@ -15,7 +15,10 @@ vi.mock("stripe", () => ({
 }));
 
 vi.mock("../../../convex/_generated/api", () => ({
-  api: { payments: { createPaymentRecord: "payments:createPaymentRecord" } },
+  api: { 
+    payments: { createPaymentRecord: "payments:createPaymentRecord" },
+    uploads: { getUpload: "uploads:getUpload" } 
+  },
 }));
 
 vi.mock("../../../lib/convexServer", () => ({

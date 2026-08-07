@@ -26,12 +26,17 @@ function getAppOrigin(): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json().catch(() => ({}))) as {
-      uploadId?: string;
-      mode?: "payment" | "subscription" | "single" | "pro";
-      plan?: "single" | "pro" | "subscription";
-      isSubscription?: boolean;
-    };
+    let body;
+    try {
+      body = (await request.json()) as {
+        uploadId?: string;
+        mode?: "payment" | "subscription" | "single" | "pro";
+        plan?: "single" | "pro" | "subscription";
+        isSubscription?: boolean;
+      };
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
     const uploadId = body.uploadId;
     if (!uploadId) {
       return NextResponse.json({ error: "uploadId is required" }, { status: 400 });
@@ -45,6 +50,16 @@ export async function POST(request: NextRequest) {
     const sessionId = request.cookies.get(SESSION_COOKIE)?.value;
     if (!sessionId) {
       return NextResponse.json({ error: "Missing session" }, { status: 401 });
+    }
+
+    const convex = getConvexClient();
+    try {
+      await convex.query(api.uploads.getUpload, {
+        uploadId: uploadId as Id<"uploads">,
+        sessionId,
+      });
+    } catch (err) {
+      return NextResponse.json({ error: "Unauthorized or invalid upload" }, { status: 403 });
     }
 
     // Determine checkout mode: "subscription" ($14/mo Pro membership) vs "payment" (single unlock)
@@ -101,7 +116,6 @@ export async function POST(request: NextRequest) {
     // Retrieve the price object to record an accurate amountCents/currency snapshot.
     const price = await stripe.prices.retrieve(priceId);
 
-    const convex = getConvexClient();
     await convex.mutation(api.payments.createPaymentRecord, {
       uploadId: uploadId as Id<"uploads">,
       sessionId,

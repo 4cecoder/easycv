@@ -80,6 +80,15 @@ const BRITISH_TO_AMERICAN: Record<string, string> = {
   cancelling: "canceling",
 };
 
+const BRITISH_TO_AMERICAN_PATTERNS = Object.entries(BRITISH_TO_AMERICAN).map(
+  ([british, american]) => ({
+    pattern: new RegExp(`\\b${british}\\b`, "i"),
+    british,
+    american,
+  })
+);
+
+
 const APPROVED_ING_WORDS = new Set([
   "lighting",
   "opening",
@@ -232,9 +241,8 @@ export function validateBulletSTE100(
   }
 
   // Rule 1.14: British Spelling
-  for (const [british, american] of Object.entries(BRITISH_TO_AMERICAN)) {
-    const regex = new RegExp(`\\b${british}\\b`, "gi");
-    if (regex.test(bullet)) {
+  for (const { pattern, british, american } of BRITISH_TO_AMERICAN_PATTERNS) {
+    if (pattern.test(bullet)) {
       violations.push({
         ruleId: "RULE_1_14_SPELLING",
         severity: "warning",
