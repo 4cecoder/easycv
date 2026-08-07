@@ -52,11 +52,6 @@
 # in general need more headroom than the default 10 s timeout.
 [functions]
   node_bundler = "esbuild"
-  # 26 s is the maximum Netlify allows on the Pro plan; 10 s is the default.
-  # Bump this if your Convex / Stripe round-trips need more room.  The upload
-  # route itself completes in << 1 s (it just saves files & queues), so this
-  # covers all other API handlers listed below.
-  timeout = 26
 
 # ── Redirect rules ───────────────────────────────────────────────────────────
 # Health-check endpoint for Netlify's built-in monitoring / external uptime

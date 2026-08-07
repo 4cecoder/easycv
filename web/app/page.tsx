@@ -337,10 +337,10 @@ export default function UploadPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <Card className="p-4 bg-muted/20 border-border flex flex-col gap-1.5">
           <h3 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-            ⚡ Batch Extraction
+            ⚡ Free Browser-Local AI Extraction (MiniCPM-5)
           </h3>
           <p className="text-xs text-muted-foreground">
-            Recursively scans all old PDFs, Markdown files, & LinkedIn exports to extract your complete employment timeline automatically.
+            Recursively scans all old PDFs, Markdown files, & LinkedIn exports to extract your complete employment timeline automatically directly in your browser.
           </p>
         </Card>
 
