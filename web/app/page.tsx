@@ -134,10 +134,10 @@ export default function UploadPage() {
 
         <div className="flex w-full flex-col items-center gap-2 text-center mt-2">
           <h1 className="text-4xl font-bold tracking-tighter text-balance sm:text-5xl bg-clip-text text-transparent bg-gradient-to-br from-foreground to-foreground/70">
-            Intelligent Resume Consolidation
+            ⚡ Instant Local AI Extraction
           </h1>
           <p className="max-w-xl text-balance text-sm text-muted-foreground">
-            Drop your messy work history below. We'll automatically build one unified, ATS-optimized master resume in seconds.
+            Instant Free Resume Analysis. 100% Private & Secure.
           </p>
         </div>
 
