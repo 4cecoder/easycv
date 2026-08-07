@@ -126,6 +126,33 @@ export default function UploadPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="text-xs"
+                onClick={() => {
+                  const sampleContent = `# Alex Mercer\nSenior Full Stack Engineer\n\n## Experience\n\n**Senior Frontend Engineer**, TechCorp\n- Built scalable Next.js applications\n- Improved performance by 40%\n\n**Software Engineer**, StartupInc\n- Developed REST APIs in Node.js\n- Implemented responsive UI with React`;
+                  const file = new File([sampleContent], "alex_mercer_sample_resume.md", { type: "text/markdown" });
+                  syncInputFiles([...files, file]);
+                }}
+              >
+                Try Sample Tech Resume (Alex Mercer)
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="text-xs"
+                onClick={() => {
+                  setJobDescription("https://www.indeed.com/viewjob?jk=sample12345");
+                }}
+              >
+                Try Sample Indeed Job URL
+              </Button>
+            </div>
+
             <label
               htmlFor="files"
               onDrop={handleDrop}
