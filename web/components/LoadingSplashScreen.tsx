@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 
 const MESSAGES = [
-  'Initializing AI parsing engine...',
-  'Parsing employment history...',
-  'Calculating ASD-STE100 ATS match score...',
-  'Formatting LaTeX structure...'
+  '⚡ Initializing AI parsing engine...',
+  '📄 Scanning uploaded resume history & documents...',
+  '🎯 Extracting technical skills, tools & achievements...',
+  '📊 Calculating ASD-STE100 ATS compliance score...',
+  '🔗 Analyzing target job description & keyword alignment...',
+  '✨ Generating high-impact engineering bullet points...',
+  '📐 Compiling executive LaTeX PDF document structure...',
+  '🚀 Finalizing your master career profile...'
 ];
 
 export const LoadingSplashScreen: React.FC = () => {
