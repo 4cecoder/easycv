@@ -17,14 +17,10 @@ test.describe("Free Tier Local Inference & Upload", () => {
 
     await page.goto("/");
     
-    // Click 1-click sample resume button
+    // Click 1-click sample resume button (which auto-submits)
     await page.getByRole("button", { name: "Load Sample Resume" }).click();
-    await expect(page.getByText("alex_mercer_sample_resume.md")).toBeVisible();
 
-    // Click submit button
-    await page.getByRole("button", { name: "Generate Master Resume" }).click();
-    
-    // Should navigate to preview route
+    // Should navigate to preview route automatically via auto-submission
     await page.waitForURL("**/preview/mock-upload-id");
     expect(page.url()).toContain("/preview/mock-upload-id");
   });
