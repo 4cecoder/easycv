@@ -52,6 +52,7 @@ export default defineSchema({
     createdAt: v.number(),
     jobDescription: v.optional(v.string()),
     jobLink: v.optional(v.string()),
+    consolidationMetadata: v.optional(v.any()),
   }).index("by_status", ["status"]),
 
   // Mirrors pipeline.py's FoundFile dataclass (pipeline.py:77-84). Raw bytes
@@ -66,6 +67,9 @@ export default defineSchema({
     // "cv" | "resume" | "linkedin" | "profile" | "cover-letter" | "other"
     category: v.string(),
     extractedText: v.optional(v.string()),
+    year: v.optional(v.number()),
+    tags: v.optional(v.array(v.string())),
+    isHistorical: v.optional(v.boolean()),
   }).index("by_upload", ["uploadId"]),
 
   // One row per upload. Mirrors the JSON shape llm_consolidate() returns
