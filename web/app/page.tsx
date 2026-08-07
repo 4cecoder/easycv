@@ -29,6 +29,7 @@ import {
 } from "@bytecats/ui-kit";
 
 import { detectJobUrls } from "@/lib/jobUrlDetector";
+import { LoadingSplashScreen } from "@/components/LoadingSplashScreen";
 
 const ACCEPTED_EXTENSIONS = ".pdf,.txt,.md";
 
@@ -39,7 +40,7 @@ function AmbientBackground() {
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-primary/20 blur-[120px] mix-blend-screen animate-pulse duration-10000" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-emerald-500/10 blur-[120px] mix-blend-screen animate-pulse duration-7000 delay-1000" />
       <div className="absolute top-[40%] left-[60%] w-[30%] h-[30%] rounded-full bg-purple-500/10 blur-[100px] mix-blend-screen animate-pulse duration-5000 delay-700" />
-      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;utf8,<svg%20viewBox=%220%200%20200%20200%20xmlns=%22http://www.w3.org/2000/svg%22><filter%20id=%22noiseFilter%22><feTurbulence%20type=%22fractalNoise%22%20baseFrequency=%220.8%22%20numOctaves=%223%22%20stitchTiles=%22stitch%22/></filter><rect%20width=%22100%25%22%20height=%22100%25%22%20filter=%22url(%23noiseFilter)%22/></svg>')] opacity-15 mix-blend-overlay"></div>
     </div>
   );
 }
@@ -53,6 +54,7 @@ export default function UploadPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [jobDescription, setJobDescription] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const detectedJobInfo = detectJobUrls(jobDescription);
 
@@ -114,7 +116,7 @@ export default function UploadPage() {
   return (
     <>
       <AmbientBackground />
-      <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col items-center justify-center gap-6 px-4 py-12 sm:px-6 font-sans">
+      <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col items-center justify-center gap-6 px-4 py-12 sm:px-6 font-sans antialiased text-foreground">
         
         {/* Pro Tier Conversion Banner */}
         <div className="w-full flex items-center justify-between rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20 px-4 py-3 shadow-sm backdrop-blur-sm">
@@ -133,17 +135,17 @@ export default function UploadPage() {
         </div>
 
         <div className="flex w-full flex-col items-center gap-2 text-center mt-2">
-          <h1 className="text-4xl font-bold tracking-tighter text-balance sm:text-5xl bg-clip-text text-transparent bg-gradient-to-br from-foreground to-foreground/70">
+          <h1 className="text-4xl font-extrabold tracking-tight text-balance sm:text-5xl text-foreground">
             ⚡ Instant Local AI Extraction
           </h1>
-          <p className="max-w-xl text-balance text-sm text-muted-foreground">
+          <p className="max-w-xl text-balance text-base font-medium text-muted-foreground">
             Instant Free Resume Analysis. 100% Private & Secure.
           </p>
         </div>
 
         <Card className="w-full border-border/50 bg-card/60 backdrop-blur-xl shadow-xl shadow-primary/5 rounded-2xl overflow-hidden">
           <CardContent className="p-6">
-            <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+            <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-6">
               
               {/* Highlighted 1-Click Samples */}
               <div className="flex flex-col gap-2">
@@ -157,6 +159,9 @@ export default function UploadPage() {
                       const sampleContent = `# Alex Mercer\nSenior Full Stack Engineer\n\n## Experience\n\n**Senior Frontend Engineer**, TechCorp\n- Built scalable Next.js applications\n- Improved performance by 40%\n\n**Software Engineer**, StartupInc\n- Developed REST APIs in Node.js\n- Implemented responsive UI with React`;
                       const file = new File([sampleContent], "alex_mercer_sample_resume.md", { type: "text/markdown" });
                       syncInputFiles([...files, file]);
+                      setTimeout(() => {
+                        formRef.current?.requestSubmit();
+                      }, 50);
                     }}
                   >
                     <div className="rounded-full bg-primary/20 p-1.5 group-hover:scale-110 transition-transform">
@@ -174,6 +179,14 @@ export default function UploadPage() {
                     className="h-12 border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 hover:border-emerald-500/40 transition-all flex justify-start gap-3 px-4 rounded-xl group"
                     onClick={() => {
                       setJobDescription("https://www.indeed.com/viewjob?jk=sample12345");
+                      if (files.length === 0) {
+                        const sampleContent = `# Alex Mercer\nSenior Full Stack Engineer\n\n## Experience\n\n**Senior Frontend Engineer**, TechCorp\n- Built scalable Next.js applications\n- Improved performance by 40%\n\n**Software Engineer**, StartupInc\n- Developed REST APIs in Node.js\n- Implemented responsive UI with React`;
+                        const file = new File([sampleContent], "alex_mercer_sample_resume.md", { type: "text/markdown" });
+                        syncInputFiles([file]);
+                      }
+                      setTimeout(() => {
+                        formRef.current?.requestSubmit();
+                      }, 50);
                     }}
                   >
                     <div className="rounded-full bg-emerald-500/20 p-1.5 group-hover:scale-110 transition-transform">
@@ -323,20 +336,7 @@ export default function UploadPage() {
         </Card>
 
         {pending && (
-          <div className="w-full rounded-xl border border-border/50 bg-card/60 p-6 backdrop-blur-sm shadow-sm animate-pulse">
-            <div className="flex items-center gap-3 mb-4">
-              <Loader2 className="size-5 text-primary animate-spin" />
-              <p className="text-sm font-medium text-foreground">Extracting & analyzing history...</p>
-            </div>
-            <div className="space-y-3">
-              <Skeleton className="h-4 w-3/4 rounded-md" />
-              <Skeleton className="h-4 w-1/2 rounded-md" />
-              <div className="flex gap-2 pt-2">
-                <Skeleton className="h-6 w-16 rounded-full" />
-                <Skeleton className="h-6 w-24 rounded-full" />
-              </div>
-            </div>
-          </div>
+          <LoadingSplashScreen />
         )}
 
       </main>
