@@ -19,6 +19,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { CheckoutButton } from "./CheckoutButton";
 import { JobMatchWidget } from "./JobMatchWidget";
 import { STE100BulletWidget } from "./STE100BulletWidget";
+import { CareerVaultWidget } from "./CareerVaultWidget";
 import { exportHtmlResume } from "./exportHtml";
 import { analyzeProfileBulletsSTE100, validateBulletSTE100 } from "../../../lib/ste100";
 import {
@@ -534,6 +535,8 @@ export function PreviewClient({
       <STE100BulletWidget experience={profile.experience} />
 
       <JobMatchWidget uploadId={uploadId} initialMatch={jobMatch ?? undefined} />
+
+      <CareerVaultWidget uploadId={uploadId} sessionId={sessionId} profile={profile} />
 
       <Card className="border-primary/20 bg-primary/[0.03]">
         <CardContent className="flex flex-col items-center gap-3 py-2 text-center">

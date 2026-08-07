@@ -8,8 +8,9 @@ export const createUpload = mutation({
     sessionId: v.string(),
     jobDescription: v.optional(v.string()),
     jobLink: v.optional(v.string()),
+    consolidationMetadata: v.optional(v.any()),
   },
-  handler: async (ctx, { sessionId, jobDescription, jobLink }) => {
+  handler: async (ctx, { sessionId, jobDescription, jobLink, consolidationMetadata }) => {
     // Deliberately NOT "queued" yet -- the upload route creates this row
     // before it has finished attaching resumeFiles (each is its own
     // mutation + a Convex storage upload in between). "queued" is what
@@ -26,6 +27,7 @@ export const createUpload = mutation({
       createdAt: Date.now(),
       jobDescription,
       jobLink,
+      consolidationMetadata,
     });
     return uploadId;
   },

@@ -12,6 +12,9 @@ export const addResumeFile = mutation({
     sizeKb: v.number(),
     category: v.string(),
     extractedText: v.optional(v.string()),
+    year: v.optional(v.number()),
+    tags: v.optional(v.array(v.string())),
+    isHistorical: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("resumeFiles", args);
@@ -58,6 +61,10 @@ export const getResumeFilesForWorker = query({
         filename: f.filename,
         ext: f.ext,
         url: await ctx.storage.getUrl(f.storageId),
+        year: f.year,
+        category: f.category,
+        tags: f.tags,
+        isHistorical: f.isHistorical,
       })),
     );
   },
