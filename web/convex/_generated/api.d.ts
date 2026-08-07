@@ -15,6 +15,7 @@ import type * as http from "../http.js";
 import type * as payments from "../payments.js";
 import type * as profiles from "../profiles.js";
 import type * as resumeFiles from "../resumeFiles.js";
+import type * as seed from "../seed.js";
 import type * as uploads from "../uploads.js";
 import type * as workerAuth from "../workerAuth.js";
 
@@ -32,6 +33,7 @@ declare const fullApi: ApiFromModules<{
   payments: typeof payments;
   profiles: typeof profiles;
   resumeFiles: typeof resumeFiles;
+  seed: typeof seed;
   uploads: typeof uploads;
   workerAuth: typeof workerAuth;
 }>;
