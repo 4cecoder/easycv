@@ -134,10 +134,11 @@ def test_exceeds_refactor_limit_allows_small_file(tmp_path, capsys):
     assert _exceeds_refactor_limit(small, lines=100, size_kb=2.0) is False
 
 
-def test_chunked_refactor_splits_large_file():
+def test_chunked_refactor_splits_large_file(monkeypatch):
     """Test that chunked refactoring correctly splits large files."""
     from automation.refine import _chunked_refactor
     import tempfile
+    monkeypatch.setattr("automation.refine.run_ocr", lambda f, e: "")
     
     # Create a large test file (900 lines)
     large_code = "\n".join([f"# Line {i}" for i in range(1, 901)])
@@ -161,10 +162,11 @@ def test_chunked_refactor_splits_large_file():
         tmp_path.unlink()
 
 
-def test_chunked_refactor_syntax_validation():
+def test_chunked_refactor_syntax_validation(monkeypatch):
     """Test that chunked refactoring validates Python syntax."""
     from automation.refine import _chunked_refactor
     import tempfile
+    monkeypatch.setattr("automation.refine.run_ocr", lambda f, e: "")
     
     # Create code with syntax error in one chunk
     lines = []

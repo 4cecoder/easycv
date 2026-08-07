@@ -109,7 +109,7 @@ def _get_hostname(url: Optional[str]) -> str:
     try:
         parsed = urlparse(normalized)
         return parsed.hostname or ""
-    except Exception:
+    except ValueError:
         return ""
 
 
@@ -205,7 +205,7 @@ def extract_job_id(url: Optional[str]) -> Optional[str]:
             match = _ZIPRECRUITER_JOB_ID_PATTERN.search(parsed.path)
             if match:
                 return match.group(1)
-    except Exception:
+    except ValueError:
         pass
 
     return None
@@ -224,7 +224,7 @@ def clean_html_text(html_content: Optional[str]) -> str:
         parser.feed(html_content)
         parser.close()
         raw_text = "".join(parser.text_chunks)
-    except Exception:
+    except (ValueError, TypeError, AssertionError):
         # Fallback to regex cleaning if parser encounters malformed HTML error
         raw_text = re.sub(r"<(script|style|noscript)[^>]*>.*?</\1>", "", html_content, flags=re.DOTALL | re.IGNORECASE)
         raw_text = re.sub(r"<[^>]+>", "\n", raw_text)
@@ -372,7 +372,7 @@ def scrape_job_posting(
         text = fetch_job_text(normalized, timeout=timeout, headers=headers)
         res["text"] = text
         res["success"] = True
-    except Exception as exc:
+    except (ValueError, requests.RequestException) as exc:
         res["error"] = str(exc)
 
     return res

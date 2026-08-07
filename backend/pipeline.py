@@ -84,6 +84,10 @@ NAME_HINTS = re.compile(
 SKIP_DIRS = {"node_modules", ".git", "__pycache__", ".Trash", "Library"}
 VALID_EXT = {".pdf", ".docx", ".doc", ".pages", ".txt", ".md"}
 
+CV_CLASSIFY_PATTERN = re.compile(r"(?i)\bcv\b")
+SUFFIX_BEFORE_NAME_PATTERN = re.compile(r"(?i)(?:^|[/\\])(?:cv|resume|profile|linkedin)[_\-\s]+([a-z]+(?:[_\-\s][a-z]+)?)")
+FALLBACK_SPLIT_PATTERN = re.compile(r"(?i)_+cv|_resume|_profile|linkedin|profile")
+
 LLM_PROVIDER_MODELS = {
     "openai": "gpt-4o",
     "anthropic": "claude-sonnet-4-20250514",
@@ -129,7 +133,7 @@ def classify(filename: str) -> str:
     if "linkedin" in low: return "linkedin"
     if "profile" in low: return "profile"
     if "resume" in low: return "resume"
-    if re.search(r"(?i)\bcv\b", low): return "cv"
+    if CV_CLASSIFY_PATTERN.search(low): return "cv"
     if "cover" in low and "letter" in low: return "cover-letter"
     return "other"
 
@@ -178,7 +182,7 @@ def extract_person(filename: str) -> Optional[str]:
         return aliased if aliased else _format_name(raw)
 
     # Try suffix-before-name pattern: cv_john.pdf, resume_alice.pdf
-    m2 = re.search(r"(?i)(?:^|[/\\])(?:cv|resume|profile|linkedin)[_\-\s]+([a-z]+(?:[_\-\s][a-z]+)?)", cleaned)
+    m2 = SUFFIX_BEFORE_NAME_PATTERN.search(cleaned)
     if m2:
         raw = m2.group(1).strip(" _-")
         raw = re.sub(r"\s+", " ", raw)
@@ -186,7 +190,7 @@ def extract_person(filename: str) -> Optional[str]:
         return aliased if aliased else _format_name(raw)
 
     # Fallback: extract before known suffixes
-    parts = re.split(r"_+cv|_resume|_profile|linkedin|profile", cleaned, flags=re.I)
+    parts = FALLBACK_SPLIT_PATTERN.split(cleaned)
     if parts and parts[0].strip():
         candidate = parts[0].strip().rstrip(" _-")
         candidate = re.sub(r"\d+.*", "", candidate).strip(" _-")
@@ -286,7 +290,7 @@ def organize_files(bundles: dict[str, PersonBundle], output_dir: str, dry_run: b
             dest = os.path.join(person_dir, safe_name)
             # Prevent path traversal
             dest = os.path.abspath(dest)
-            if not dest.startswith(person_dir):
+            if not dest.startswith(person_dir + os.sep):
                 print(f"  [warn] skipping malicious path: {ff.filename}")
                 continue
             dest = _unique_dest(person_dir, safe_name)
