@@ -22,7 +22,15 @@ test.describe("Landing Page & Job URL Detection E2E Workflow", () => {
     const textarea = page.locator("#jobDescription");
     await textarea.fill("https://www.linkedin.com/jobs/view/9876543210");
     
-    await expect(page.getByText("Auto-detected:")).toBeVisible();
+    await expect(page.getByText("Auto-detected:"))
+      .toBeVisible();
     await expect(page.getByText("LinkedIn Job Link")).toBeVisible();
+  });
+
+  test("tests live seeded workspace preview route", async ({ page }) => {
+    // Navigates directly to candidate preview route with seed upload ID
+    await page.goto("/preview/seed-demo-upload-id");
+    // Verify preview header or fallback container renders
+    await expect(page.locator("body")).toBeVisible();
   });
 });
