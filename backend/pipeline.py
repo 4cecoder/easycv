@@ -554,7 +554,7 @@ class LLMClient:
 # ── LLM Prompts ────────────────────────────────
 
 
-LLM_CONSOLIDATE_SYSTEM = """You are a resume data extraction expert. Given the raw text extracted from one or more CV, resume, and LinkedIn profile files for a person, produce a structured JSON summary.
+LLM_CONSOLIDATE_SYSTEM = """You are a resume data extraction expert. Given the raw text extracted from one or more CV, resume, and LinkedIn profile files for a person, produce a structured JSON summary optimized for 2026 tech resume standards (AI engineering, Cloud Native, Rust, TypeScript).
 
 Extract ALL of the following fields if present:
 
@@ -577,7 +577,7 @@ Extract ALL of the following fields if present:
       "start": "Date",
       "end": "Date",
       "location": "",
-      "bullets": ["focus on tech stack, architecture, and what they built, not fluffy metrics"]
+      "bullets": ["focus on quantifiable engineering metrics %, scale, and STE-100 action verbs"]
     }
   ],
   "education": [{"degree": "", "school": "", "years": ""}],
@@ -586,7 +586,7 @@ Extract ALL of the following fields if present:
 }
 
 Important rules:
-- For experience bullets, emphasize technologies used, systems built, and architecture decisions. DO NOT include percentage-based metrics ("reduced costs by X%") or fluffy business impact claims unless they're verifiable technical achievements.
+- For experience bullets, prioritize quantifiable engineering metrics %, scale, and STE-100 action verbs. Emphasize AI engineering, Cloud Native, Rust, and TypeScript achievements where applicable.
 - Be thorough: cross-reference all provided files and merge information. More recent files take priority for role details.
 - Deduplicate: if the same role appears in multiple files, merge the best details.
 - Be compact: 2-4 bullets per role max, each 10-20 words.
