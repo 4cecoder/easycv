@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import {
@@ -54,6 +54,88 @@ function PageChrome({ children }: { children: React.ReactNode }) {
       </Link>
       {children}
     </main>
+  );
+}
+
+const ENGAGEMENT_TIPS = [
+  "STE-100 ATS Tip: Quantify achievements with numbers, dollars, or percentages.",
+  "Career Fact: Recruiters spend an average of 7.4 seconds on their initial resume scan.",
+  "STE-100 ATS Tip: Avoid complex formatting like tables and columns for better parsing.",
+  "Career Fact: Tailoring your resume to the job description increases interview chances by 50%.",
+  "STE-100 ATS Tip: Start bullet points with strong action verbs (e.g., 'Spearheaded', 'Optimized')."
+];
+
+function LoadingEngagementWidget({ status }: { status: "queued" | "processing" }) {
+  const [tipIndex, setTipIndex] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  
+  useEffect(() => {
+    const tipInterval = setInterval(() => {
+      setTipIndex((prev) => (prev + 1) % ENGAGEMENT_TIPS.length);
+    }, 6000);
+    
+    const timeInterval = setInterval(() => {
+      setElapsed((prev) => prev + 1);
+    }, 1000);
+    
+    return () => {
+      clearInterval(tipInterval);
+      clearInterval(timeInterval);
+    };
+  }, []);
+
+  const estimatedTotal = 45; // seconds
+  const remaining = Math.max(0, estimatedTotal - elapsed);
+  const progressPercent = Math.min(95, Math.floor((elapsed / estimatedTotal) * 100));
+
+  return (
+    <Card className="overflow-hidden border-primary/20 shadow-sm">
+      <CardHeader className="bg-primary/5 pb-6 border-b border-primary/10">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="relative flex items-center justify-center p-2">
+            <Loader2 className="size-8 animate-spin text-primary relative z-10" />
+            <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping opacity-40"></div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <h3 className="font-semibold text-lg tracking-tight">
+              {status === "queued" ? "Waiting in Queue..." : "Consolidating Resume..."}
+            </h3>
+            <p className="text-sm text-muted-foreground max-w-[320px]">
+              Our AI is analyzing your career history to build the perfect ATS-optimized profile.
+            </p>
+          </div>
+        </div>
+      </CardHeader>
+      
+      <CardContent className="flex flex-col gap-6 pt-6">
+        <div className="flex flex-col gap-2.5">
+          <div className="flex justify-between text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            <span>Processing Progress</span>
+            {remaining > 0 ? (
+              <span>~{remaining}s remaining</span>
+            ) : (
+              <span className="text-primary animate-pulse font-bold">Finishing up...</span>
+            )}
+          </div>
+          <div className="h-2.5 w-full bg-secondary overflow-hidden rounded-full">
+            <div 
+              className="h-full bg-primary transition-all duration-1000 ease-linear rounded-full"
+              style={{ width: `${status === "queued" ? 5 : Math.max(10, progressPercent)}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="rounded-lg bg-muted/30 p-4 border border-border/50 min-h-[90px] flex flex-col justify-center gap-2">
+          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+            <Sparkles className="size-3" />
+            <span>While you wait</span>
+          </div>
+          <p className="text-sm text-foreground/80 leading-relaxed font-medium animate-in fade-in slide-in-from-bottom-1 duration-500" key={tipIndex}>
+            {ENGAGEMENT_TIPS[tipIndex]}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -133,22 +215,7 @@ export function PreviewClient({
   if (upload.status === "queued" || upload.status === "processing") {
     return (
       <PageChrome>
-        <Card>
-          <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
-            <Loader2 className="size-8 animate-spin text-primary" />
-            <div className="flex flex-col gap-1">
-              <p className="font-medium">
-                {upload.status === "queued"
-                  ? "Waiting to start..."
-                  : "Consolidating your resume..."}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                This can take a few minutes, especially on a local model. This
-                page updates on its own &mdash; no need to refresh.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <LoadingEngagementWidget status={upload.status} />
       </PageChrome>
     );
   }
