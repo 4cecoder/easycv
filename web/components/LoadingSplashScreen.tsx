@@ -14,6 +14,9 @@ const MESSAGES = [
 export const LoadingSplashScreen: React.FC = () => {
   const [messageIndex, setMessageIndex] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [estimatedMs, setEstimatedMs] = useState(10000);
+  const [networkSpeed, setNetworkSpeed] = useState('4G');
 
   useEffect(() => {
     // Estimate based on navigator.connection
@@ -22,14 +25,21 @@ export const LoadingSplashScreen: React.FC = () => {
     let baseTime = 10000;
     
     if (connection) {
-      if (connection.effectiveType === '4g') {
+      const type = connection.effectiveType || '4g';
+      setNetworkSpeed(type.toUpperCase());
+      if (type === '4g') {
         baseTime = 8000;
-      } else if (connection.effectiveType === '3g') {
+      } else if (type === '3g') {
         baseTime = 15000;
-      } else if (connection.effectiveType === '2g' || connection.effectiveType === 'slow-2g') {
+      } else if (type === '2g' || type === 'slow-2g') {
         baseTime = 30000;
       }
     }
+    setEstimatedMs(baseTime);
+
+    const timeTimer = setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+    }, 1000);
     
     // Cycle messages every 2500ms
     const messageInterval = setInterval(() => {
@@ -53,6 +63,7 @@ export const LoadingSplashScreen: React.FC = () => {
     return () => {
       clearInterval(messageInterval);
       clearInterval(progressInterval);
+      clearInterval(timeTimer);
     };
   }, []);
 
@@ -67,15 +78,25 @@ export const LoadingSplashScreen: React.FC = () => {
           {MESSAGES[messageIndex]}
         </div>
 
-        <div className="h-2 w-full overflow-hidden rounded-full bg-black/20 shadow-inner">
+        <div className="h-2.5 w-full overflow-hidden rounded-full bg-black/30 p-0.5 shadow-inner border border-white/10">
           <div 
-            className="h-full bg-blue-500 transition-all duration-75 ease-linear"
+            className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 transition-all duration-75 ease-linear rounded-full"
             style={{ width: `${progress}%` }}
           />
         </div>
         
-        <div className="mt-2 text-sm font-semibold text-white/80">
-          {Math.round(progress)}%
+        <div className="mt-3 flex w-full items-center justify-between text-xs font-mono font-medium text-white/80">
+          <span>{Math.round(progress)}% Complete</span>
+          <span>~{Math.max(0, Math.ceil((100 - progress) * (estimatedMs / 1000) / 100))}s remaining</span>
+        </div>
+
+        {/* Developer Debug & Pipeline Status Bar */}
+        <div className="mt-4 flex w-full items-center justify-between rounded-lg border border-white/10 bg-black/40 px-3 py-1.5 text-[11px] font-mono text-white/70 backdrop-blur-sm">
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block size-2 rounded-full bg-emerald-400 animate-ping" />
+            <span>Net: {networkSpeed}</span>
+          </span>
+          <span>Elapsed: {elapsedSeconds}s</span>
         </div>
       </div>
     </div>
