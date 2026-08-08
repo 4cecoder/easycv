@@ -4,7 +4,7 @@ const MESSAGES = [
   '⚡ Initializing AI parsing engine...',
   '📄 Scanning uploaded resume history & documents...',
   '🎯 Extracting technical skills, tools & achievements...',
-  '📊 Calculating ASD-STE100 ATS compliance score...',
+  '📊 Calculating ATS Technical Clarity score...',
   '🔗 Analyzing target job description & keyword alignment...',
   '✨ Generating high-impact engineering bullet points...',
   '📐 Compiling executive LaTeX PDF document structure...',

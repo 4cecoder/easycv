@@ -71,7 +71,7 @@ const STAGE_MESSAGES = [
   "⚡ Initializing AI processing engine & reading documents...",
   "📄 Scanning uploaded resume history & extracting career milestones...",
   "🎯 Extracting technical skills, frameworks & tools...",
-  "📊 Calculating ASD-STE100 ATS compliance score...",
+  "📊 Calculating ATS Technical Optimization score...",
   "🔗 Analyzing target job description & keyword alignment...",
   "✨ Generating high-impact engineering bullet points...",
   "📐 Compiling executive LaTeX PDF document structure...",
