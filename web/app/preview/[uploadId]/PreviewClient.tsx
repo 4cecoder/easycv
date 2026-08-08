@@ -58,21 +58,39 @@ function PageChrome({ children }: { children: React.ReactNode }) {
 }
 
 const ENGAGEMENT_TIPS = [
-  "STE-100 ATS Tip: Quantify achievements with numbers, dollars, or percentages.",
-  "Career Fact: Recruiters spend an average of 7.4 seconds on their initial resume scan.",
-  "STE-100 ATS Tip: Avoid complex formatting like tables and columns for better parsing.",
-  "Career Fact: Tailoring your resume to the job description increases interview chances by 50%.",
-  "STE-100 ATS Tip: Start bullet points with strong action verbs (e.g., 'Spearheaded', 'Optimized')."
+  "⚡ Instant AI Consolidation: Processing experience history into single-column LaTeX ATS format.",
+  "📊 STE-100 ATS Tip: Quantify achievements with concrete engineering metrics (%, scale, latency, ROI).",
+  "🎯 Career Fact: Recruiters spend an average of 7.4 seconds on their initial resume scan.",
+  "✨ STE-100 ATS Tip: Avoid multi-column layouts and tables for flawless ATS parsing.",
+  "🔗 Career Fact: Tailoring bullet points to match target job keywords increases callback rates by 50%.",
+  "📐 STE-100 ATS Tip: Start every bullet with strong action verbs ('Spearheaded', 'Architected', 'Optimized').",
+  "🚀 Private Local AI: 100% private inference with zero third-party data tracking."
+];
+
+const STAGE_MESSAGES = [
+  "⚡ Initializing AI processing engine & reading documents...",
+  "📄 Scanning uploaded resume history & extracting career milestones...",
+  "🎯 Extracting technical skills, frameworks & tools...",
+  "📊 Calculating ASD-STE100 ATS compliance score...",
+  "🔗 Analyzing target job description & keyword alignment...",
+  "✨ Generating high-impact engineering bullet points...",
+  "📐 Compiling executive LaTeX PDF document structure...",
+  "🚀 Finalizing your master career profile..."
 ];
 
 function LoadingEngagementWidget({ status }: { status: "queued" | "processing" }) {
   const [tipIndex, setTipIndex] = useState(0);
+  const [stageIndex, setStageIndex] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   
   useEffect(() => {
     const tipInterval = setInterval(() => {
       setTipIndex((prev) => (prev + 1) % ENGAGEMENT_TIPS.length);
-    }, 6000);
+    }, 4000);
+
+    const stageInterval = setInterval(() => {
+      setStageIndex((prev) => (prev + 1) % STAGE_MESSAGES.length);
+    }, 2800);
     
     const timeInterval = setInterval(() => {
       setElapsed((prev) => prev + 1);
@@ -80,28 +98,35 @@ function LoadingEngagementWidget({ status }: { status: "queued" | "processing" }
     
     return () => {
       clearInterval(tipInterval);
+      clearInterval(stageInterval);
       clearInterval(timeInterval);
     };
   }, []);
 
   const estimatedTotal = 45; // seconds
   const remaining = Math.max(0, estimatedTotal - elapsed);
-  const progressPercent = Math.min(95, Math.floor((elapsed / estimatedTotal) * 100));
+  const progressPercent = Math.min(96, Math.floor((elapsed / estimatedTotal) * 100));
 
   return (
-    <Card className="overflow-hidden border-primary/20 shadow-sm">
-      <CardHeader className="bg-primary/5 pb-6 border-b border-primary/10">
+    <Card className="overflow-hidden border-primary/30 shadow-xl backdrop-blur-xl bg-card/70 relative">
+      {/* Dynamic Animated Pulse Glow */}
+      <div className="absolute -top-24 -left-24 size-48 rounded-full bg-primary/20 blur-3xl animate-pulse pointer-events-none" />
+      <div className="absolute -bottom-24 -right-24 size-48 rounded-full bg-emerald-500/20 blur-3xl animate-pulse pointer-events-none delay-700" />
+      
+      <CardHeader className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent pb-6 border-b border-primary/10">
         <div className="flex flex-col items-center gap-4 text-center">
-          <div className="relative flex items-center justify-center p-2">
-            <Loader2 className="size-8 animate-spin text-primary relative z-10" />
-            <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping opacity-40"></div>
+          <div className="relative flex items-center justify-center p-3">
+            <Loader2 className="size-10 animate-spin text-primary relative z-10" />
+            <div className="absolute inset-0 bg-primary/30 rounded-full animate-ping opacity-60"></div>
           </div>
           <div className="flex flex-col gap-1.5">
-            <h3 className="font-semibold text-lg tracking-tight">
-              {status === "queued" ? "Waiting in Queue..." : "Consolidating Resume..."}
+            <h3 className="font-bold text-xl tracking-tight text-foreground transition-all duration-300">
+              {STAGE_MESSAGES[stageIndex]}
             </h3>
-            <p className="text-sm text-muted-foreground max-w-[320px]">
-              Our AI is analyzing your career history to build the perfect ATS-optimized profile.
+            <p className="text-xs text-muted-foreground max-w-sm">
+              {status === "queued"
+                ? "Waiting to start... This page updates on its own — no need to refresh."
+                : "Consolidating your resume with private local AI..."}
             </p>
           </div>
         </div>
@@ -109,28 +134,31 @@ function LoadingEngagementWidget({ status }: { status: "queued" | "processing" }
       
       <CardContent className="flex flex-col gap-6 pt-6">
         <div className="flex flex-col gap-2.5">
-          <div className="flex justify-between text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            <span>Processing Progress</span>
+          <div className="flex justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <span>Processing Pipeline</span>
             {remaining > 0 ? (
-              <span>~{remaining}s remaining</span>
+              <span className="text-primary font-mono font-bold">~{remaining}s remaining</span>
             ) : (
-              <span className="text-primary animate-pulse font-bold">Finishing up...</span>
+              <span className="text-emerald-500 animate-pulse font-bold">Finalizing Master Profile...</span>
             )}
           </div>
-          <div className="h-2.5 w-full bg-secondary overflow-hidden rounded-full">
+          <div className="h-3 w-full bg-secondary/80 overflow-hidden rounded-full p-0.5 border border-primary/10">
             <div 
-              className="h-full bg-primary transition-all duration-1000 ease-linear rounded-full"
-              style={{ width: `${status === "queued" ? 5 : Math.max(10, progressPercent)}%` }}
+              className="h-full bg-gradient-to-r from-primary via-emerald-500 to-primary transition-all duration-1000 ease-linear rounded-full"
+              style={{ width: `${status === "queued" ? 8 : Math.max(12, progressPercent)}%` }}
             />
           </div>
         </div>
 
-        <div className="rounded-lg bg-muted/30 p-4 border border-border/50 min-h-[90px] flex flex-col justify-center gap-2">
-          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-primary">
-            <Sparkles className="size-3" />
-            <span>While you wait</span>
+        <div className="rounded-xl bg-gradient-to-br from-primary/5 to-transparent p-5 border border-primary/20 min-h-[95px] flex flex-col justify-center gap-2 shadow-inner">
+          <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-primary">
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="size-3.5" />
+              <span>While you wait — Career Insights</span>
+            </div>
+            <span className="text-muted-foreground font-normal">Tip {tipIndex + 1}/{ENGAGEMENT_TIPS.length}</span>
           </div>
-          <p className="text-sm text-foreground/80 leading-relaxed font-medium animate-in fade-in slide-in-from-bottom-1 duration-500" key={tipIndex}>
+          <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed font-medium transition-all duration-500 animate-in fade-in" key={tipIndex}>
             {ENGAGEMENT_TIPS[tipIndex]}
           </p>
         </div>
