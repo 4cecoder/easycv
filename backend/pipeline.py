@@ -841,11 +841,11 @@ def score_structured_data(data: dict) -> dict:
     critical = False
 
     if not isinstance(data, dict):
-        return {"score": 0, "max_score": 0, "warnings": ["data is not a JSON object"], "critical": True}
+        return {"score": 0, "max_score": 0, "warnings": ["We couldn't read this resume's data — try re-uploading it"], "critical": True}
 
     if "_raw" in data:
         critical = True
-        warnings.append("data is raw/unparsed LLM output (structured extraction failed)")
+        warnings.append("We couldn't fully process this resume — try re-uploading it or use a different file format")
 
     for key in sorted(REQUIRED_STRUCTURED_KEYS):
         max_score += 1
@@ -853,7 +853,7 @@ def score_structured_data(data: dict) -> dict:
             score += 1
         else:
             critical = True
-            warnings.append(f"missing required field: {key}")
+            warnings.append(f"Add your {key.replace('_', ' ')} — it's missing from the resume")
 
     contact = data.get("contact")
     contact = contact if isinstance(contact, dict) else {}
@@ -862,19 +862,19 @@ def score_structured_data(data: dict) -> dict:
         if contact.get(field_name):
             score += 1
         else:
-            warnings.append(f"no contact {field_name}")
+            warnings.append(f"Add your {field_name} to the contact section")
 
     max_score += 1
     if data.get("summary"):
         score += 1
     else:
-        warnings.append("no professional summary")
+        warnings.append("Add a short professional summary at the top of your resume")
 
     max_score += 1
     if data.get("titles"):
         score += 1
     else:
-        warnings.append("no titles listed")
+        warnings.append("Add a job title (e.g. 'Senior Software Engineer') to your resume")
 
     skills = data.get("skills")
     if isinstance(skills, dict):
@@ -883,28 +883,28 @@ def score_structured_data(data: dict) -> dict:
             if skills.get(cat):
                 score += 1
             else:
-                warnings.append(f"skills.{cat} is empty")
+                warnings.append(f"Add at least one skill under '{cat.replace('_', ' ')}'")
     else:
         max_score += len(SKILL_CATEGORIES)
-        warnings.append("skills is missing or not an object")
+        warnings.append("Add a Skills section to your resume")
 
     experience = data.get("experience")
     if isinstance(experience, list):
         for i, entry in enumerate(experience, start=1):
             if not isinstance(entry, dict):
-                warnings.append(f"experience entry {i} is not a valid object")
+                warnings.append(f"Experience entry {i} looks corrupted — try re-uploading")
                 continue
             label = entry.get("title") or entry.get("company") or f"entry {i}"
             max_score += 1
             if entry.get("title") and entry.get("company"):
                 score += 1
             else:
-                warnings.append(f"experience entry {i} ({label}) missing title/company")
+                warnings.append(f"Add a job title and company name for your '{label}' role")
             max_score += 1
             if entry.get("bullets"):
                 score += 1
             else:
-                warnings.append(f"experience entry {i} ({label}) missing bullets")
+                warnings.append(f"Add at least one bullet point describing your work as {label}")
 
     for optional_key, label in (("education", "education"), ("certifications", "certifications"),
                                  ("languages_spoken", "spoken languages")):
@@ -912,14 +912,14 @@ def score_structured_data(data: dict) -> dict:
         if data.get(optional_key):
             score += 1
         else:
-            warnings.append(f"no {label} listed")
+            warnings.append(f"Consider adding {label} to strengthen your resume")
 
     # ASD-STE100 Issue 9 Compliance checks
     summary_text = data.get("summary")
     if summary_text and isinstance(summary_text, str):
         summary_warns = ste100.validate_text_ste100(summary_text, is_procedural=False)
         for w in summary_warns:
-            warnings.append(f"STE-100 (Summary): {w}")
+            warnings.append(f"In your summary: {w}")
 
     if isinstance(experience, list):
         for i, entry in enumerate(experience, start=1):
@@ -929,7 +929,7 @@ def score_structured_data(data: dict) -> dict:
                     if isinstance(bullet, str):
                         bullet_warns = ste100.validate_text_ste100(bullet, is_procedural=False)
                         for w in bullet_warns:
-                            warnings.append(f"STE-100 ({label}): {w}")
+                            warnings.append(f"In your {label} bullets: {w}")
 
     return {"score": score, "max_score": max_score, "warnings": warnings, "critical": critical}
 

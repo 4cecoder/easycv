@@ -276,12 +276,12 @@ export function FAQAssistantChat() {
   };
 
   return (
-    <div className="fixed bottom-5 right-5 z-40">
+    <div className="fixed bottom-4 right-4 z-40 sm:bottom-5 sm:right-5">
       {/* Closed Floating Trigger Button */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="group flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground shadow-xl transition-all hover:scale-105 active:scale-95 hover:shadow-2xl border border-primary/40"
+          className="group flex items-center gap-2 rounded-full bg-primary p-2.5 text-xs font-bold text-primary-foreground shadow-xl transition-all hover:scale-105 active:scale-95 hover:shadow-2xl border border-primary/40 sm:px-4 sm:py-2.5"
         >
           <div className="relative">
             <MessageSquare className="size-4" />
@@ -290,13 +290,13 @@ export function FAQAssistantChat() {
               <span className="relative inline-flex rounded-full size-2 bg-emerald-500"></span>
             </span>
           </div>
-          <span>Help & Support</span>
+          <span className="hidden sm:inline">Help & Support</span>
         </button>
       )}
 
       {/* Expanded Interactive Chat Modal */}
       {isOpen && (
-        <div className="flex flex-col w-[350px] sm:w-[380px] h-[520px] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="flex flex-col w-[calc(100vw-2rem)] h-[70vh] sm:w-[380px] sm:h-[520px] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
           
           {/* Chat Header */}
           <div className="flex items-center justify-between px-4 py-3.5 border-b border-border bg-muted/40 backdrop-blur-sm">

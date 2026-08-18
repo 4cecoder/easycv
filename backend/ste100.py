@@ -149,7 +149,7 @@ def check_british_spelling(sentence: str) -> List[str]:
     for compiled_pattern, preferred in zip(_BRITISH_SPELLING_PATTERNS, BRITISH_TO_AMERICAN_SPELLING.values()):
         for match in compiled_pattern.finditer(sentence):
             warnings.append(
-                f"British spelling variant '{match.group(0)}' detected (use American '{preferred}')"
+                f"Use the American spelling '{preferred}' instead of '{match.group(0)}'"
             )
     return warnings
 
@@ -159,7 +159,7 @@ def check_contractions(sentence: str) -> List[str]:
     warnings = []
     for compiled_pattern in _CONTRACTION_PATTERNS:
         for match in compiled_pattern.finditer(sentence):
-            warnings.append(f"Contraction '{match.group(0)}' is not permitted; write it in full")
+            warnings.append(f"Spell out '{match.group(0)}' instead of using a contraction")
     return warnings
 
 
@@ -169,14 +169,14 @@ def check_passive_voice(sentence: str) -> List[str]:
     followed by a verb ending in 'ed' (simplistic past participle heuristic) or 'by' preposition.
     """
     warnings = []
-    
+
     match = _PASSIVE_PATTERN.search(sentence)
     if match:
-        warnings.append(f"Passive voice pattern detected: '{match.group(0)}' (prefer active voice)")
-        
+        warnings.append(f"Rewrite in active voice — replace '{match.group(0)}' with a stronger action verb")
+
     match = _BY_PATTERN.search(sentence)
     if match:
-        warnings.append(f"Passive helper with agent 'by' detected: '{match.group(0)}' (rewrite in active voice)")
+        warnings.append(f"Rewrite in active voice — avoid passive phrasing like '{match.group(0)}'")
 
     return warnings
 
@@ -192,7 +192,7 @@ def check_ing_forms(sentence: str) -> List[str]:
         if f"-{low}" in sentence.lower() or f"{low}-" in sentence.lower():
             continue
         warnings.append(
-            f"'-ing' form '{word}' is not recommended (Rule 3.5) unless it functions as an approved technical noun"
+            f"Replace '{word}' with a strong past-tense verb (e.g. 'Managed' instead of 'Managing')"
         )
     return warnings
 
@@ -203,15 +203,15 @@ def check_perfect_progressive_tenses(sentence: str) -> List[str]:
     - Progressive tenses: 'is/was/were/am' + '-ing'.
     """
     warnings = []
-    
+
     match = _PERFECT_PATTERN.search(sentence)
     if match:
-        warnings.append(f"Perfect tense helper '{match.group(0)}' detected (use simple past or present instead)")
-        
+        warnings.append(f"Use simple past tense instead of '{match.group(0)}'")
+
     match = _PROGRESSIVE_PATTERN.search(sentence)
     if match:
-        warnings.append(f"Progressive tense helper '{match.group(0)}' detected (use simple present or past instead)")
-        
+        warnings.append(f"Use simple past tense instead of '{match.group(0)}'")
+
     return warnings
 
 
@@ -221,15 +221,14 @@ def validate_sentence(sentence: str, is_procedural: bool = False) -> List[str]:
 
     # Rule 8.1: Semicolon
     if ";" in sentence:
-        warnings.append("Semicolon ';' is not permitted; write two separate sentences instead")
+        warnings.append("Split this into two shorter sentences instead of using a semicolon")
 
     # Word count limits (Rule 5.1/6.3)
     word_count = count_words_ste100(sentence)
     limit = 20 if is_procedural else 25
     if word_count > limit:
         warnings.append(
-            f"Sentence is too long ({word_count} words). "
-            f"Maximum permitted is {limit} words for {'procedural' if is_procedural else 'descriptive'} text"
+            f"Shorten this to {limit} words or fewer (currently {word_count})"
         )
 
     # Check spelling, tenses, active voice, etc.

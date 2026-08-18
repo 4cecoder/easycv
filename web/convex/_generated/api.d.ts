@@ -13,12 +13,15 @@ import type * as audit from "../audit.js";
 import type * as auth from "../auth.js";
 import type * as authz from "../authz.js";
 import type * as behavior from "../behavior.js";
+import type * as billing from "../billing.js";
+import type * as cron from "../cron.js";
 import type * as faq from "../faq.js";
 import type * as files from "../files.js";
 import type * as http from "../http.js";
 import type * as identity from "../identity.js";
 import type * as insights from "../insights.js";
 import type * as jobMatching from "../jobMatching.js";
+import type * as jobPostings from "../jobPostings.js";
 import type * as payments from "../payments.js";
 import type * as profiles from "../profiles.js";
 import type * as quotas from "../quotas.js";
@@ -40,12 +43,15 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   authz: typeof authz;
   behavior: typeof behavior;
+  billing: typeof billing;
+  cron: typeof cron;
   faq: typeof faq;
   files: typeof files;
   http: typeof http;
   identity: typeof identity;
   insights: typeof insights;
   jobMatching: typeof jobMatching;
+  jobPostings: typeof jobPostings;
   payments: typeof payments;
   profiles: typeof profiles;
   quotas: typeof quotas;
@@ -82,4 +88,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  stripe: import("@convex-dev/stripe/_generated/component.js").ComponentApi<"stripe">;
+};

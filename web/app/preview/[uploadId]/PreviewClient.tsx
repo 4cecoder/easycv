@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import {
-  AlertTriangle,
   Briefcase,
   Download,
   FileCheck,
@@ -32,6 +31,7 @@ import {
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { CheckoutButton } from "./CheckoutButton";
+import { QualitySuggestions } from "./QualitySuggestions";
 import { JobMatchWidget } from "./JobMatchWidget";
 import { STE100BulletWidget } from "./STE100BulletWidget";
 import { CareerVaultWidget } from "./CareerVaultWidget";
@@ -176,6 +176,8 @@ export function PreviewClient({
     uploadId: uploadId as Id<"uploads">,
     sessionId,
   });
+  const isPro = useQuery(api.billing.isSubscribed, { sessionId });
+  const grantProDownload = useMutation(api.payments.grantProDownload);
 
   const [activeTab, setActiveTab] = useState<"document" | "match" | "linter" | "vault" | "export">("document");
   const [template, setTemplate] = useState<"modern" | "classic" | "minimal">("modern");
@@ -198,6 +200,15 @@ export function PreviewClient({
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, []);
+
+  // Pro subscribers get every upload unlocked automatically -- mint the
+  // (free) download token the first time we see an active subscription and
+  // this upload hasn't already got one from a real Stripe charge.
+  useEffect(() => {
+    if (isPro && paymentStatus && !paymentStatus.paid) {
+      grantProDownload({ uploadId: uploadId as Id<"uploads">, sessionId }).catch(() => {});
+    }
+  }, [isPro, paymentStatus, uploadId, sessionId, grantProDownload]);
 
   function handleCopyText(text: string, sectionKey: string) {
     navigator.clipboard.writeText(text);
@@ -442,9 +453,9 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
 
         {/* Quality Alerts */}
         {profile.qualityCritical ? (
-          <Alert variant="destructive" role="alert" className="rounded-lg border-destructive/40">
+          <Alert variant="destructive" role="alert" className="rounded-lg border-destructive/40 py-2.5">
             <ShieldAlert className="size-4" />
-            <AlertTitle className="text-xs font-semibold">Critical Parsing Warnings</AlertTitle>
+            <AlertTitle className="text-xs font-semibold">Finish these before downloading</AlertTitle>
             <AlertDescription className="text-xs">
               <ul className="list-inside list-disc mt-1 space-y-0.5">
                 {profile.qualityWarnings.map((warning, i) => (
@@ -454,23 +465,11 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
             </AlertDescription>
           </Alert>
         ) : (
-          hasWarnings && (
-            <Alert variant="warning" role="status" className="rounded-lg border-warning/40">
-              <AlertTriangle className="size-4" />
-              <AlertTitle className="text-xs font-semibold">Optimization Opportunities</AlertTitle>
-              <AlertDescription className="text-xs">
-                <ul className="list-inside list-disc mt-1 space-y-0.5">
-                  {profile.qualityWarnings.map((warning, i) => (
-                    <li key={i}>{warning}</li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          )
+          <QualitySuggestions suggestions={profile.qualityWarnings} />
         )}
 
         {/* Pivot Navigation Tab Strip */}
-        <div className="flex items-center justify-between gap-4 border-b border-border bg-card/60 backdrop-blur-xs px-4 sm:px-6">
+        <div className="flex items-center gap-1 overflow-x-auto border-b border-border bg-card/60 backdrop-blur-xs px-4 sm:justify-between sm:gap-4 sm:px-6">
           {[
             { id: "document", label: "Resume", icon: FileText },
             { id: "match", label: "Job Match", icon: Target },
@@ -484,7 +483,7 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-all ${
+                className={`flex shrink-0 items-center gap-1.5 px-3 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-all ${
                   isActive
                     ? "border-primary text-primary bg-primary/[0.03]"
                     : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40"

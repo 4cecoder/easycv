@@ -368,7 +368,7 @@ class TestScoreCompleteProfiles(unittest.TestCase):
     def test_complete_profile_has_no_critical_warnings(self):
         """No 'missing required field' warnings for complete data."""
         result = score_structured_data(self._make_complete_profile())
-        missing_req = [w for w in result["warnings"] if "missing required field" in w]
+        missing_req = [w for w in result["warnings"] if "it's missing from the resume" in w]
         self.assertEqual(missing_req, [])
 
     def test_score_result_has_expected_keys(self):
@@ -406,7 +406,7 @@ class TestScoreIncompleteProfiles(unittest.TestCase):
         }
         result = score_structured_data(data)
         self.assertTrue(result["critical"])
-        self.assertTrue(any("missing required field: name" in w for w in result["warnings"]))
+        self.assertTrue(any("Add your name" in w for w in result["warnings"]))
 
     def test_missing_skills_is_critical(self):
         data = {
@@ -415,7 +415,7 @@ class TestScoreIncompleteProfiles(unittest.TestCase):
         }
         result = score_structured_data(data)
         self.assertTrue(result["critical"])
-        self.assertTrue(any("missing required field: skills" in w for w in result["warnings"]))
+        self.assertTrue(any("Add your skills" in w for w in result["warnings"]))
 
     def test_missing_experience_is_critical(self):
         data = {
@@ -424,13 +424,13 @@ class TestScoreIncompleteProfiles(unittest.TestCase):
         }
         result = score_structured_data(data)
         self.assertTrue(result["critical"])
-        self.assertTrue(any("missing required field: experience" in w for w in result["warnings"]))
+        self.assertTrue(any("Add your experience" in w for w in result["warnings"]))
 
     def test_raw_fallback_is_critical(self):
         """Data with _raw key (unparsed LLM output) is always critical."""
         result = score_structured_data({"_raw": "some raw text"})
         self.assertTrue(result["critical"])
-        self.assertTrue(any("raw" in w.lower() for w in result["warnings"]))
+        self.assertTrue(any("process this resume" in w.lower() for w in result["warnings"]))
 
     def test_non_dict_input_is_critical(self):
         result = score_structured_data(["not", "a", "dict"])
@@ -467,7 +467,7 @@ class TestScoreIncompleteProfiles(unittest.TestCase):
         }
         result = score_structured_data(data)
         self.assertFalse(result["critical"])
-        self.assertTrue(any("no contact email" in w for w in result["warnings"]))
+        self.assertTrue(any("Add your email" in w for w in result["warnings"]))
 
     def test_missing_summary_produces_warning(self):
         data = {
@@ -476,7 +476,7 @@ class TestScoreIncompleteProfiles(unittest.TestCase):
             "experience": [{"title": "Dev", "company": "X", "bullets": []}],
         }
         result = score_structured_data(data)
-        self.assertTrue(any("no professional summary" in w for w in result["warnings"]))
+        self.assertTrue(any("Add a short professional summary" in w for w in result["warnings"]))
 
     def test_experience_missing_title_company_warns(self):
         data = {
@@ -485,7 +485,7 @@ class TestScoreIncompleteProfiles(unittest.TestCase):
             "experience": [{"bullets": ["Did stuff"]}],
         }
         result = score_structured_data(data)
-        self.assertTrue(any("missing title/company" in w for w in result["warnings"]))
+        self.assertTrue(any("Add a job title and company name" in w for w in result["warnings"]))
 
     def test_experience_non_dict_entry_warns(self):
         data = {
@@ -494,7 +494,7 @@ class TestScoreIncompleteProfiles(unittest.TestCase):
             "experience": ["just a string"],
         }
         result = score_structured_data(data)
-        self.assertTrue(any("not a valid object" in w for w in result["warnings"]))
+        self.assertTrue(any("looks corrupted" in w for w in result["warnings"]))
 
     def test_skills_not_a_dict_warns(self):
         data = {
@@ -503,7 +503,7 @@ class TestScoreIncompleteProfiles(unittest.TestCase):
             "experience": [{"title": "Dev", "company": "X", "bullets": []}],
         }
         result = score_structured_data(data)
-        self.assertTrue(any("skills is missing or not an object" in w for w in result["warnings"]))
+        self.assertTrue(any("Add a Skills section" in w for w in result["warnings"]))
 
     def test_score_decreases_with_missing_fields(self):
         """More missing fields = lower score."""
@@ -793,55 +793,55 @@ class TestSTE100BulletCompliance(unittest.TestCase):
         """Sentences exceeding the word limit are flagged."""
         long_text = " ".join(["word"] * 30) + "."
         warnings = validate_text_ste100(long_text, is_procedural=False)
-        self.assertTrue(any("too long" in w for w in warnings))
+        self.assertTrue(any("Shorten this" in w for w in warnings))
 
     def test_procedural_word_limit_stricter(self):
         """Procedural text has a 20-word limit (vs 25 for descriptive)."""
         words_22 = " ".join(["word"] * 22) + "."
         proc_warnings = validate_text_ste100(words_22, is_procedural=True)
         desc_warnings = validate_text_ste100(words_22, is_procedural=False)
-        self.assertTrue(any("too long" in w for w in proc_warnings))
-        self.assertFalse(any("too long" in w for w in desc_warnings))
+        self.assertTrue(any("Shorten this" in w for w in proc_warnings))
+        self.assertFalse(any("Shorten this" in w for w in desc_warnings))
 
     def test_contraction_detected_lowercase(self):
         """Contractions in lowercase are flagged (Rule 4.2).
         Note: STE-100 contraction patterns are compiled without re.IGNORECASE,
         so only lowercase contractions match."""
         warnings = validate_text_ste100("don't use contractions.", is_procedural=False)
-        self.assertTrue(any("Contraction" in w for w in warnings))
+        self.assertTrue(any("contraction" in w for w in warnings))
 
     def test_contraction_not_detected_uppercase(self):
         """Uppercase contractions like 'Don't' are NOT flagged because the
         STE-100 regex patterns are compiled without re.IGNORECASE."""
         warnings = validate_text_ste100("Don't use contractions.", is_procedural=False)
         # The contraction pattern \bdon't\b is case-sensitive, so 'Don't' won't match
-        contraction_warns = [w for w in warnings if "Contraction" in w]
+        contraction_warns = [w for w in warnings if "contraction" in w]
         self.assertEqual(contraction_warns, [])
 
     def test_british_spelling_detected(self):
         """British spelling variants are flagged (Rule 1.14)."""
         warnings = validate_text_ste100("The system uses colour coding.", is_procedural=False)
-        self.assertTrue(any("British spelling" in w for w in warnings))
+        self.assertTrue(any("American spelling" in w for w in warnings))
 
     def test_semicolon_detected(self):
         """Semicolons are not permitted (Rule 8.1)."""
         warnings = validate_text_ste100("Use Python; avoid Java.", is_procedural=False)
-        self.assertTrue(any("Semicolon" in w for w in warnings))
+        self.assertTrue(any("semicolon" in w for w in warnings))
 
     def test_passive_voice_detected(self):
         """Passive voice patterns are flagged (Rule 3.6)."""
         warnings = validate_text_ste100("The code was reviewed by the team.", is_procedural=False)
-        self.assertTrue(any("Passive" in w for w in warnings))
+        self.assertTrue(any("active voice" in w for w in warnings))
 
     def test_perfect_tense_detected(self):
         """Perfect tense helpers are flagged (Rule 3.2)."""
         warnings = validate_text_ste100("She has completed the project.", is_procedural=False)
-        self.assertTrue(any("Perfect tense" in w for w in warnings))
+        self.assertTrue(any("simple past tense" in w for w in warnings))
 
     def test_progressive_tense_detected(self):
         """Progressive tense helpers are flagged (Rule 3.2)."""
         warnings = validate_text_ste100("He is running the tests.", is_procedural=False)
-        self.assertTrue(any("Progressive tense" in w for w in warnings))
+        self.assertTrue(any("simple past tense" in w for w in warnings))
 
     def test_empty_text_no_crash(self):
         """Empty text returns empty warnings list."""
@@ -896,9 +896,9 @@ class TestSTE100BulletCompliance(unittest.TestCase):
         # Should flag: contraction 'don't', British 'colour', semicolon ';',
         # contraction "it's", progressive/tense issues
         warning_types = " ".join(warnings)
-        self.assertIn("Contraction", warning_types)
-        self.assertIn("British spelling", warning_types)
-        self.assertIn("Semicolon", warning_types)
+        self.assertIn("contraction", warning_types)
+        self.assertIn("American spelling", warning_types)
+        self.assertIn("semicolon", warning_types)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

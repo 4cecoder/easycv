@@ -185,6 +185,7 @@ export function computeMatchScore(
   score: number;
   matchedKeywords: string[];
   missingKeywords: string[];
+  gapAnalysis: string;
   keywordScore: number;
   recencyScore: number;
   salaryScore: number;
@@ -241,10 +242,15 @@ export function computeMatchScore(
     + (locationScore * WEIGHT_LOCATION);
   const score = Math.round(Math.min(100, Math.max(0, raw * 100)));
 
+  const gapAnalysis = missingKeywords.length > 0
+    ? `Missing ${missingKeywords.length} key skills: ${missingKeywords.slice(0, 5).join(", ")}${missingKeywords.length > 5 ? "..." : ""}`
+    : "Strong alignment with job requirements";
+
   return {
     score,
     matchedKeywords,
     missingKeywords,
+    gapAnalysis,
     keywordScore: Math.round(keywordScore * 100) / 100,
     recencyScore: Math.round(recencyScore * 100) / 100,
     salaryScore: Math.round(salaryScore * 100) / 100,
@@ -388,7 +394,7 @@ export const getActiveJobPostings = internalQuery({
   handler: async (ctx) => {
     return await ctx.db
       .query("jobPostings")
-      .withIndex("by_active", (q) => q.eq("active", true))
+      .withIndex("by_status", (q) => q.eq("status", "active"))
       .order("desc")
       .take(100);
   },
@@ -474,6 +480,7 @@ export const matchJobsForUser = internalMutation({
       score: number;
       matchedKeywords: string[];
       missingKeywords: string[];
+      gapAnalysis: string;
       keywordScore: number;
       recencyScore: number;
       salaryScore: number;
@@ -483,7 +490,7 @@ export const matchJobsForUser = internalMutation({
     for (const job of jobPostings) {
       const jobKeywords = job.keywords.length > 0
         ? job.keywords
-        : extractJobKeywords(job.description);
+        : extractJobKeywords(job.description || "");
 
       const matchResult = computeMatchScore(
         profileKeywords,
@@ -526,6 +533,7 @@ export const matchJobsForUser = internalMutation({
         matchScore: result.score,
         matchedKeywords: result.matchedKeywords,
         missingKeywords: result.missingKeywords,
+          gapAnalysis: result.gapAnalysis,
         keywordScore: result.keywordScore,
         recencyScore: result.recencyScore,
         salaryScore: result.salaryScore,
@@ -552,7 +560,7 @@ export const matchUsersForJob = internalMutation({
 
     const jobKeywords = job.keywords.length > 0
       ? job.keywords
-      : extractJobKeywords(job.description);
+      : extractJobKeywords(job.description || "");
 
     // Find all structured profiles
     const profiles = await ctx.db.query("structuredProfiles").take(200);
@@ -562,6 +570,7 @@ export const matchUsersForJob = internalMutation({
       score: number;
       matchedKeywords: string[];
       missingKeywords: string[];
+      gapAnalysis: string;
       keywordScore: number;
       recencyScore: number;
       salaryScore: number;
@@ -628,6 +637,7 @@ export const matchUsersForJob = internalMutation({
           matchScore: result.score,
           matchedKeywords: result.matchedKeywords,
           missingKeywords: result.missingKeywords,
+          gapAnalysis: result.gapAnalysis,
           keywordScore: result.keywordScore,
           recencyScore: result.recencyScore,
           salaryScore: result.salaryScore,
@@ -641,6 +651,7 @@ export const matchUsersForJob = internalMutation({
           matchScore: result.score,
           matchedKeywords: result.matchedKeywords,
           missingKeywords: result.missingKeywords,
+          gapAnalysis: result.gapAnalysis,
           keywordScore: result.keywordScore,
           recencyScore: result.recencyScore,
           salaryScore: result.salaryScore,
@@ -751,7 +762,7 @@ export const markMatchNotified = internalMutation({
 export const createJobPosting = internalMutation({
   args: {
     title: v.string(),
-    company: v.optional(v.string()),
+    company: v.string(),
     location: v.optional(v.string()),
     description: v.string(),
     keywords: v.array(v.string()),
@@ -761,14 +772,29 @@ export const createJobPosting = internalMutation({
     workArrangement: v.optional(v.string()),
     seniorityLevel: v.optional(v.string()),
     sourceUrl: v.optional(v.string()),
+    url: v.string(),
+    expiresAt: v.number(),
+    scrapedAt: v.number(),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
     return await ctx.db.insert("jobPostings", {
-      ...args,
-      active: true,
+      title: args.title,
+      company: args.company,
+      url: args.url,
+      description: args.description,
+      keywords: args.keywords,
+      location: args.location,
+      salaryMin: args.salaryMin,
+      salaryMax: args.salaryMax,
+      salaryCurrency: args.salaryCurrency,
+      workArrangement: args.workArrangement,
+      status: "active",
+      matchCount: 0,
       createdAt: now,
       updatedAt: now,
+      scrapedAt: args.scrapedAt,
+      expiresAt: args.expiresAt,
     });
   },
 });

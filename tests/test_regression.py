@@ -510,19 +510,19 @@ class TestSTE100Regression(unittest.TestCase):
     def test_detects_perfect_tense(self):
         from backend.ste100 import validate_text_ste100
         warnings = validate_text_ste100("The system has completed the analysis.")
-        self.assertTrue(any("perfect" in w.lower() for w in warnings),
+        self.assertTrue(any("simple past tense" in w.lower() for w in warnings),
                         "Should flag perfect tense")
 
     def test_detects_progressive_tense(self):
         from backend.ste100 import validate_text_ste100
         warnings = validate_text_ste100("The server is processing the request.")
-        self.assertTrue(any("progressive" in w.lower() for w in warnings),
+        self.assertTrue(any("simple past tense" in w.lower() for w in warnings),
                         "Should flag progressive tense")
 
     def test_detects_semicolon(self):
         from backend.ste100 import validate_text_ste100
         warnings = validate_text_ste100("Do this first; then do that.")
-        self.assertTrue(any("Semicolon" in w for w in warnings),
+        self.assertTrue(any("semicolon" in w for w in warnings),
                         "Should flag semicolon")
 
     def test_sentence_too_long_procedural(self):
@@ -530,7 +530,7 @@ class TestSTE100Regression(unittest.TestCase):
         # 21 words exceeds procedural limit of 20
         text = " ".join(["word"] * 21)
         warnings = validate_text_ste100(text, is_procedural=True)
-        self.assertTrue(any("too long" in w.lower() for w in warnings),
+        self.assertTrue(any("shorten this" in w.lower() for w in warnings),
                         "Should flag sentence exceeding 20-word procedural limit")
 
     def test_sentence_too_long_descriptive(self):
@@ -538,7 +538,7 @@ class TestSTE100Regression(unittest.TestCase):
         # 26 words exceeds descriptive limit of 25
         text = " ".join(["word"] * 26)
         warnings = validate_text_ste100(text, is_procedural=False)
-        self.assertTrue(any("too long" in w.lower() for w in warnings),
+        self.assertTrue(any("shorten this" in w.lower() for w in warnings),
                         "Should flag sentence exceeding 25-word descriptive limit")
 
     def test_clean_text_no_warnings(self):
@@ -546,7 +546,7 @@ class TestSTE100Regression(unittest.TestCase):
         from backend.ste100 import validate_text_ste100
         warnings = validate_text_ste100("Use the tool to check the result.")
         # Should have no contractions, no British spelling, no passive, etc.
-        contraction_warnings = [w for w in warnings if "Contraction" in w]
+        contraction_warnings = [w for w in warnings if "contraction" in w]
         self.assertEqual(len(contraction_warnings), 0,
                          f"Unexpected contraction warnings: {contraction_warnings}")
 
