@@ -1,0 +1,56 @@
+name: Test & Verify
+
+on:
+  push:
+    branches: [master, main, feat/*, feature/*]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  test-frontend:
+    name: Frontend Tests & Build (Bun)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: ./web
+        run: bun install
+
+      - name: Run Vitest Unit Tests
+        working-directory: ./web
+        run: bun run test
+
+      - name: Run Next.js Build Check
+        working-directory: ./web
+        run: bun run build
+        env:
+          NEXT_PUBLIC_CONVEX_URL: "http://127.0.0.1:3210"
+          NEXT_TELEMETRY_DISABLED: 1
+
+  test-backend:
+    name: Backend Tests (Python 3.13)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run Pytest Suite
+        run: uv run pytest

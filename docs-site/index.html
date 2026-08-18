@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>easyCV Developer Documentation & Architecture Guide</title>
+  <meta name="description" content="Official developer documentation, self-hosted Convex DB guides, Vultr Kubernetes deployment, ASD-STE100 linter specs, and CI/CD mirroring for easyCV.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            fluent: {
+              blue: '#0F6CBD',
+              blueHover: '#115EA3',
+              darkBg: '#121212',
+              darkCard: '#1E1E1E',
+              darkBorder: '#2D2D2D',
+              lightBg: '#F8F9FA',
+              lightCard: '#FFFFFF',
+              lightBorder: '#E5E7EB',
+            }
+          },
+          fontFamily: {
+            sans: ['Segoe UI', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    pre { position: relative; }
+    .copy-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      padding: 0.25rem 0.5rem;
+      font-size: 0.75rem;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .copy-btn:hover { background: rgba(255,255,255,0.2); }
+  </style>
+</head>
+<body class="bg-fluent-lightBg dark:bg-fluent-darkBg text-slate-900 dark:text-slate-100 font-sans antialiased selection:bg-fluent-blue selection:text-white">
+
+  <!-- Microsoft 365 / Azure Top Navigation -->
+  <header class="sticky top-0 z-50 backdrop-blur-md bg-white/80 dark:bg-[#181818]/80 border-b border-fluent-lightBorder dark:border-fluent-darkBorder">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <!-- Microsoft Quad-Color App Mark -->
+        <div class="grid grid-cols-2 gap-0.5 size-5 p-0.5 rounded bg-muted">
+          <div class="size-2 rounded-[1px] bg-[#F25022]"></div>
+          <div class="size-2 rounded-[1px] bg-[#7FBA00]"></div>
+          <div class="size-2 rounded-[1px] bg-[#00A4EF]"></div>
+          <div class="size-2 rounded-[1px] bg-[#FFB900]"></div>
+        </div>
+        <a href="#hero" class="font-bold text-sm tracking-tight flex items-center gap-2">
+          <span>easyCV</span>
+          <span class="text-xs px-2 py-0.5 rounded-full font-mono bg-fluent-blue/10 text-fluent-blue border border-fluent-blue/20">Developer Docs</span>
+        </a>
+      </div>
+
+      <div class="flex items-center gap-4 text-xs font-medium">
+        <a href="#architecture" class="hover:text-fluent-blue transition-colors hidden sm:block">Architecture</a>
+        <a href="#convex-db" class="hover:text-fluent-blue transition-colors hidden sm:block">Self-Hosted Convex</a>
+        <a href="#vultr-k8s" class="hover:text-fluent-blue transition-colors hidden sm:block">Vultr Kubernetes</a>
+        <a href="#cicd" class="hover:text-fluent-blue transition-colors hidden md:block">CI/CD & Mirroring</a>
+        <a href="#ste100" class="hover:text-fluent-blue transition-colors hidden lg:block">ASD-STE100</a>
+        
+        <button onclick="document.documentElement.classList.toggle('dark')" class="p-1.5 rounded-md border border-fluent-lightBorder dark:border-fluent-darkBorder hover:bg-slate-100 dark:hover:bg-neutral-800 transition-colors" title="Toggle theme">
+          🌓
+        </button>
+
+        <a href="https://github.com/4cecoder/easycv" target="_blank" rel="noopener" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-fluent-blue text-white hover:bg-fluent-blueHover transition-all shadow-xs font-semibold">
+          <span>GitHub Repo</span>
+          <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex gap-8">
+    
+    <!-- Sidebar Navigation -->
+    <aside class="w-64 shrink-0 hidden lg:block sticky top-20 h-[calc(100vh-6rem)] overflow-y-auto pr-4 text-xs space-y-6">
+      <div>
+        <p class="font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">Getting Started</p>
+        <ul class="space-y-1.5">
+          <li><a href="#hero" class="block py-1 text-slate-700 dark:text-slate-300 hover:text-fluent-blue">Overview</a></li>
+          <li><a href="#quickstart" class="block py-1 text-slate-700 dark:text-slate-300 hover:text-fluent-blue">Quick Start</a></li>
+          <li><a href="#local-testing" class="block py-1 text-slate-700 dark:text-slate-300 hover:text-fluent-blue">Local Testing (Kind)</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <p class="font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">System Architecture</p>
+        <ul class="space-y-1.5">
+          <li><a href="#architecture" class="block py-1 text-slate-700 dark:text-slate-300 hover:text-fluent-blue">Stack Topology</a></li>
+          <li><a href="#convex-db" class="block py-1 text-slate-700 dark:text-slate-300 hover:text-fluent-blue">Self-Hosted Convex Backend</a></li>
+          <li><a href="#dashboard" class="block py-1 text-slate-700 dark:text-slate-300 hover:text-fluent-blue">Convex Dashboard (Port 6791)</a></li>
+          <li><a href="#postgres" class="block py-1 text-slate-700 dark:text-slate-300 hover:text-fluent-blue">PostgreSQL & SQLite Storage</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <p class="font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">Cloud & CI/CD</p>
+        <ul class="space-y-1.5">
+          <li><a href="#vultr-k8s" class="block py-1 text-slate-700 dark:text-slate-300 hover:text-fluent-blue">Vultr Kubernetes Engine (VKE)</a></li>
+          <li><a href="#multiarch" class="block py-1 text-slate-700 dark:text-slate-300 hover:text-fluent-blue">Multi-Arch (ARM64 vs AMD64)</a></li>
+          <li><a href="#cicd" class="block py-1 text-slate-700 dark:text-slate-300 hover:text-fluent-blue">GitHub Actions & GitLab CI</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <p class="font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">Intelligence & Engine</p>
+        <ul class="space-y-1.5">
+          <li><a href="#ste100" class="block py-1 text-slate-700 dark:text-slate-300 hover:text-fluent-blue">ASD-STE100 Linter Matrix</a></li>
+          <li><a href="#latex" class="block py-1 text-slate-700 dark:text-slate-300 hover:text-fluent-blue">LaTeX Single-Column Engine</a></li>
+          <li><a href="#api" class="block py-1 text-slate-700 dark:text-slate-300 hover:text-fluent-blue">API Reference</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 min-w-0 space-y-14">
+      
+      <!-- Hero Section -->
+      <section id="hero" class="space-y-4">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono bg-fluent-blue/10 text-fluent-blue border border-fluent-blue/20">
+          <span>Production Ready</span> &bull; <span>Kubernetes v1.36</span> &bull; <span>Convex Self-Hosted</span>
+        </div>
+        <h1 class="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white">
+          easyCV Developer Documentation
+        </h1>
+        <p class="text-sm sm:text-base text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
+          An enterprise-grade resume consolidation and ATS intelligence platform featuring self-hosted Convex DB, Next.js 16 frontend, Python async worker daemon, ASD-STE100 Issue 9 technical English validation, and automated multi-cloud deployment for Vultr Kubernetes.
+        </p>
+      </section>
+
+      <!-- Architecture Topology Diagram -->
+      <section id="architecture" class="space-y-4">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white pb-2 border-b border-fluent-lightBorder dark:border-fluent-darkBorder">
+          System Architecture Topology
+        </h2>
+        <div class="rounded-xl border border-fluent-lightBorder dark:border-fluent-darkBorder bg-white dark:bg-fluent-darkCard p-6 shadow-sm overflow-x-auto">
+          <pre class="text-xs font-mono leading-relaxed text-slate-700 dark:text-slate-300">
++---------------------------------------------------------------------------------------------------------+
+|                                    VULTR KUBERNETES ENGINE / KIND CLUSTER                                |
+|                                                                                                         |
+|  +-------------------------------------+         +---------------------------------------------------+  |
+|  |           Ingress (NGINX)           |         |               Convex Dashboard                    |  |
+|  |  https://easycv.yourdomain.com      | ------> |  ghcr.io/get-convex/convex-dashboard:latest       |  |
+|  |  https://convex.yourdomain.com      |         |  Port: 6791 (Schema explorer, live data, logs)    |  |
+|  +-------------------------------------+         +---------------------------------------------------+  |
+|                     |                                                      ^                            |
+|                     v                                                      |                            |
+|  +-------------------------------------+         +---------------------------------------------------+  |
+|  |      easyCV Frontend (Next.js 16)   |         |               Convex Backend                      |  |
+|  |  Replicas: 2 | Bun Standalone       | <=====> |  ghcr.io/get-convex/convex-backend:latest         |  |
+|  |  Ports: 80 / 3000                   |         |  Ports: 3210 (Client API) | 3211 (HTTP Actions)   |  |
+|  +-------------------------------------+         +---------------------------------------------------+  |
+|                     ^                                                      |                            |
+|                     | Claim & Polling Workflows                            v                            |
+|  +-------------------------------------+         +---------------------------------------------------+  |
+|  |       easyCV Worker (Python 3.13)   |         |               Persistence Layer                   |  |
+|  |  Daemon: OCR, STE-100, LaTeX/PDF    | ------> |  1. SQLite PersistentVolume (10Gi Block Storage)  |  |
+|  |  LLMs: Ollama / OpenAI / Anthropic  |         |  2. Vultr Managed PostgreSQL (Optional Cloud HA)  |  |
+|  +-------------------------------------+         +---------------------------------------------------+  |
++---------------------------------------------------------------------------------------------------------+
+          </pre>
+        </div>
+      </section>
+
+      <!-- Self-Hosted Convex DB & Dashboard -->
+      <section id="convex-db" class="space-y-4">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white pb-2 border-b border-fluent-lightBorder dark:border-fluent-darkBorder">
+          Self-Hosted Convex Backend & Dashboard
+        </h2>
+        <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+          easyCV runs the official open-source self-hosted Convex backend (<code class="font-mono text-fluent-blue">ghcr.io/get-convex/convex-backend:latest</code>) and Convex Dashboard (<code class="font-mono text-fluent-blue">ghcr.io/get-convex/convex-dashboard:latest</code>).
+        </p>
+
+        <div class="grid gap-4 sm:grid-cols-3">
+          <div class="p-4 rounded-lg border border-fluent-lightBorder dark:border-fluent-darkBorder bg-fluent-lightBg dark:bg-neutral-800">
+            <span class="text-xs font-mono font-bold text-fluent-blue">Port 3210</span>
+            <p class="text-xs font-semibold text-slate-900 dark:text-white mt-1">Convex Client API</p>
+            <p class="text-xs text-slate-500 mt-1">Real-time WebSocket & HTTP RPC queries/mutations.</p>
+          </div>
+          <div class="p-4 rounded-lg border border-fluent-lightBorder dark:border-fluent-darkBorder bg-fluent-lightBg dark:bg-neutral-800">
+            <span class="text-xs font-mono font-bold text-emerald-500">Port 3211</span>
+            <p class="text-xs font-semibold text-slate-900 dark:text-white mt-1">Convex Site & HTTP Actions</p>
+            <p class="text-xs text-slate-500 mt-1">Stripe webhooks, file downloads, and public handlers.</p>
+          </div>
+          <div class="p-4 rounded-lg border border-fluent-lightBorder dark:border-fluent-darkBorder bg-fluent-lightBg dark:bg-neutral-800">
+            <span class="text-xs font-mono font-bold text-purple-500">Port 6791</span>
+            <p class="text-xs font-semibold text-slate-900 dark:text-white mt-1">Convex Admin Dashboard</p>
+            <p class="text-xs text-slate-500 mt-1">Interactive table viewer, schema manager, and function logs.</p>
+          </div>
+        </div>
+
+        <div class="rounded-lg bg-slate-900 text-slate-100 p-4 text-xs font-mono overflow-x-auto">
+          <button class="copy-btn" onclick="navigator.clipboard.writeText('kubectl exec deploy/convex-backend -n easycv -- ./generate_admin_key.sh')">Copy</button>
+          <p class="text-slate-400 mb-2"># Retrieve self-hosted Convex Admin Key from running pod</p>
+          <code>kubectl exec deploy/convex-backend -n easycv -- ./generate_admin_key.sh</code>
+        </div>
+      </section>
+
+      <!-- Database Options: SQLite vs PostgreSQL -->
+      <section id="postgres" class="space-y-4">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white pb-2 border-b border-fluent-lightBorder dark:border-fluent-darkBorder">
+          Dual Database Persistence: SQLite vs. PostgreSQL
+        </h2>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div class="p-5 rounded-xl border border-fluent-lightBorder dark:border-fluent-darkBorder bg-white dark:bg-fluent-darkCard">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Option 1: SQLite with PersistentVolume (Default)</h3>
+            <p class="text-xs text-slate-500 mt-2 leading-relaxed">
+              Zero configuration. Backed by Kubernetes <code class="font-mono text-fluent-blue">convex-data-pvc</code> on Vultr Block Storage. Suitable for staging, local testing, and standard demo environments.
+            </p>
+          </div>
+          <div class="p-5 rounded-xl border border-fluent-lightBorder dark:border-fluent-darkBorder bg-white dark:bg-fluent-darkCard">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Option 2: Vultr Managed PostgreSQL</h3>
+            <p class="text-xs text-slate-500 mt-2 leading-relaxed">
+              Production HA database. Set <code class="font-mono text-fluent-blue">POSTGRES_URL=postgres://...</code> in <code class="font-mono">.env.production</code>. Convex detects it automatically and activates the <code class="font-mono">postgres-v5</code> engine driver.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Autonomous Vultr Deployment -->
+      <section id="vultr-k8s" class="space-y-4">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white pb-2 border-b border-fluent-lightBorder dark:border-fluent-darkBorder">
+          Autonomous Vultr Kubernetes Deployment
+        </h2>
+        <div class="rounded-lg bg-slate-900 text-slate-100 p-4 text-xs font-mono overflow-x-auto">
+          <button class="copy-btn" onclick="navigator.clipboard.writeText('./deploy.sh')">Copy</button>
+          <p class="text-slate-400 mb-2"># 1-Command Autonomous Deployment to VKE</p>
+          <code>./deploy.sh</code>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400">
+          The deployment script automatically builds <code class="font-mono">linux/amd64</code> images, pushes to Vultr Container Registry (VCR), provisions pods and storage, generates admin keys, and deploys the Convex schema with zero manual intervention.
+        </p>
+      </section>
+
+      <!-- CI/CD & Repository Mirroring -->
+      <section id="cicd" class="space-y-4">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white pb-2 border-b border-fluent-lightBorder dark:border-fluent-darkBorder">
+          GitHub & GitLab CI/CD Mirroring
+        </h2>
+        <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+          easyCV features dual-platform CI/CD integration:
+        </p>
+        <ul class="list-disc list-inside text-xs space-y-2 text-slate-700 dark:text-slate-300">
+          <li><strong>GitHub Actions (<code class="font-mono">.github/workflows/deploy.yml</code>)</strong>: Multi-arch Docker buildx, VCR push, and Kubernetes rollout.</li>
+          <li><strong>GitLab CI (<code class="font-mono">.gitlab-ci.yml</code>)</strong>: Full test and deployment pipeline for GitLab instances and mirrored repositories.</li>
+          <li><strong>GitHub Pages (<code class="font-mono">.github/workflows/docs.yml</code>)</strong>: Automated build and publish of this developer documentation site to <code class="font-mono">gh-pages</code>.</li>
+        </ul>
+      </section>
+
+      <!-- ASD-STE100 Rules -->
+      <section id="ste100" class="space-y-4">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white pb-2 border-b border-fluent-lightBorder dark:border-fluent-darkBorder">
+          ASD-STE100 Issue 9 Technical English Specification
+        </h2>
+        <div class="overflow-x-auto rounded-lg border border-fluent-lightBorder dark:border-fluent-darkBorder">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-fluent-lightBg dark:bg-neutral-800 text-slate-700 dark:text-slate-300 font-semibold">
+              <tr>
+                <th class="p-3">Rule Code</th>
+                <th class="p-3">Requirement</th>
+                <th class="p-3">Threshold / Pattern</th>
+                <th class="p-3">Severity</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-fluent-lightBorder dark:divide-fluent-darkBorder font-mono">
+              <tr>
+                <td class="p-3 text-fluent-blue">STE-01</td>
+                <td class="p-3 font-sans">Sentence Word Limit</td>
+                <td class="p-3">&le; 25 words per bullet</td>
+                <td class="p-3 text-amber-500">Warning</td>
+              </tr>
+              <tr>
+                <td class="p-3 text-fluent-blue">STE-02</td>
+                <td class="p-3 font-sans">Active Voice / Strong Verbs</td>
+                <td class="p-3">Must begin with past-tense action verb</td>
+                <td class="p-3 text-red-500">Error</td>
+              </tr>
+              <tr>
+                <td class="p-3 text-fluent-blue">STE-03</td>
+                <td class="p-3 font-sans">Quantitative Metrics</td>
+                <td class="p-3">Contains %, $, numbers, or metrics</td>
+                <td class="p-3 text-emerald-500">Recommendation</td>
+              </tr>
+              <tr>
+                <td class="p-3 text-fluent-blue">STE-04</td>
+                <td class="p-3 font-sans">No Semicolons / Run-ons</td>
+                <td class="p-3">Zero semicolons (;) allowed</td>
+                <td class="p-3 text-red-500">Error</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <footer class="border-t border-fluent-lightBorder dark:border-fluent-darkBorder py-6 mt-16 text-center text-xs text-slate-500">
+    <p>&copy; 2026 easyCV. Built with Next.js, Convex, Python, and Tailwind CSS. Published via GitHub Pages.</p>
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,73 @@
+# =============================================================================
+# easyCV — GitLab CI/CD Pipeline
+# =============================================================================
+# Automated build, test, and deployment to Vultr Kubernetes (VKE).
+# Works seamlessly with GitHub repository mirroring.
+# =============================================================================
+
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+  VCR_REGISTRY: "registry.vultrcr.com"
+  TARGET_PLATFORM: "linux/amd64"
+
+# ── Frontend Test & Typecheck ────────────────────────────────────────────────
+test:frontend:
+  stage: test
+  image: oven/bun:1
+  script:
+    - cd web
+    - bun install
+    - bun run test
+    - bun run build
+  variables:
+    NEXT_PUBLIC_CONVEX_URL: "http://127.0.0.1:3210"
+    NEXT_TELEMETRY_DISABLED: "1"
+
+# ── Backend Test ─────────────────────────────────────────────────────────────
+test:backend:
+  stage: test
+  image: python:3.13-slim
+  before_script:
+    - pip install uv
+    - uv sync
+  script:
+    - uv run pytest
+
+# ── Build & Push Docker Images to Vultr Container Registry ───────────────────
+build:docker:
+  stage: build
+  image: docker:24-git
+  services:
+    - docker:24-dind
+  only:
+    - master
+    - main
+  before_script:
+    - echo "$VCR_PASSWORD" | docker login "$VCR_REGISTRY" -u "$VCR_USERNAME" --password-stdin
+  script:
+    - docker build --platform linux/amd64 --build-arg NEXT_PUBLIC_CONVEX_URL="$NEXT_PUBLIC_CONVEX_URL" -t "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-frontend:latest" -t "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-frontend:${CI_COMMIT_SHA}" -f web/Dockerfile web/
+    - docker build --platform linux/amd64 -t "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-worker:latest" -t "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-worker:${CI_COMMIT_SHA}" -f Dockerfile .
+    - docker push "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-frontend:latest"
+    - docker push "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-frontend:${CI_COMMIT_SHA}"
+    - docker push "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-worker:latest"
+    - docker push "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-worker:${CI_COMMIT_SHA}"
+
+# ── Autonomous Deploy to Vultr Kubernetes (VKE) ──────────────────────────────
+deploy:vultr:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  only:
+    - master
+    - main
+  before_script:
+    - mkdir -p ~/.kube
+    - echo "$KUBECONFIG_DATA" | base64 -d > ~/.kube/config
+  script:
+    - chmod +x deploy.sh
+    - ./deploy.sh
