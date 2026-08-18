@@ -34,60 +34,109 @@ interface ChatMessage {
 const FAQ_KNOWLEDGE_BASE = [
   {
     category: "get_started",
-    keywords: ["start", "upload", "how to use", "begin", "create", "make", "help"],
+    keywords: ["start", "upload", "how to use", "begin", "create", "make", "help", "work"],
     question: "How do I create my resume with easyCV?",
     answer:
-      "Simply drag and drop your existing resume or CV files into the box on the home page. You can also paste a target job description to match your skills. easyCV instantly structures your information into a clean, professional workspace.",
+      "Simply drag and drop your existing resume files into the upload box on the home page. You can also paste a target job description to match your skills. In seconds, easyCV organizes everything into a clean workspace where you can edit and download.",
+  },
+  {
+    category: "edit_text",
+    keywords: ["edit", "change", "modify", "name", "phone", "email", "type", "text", "update"],
+    question: "How do I edit my name, phone number, or text?",
+    answer:
+      "In your preview workspace, click on any section (like your name, summary, or job bullets) to type and edit your details directly on the screen.",
+  },
+  {
+    category: "add_role",
+    keywords: ["add", "new", "job", "role", "experience", "position", "company"],
+    question: "How do I add a new job or experience?",
+    answer:
+      "In your preview workspace under the Experience section, click the '+ Add Experience' button to add a new job title, company name, dates, and bullet points.",
+  },
+  {
+    category: "delete_item",
+    keywords: ["delete", "remove", "erase", "trash", "bullet", "job", "cut"],
+    question: "How do I remove or delete a job or bullet point?",
+    answer:
+      "In your preview workspace, hover over any bullet point or experience entry and click the remove/trash icon next to it to delete it instantly.",
   },
   {
     category: "download",
-    keywords: ["download", "pdf", "get", "file", "save", "export", "print"],
+    keywords: ["download", "pdf", "get", "file", "save", "export"],
     question: "How do I download my finished resume?",
     answer:
-      "In your preview workspace, click the 'Download PDF' button in the top action bar. Your file will download instantly as a high-resolution, recruiter-ready PDF document ready for job applications.",
+      "In your preview workspace, click the 'Download PDF' button in the top action bar. Your resume will download immediately as a clean, high-resolution PDF ready to send to employers.",
   },
   {
     category: "pricing",
     keywords: ["cost", "price", "pro", "pay", "upgrade", "14", "dollar", "buy", "subscription", "fee"],
     question: "What comes with easyCV Pro ($14)?",
     answer:
-      "easyCV Pro is a $14 one-time purchase (never a recurring subscription). It gives you unlimited AI auto-improvements, unwatermarked PDF downloads, complete editable document files, and instant job match scoring.",
+      "easyCV Pro is a $14 one-time upgrade (never a recurring subscription). It unlocks unlimited AI auto-improvements, unwatermarked PDF downloads, complete document files, and instant job match scoring.",
     hasUpgradeCta: true,
   },
   {
     category: "auto_improve",
     keywords: ["improve", "auto-improve", "fix", "bullets", "missing", "gaps", "score", "enhance"],
-    question: "How does the Auto-Improve feature work?",
+    question: "How does the Auto-Improve button work?",
     answer:
-      "Click 'Auto-Improve' in your workspace header. easyCV checks for missing contact details, sparse job roles, and wordy phrasing, then lets you add quantified bullet achievements and fix sentence flow in 1 click.",
+      "Click 'Auto-Improve' in your workspace header. easyCV scans for missing contact details, sparse roles, and wordy phrasing, then lets you add strong accomplishment bullets and smooth out sentences in 1 click.",
   },
   {
     category: "multiple_files",
     keywords: ["multiple", "files", "merge", "combine", "old", "history", "past", "vault", "two", "several"],
     question: "Can I upload multiple previous resumes?",
     answer:
-      "Yes! Drop all your past resumes, cover letters, and career notes together. easyCV automatically organizes your entire career chronology into a single polished master resume.",
+      "Yes! Drop all your past resumes, cover letters, and career notes together. easyCV automatically organizes your entire career history into a single polished master resume.",
   },
   {
     category: "job_match",
     keywords: ["job", "match", "tailor", "description", "target", "keywords", "requisition", "posting"],
     question: "How do I tailor my resume for a specific job?",
     answer:
-      "Paste the job posting text or URL into the Job Requisition field before building your resume. The workspace will highlight key matching skills, recommend relevant keywords, and show your match readiness.",
+      "Paste the job posting text or URL into the Job Requisition field before creating your resume. The workspace will highlight required skills, suggest relevant keywords, and show your match score.",
   },
   {
-    category: "formatting",
-    keywords: ["ats", "format", "compatible", "layout", "scanner", "read", "style", "template", "color", "font"],
-    question: "Can I change templates and styling?",
+    category: "font_size",
+    keywords: ["font", "size", "fit", "page", "1 page", "one page", "length", "spacing", "small", "large"],
+    question: "How do I change font size or fit everything on 1 page?",
     answer:
-      "Yes! In your preview workspace, use the style toolbar to switch between Modern, Classic, and Minimal layouts, adjust font sizing, or choose your accent color theme.",
+      "In your preview workspace toolbar, select Small, Normal, or Large font size. easyCV automatically recalculates line spacing to help your resume fit neatly onto 1 or 2 pages.",
+  },
+  {
+    category: "color_theme",
+    keywords: ["color", "theme", "blue", "emerald", "violet", "slate", "accent", "style"],
+    question: "How do I change the accent color?",
+    answer:
+      "In the preview toolbar, click Blue, Emerald, Violet, or Slate to switch the accent colors on your section headers and badges.",
+  },
+  {
+    category: "print",
+    keywords: ["print", "paper", "printer", "hard copy"],
+    question: "How do I print my resume?",
+    answer:
+      "Click the 'Print' button in your workspace toolbar, or download your PDF and open it with your device's standard printer preview.",
+  },
+  {
+    category: "free_preview",
+    keywords: ["free", "trial", "test", "before pay", "charge", "preview"],
+    question: "Is easyCV free to try before paying?",
+    answer:
+      "Yes! You can upload your files, build your resume, edit all sections, and preview your full formatted layout completely free before choosing to upgrade to Pro ($14) for unwatermarked downloads.",
+  },
+  {
+    category: "file_types",
+    keywords: ["type", "format", "extension", "docx", "word", "pdf", "txt", "md"],
+    question: "What file types can I upload?",
+    answer:
+      "You can upload PDF (.pdf), Plain Text (.txt), and Markdown (.md) documents up to 10MB each.",
   },
   {
     category: "account",
     keywords: ["account", "sign in", "login", "email", "save", "sync", "device", "phone", "access"],
     question: "How do I access my saved resumes on another computer or phone?",
     answer:
-      "Click 'Sign In / Sync' in the top navigation and enter your email address. We will send you a 6-digit code so you can instantly access your saved documents on any device.",
+      "Click 'Sign In / Sync' in the top navigation and enter your email address. We will send you a fast 6-digit login code so you can access your saved resumes on any computer or phone.",
   },
   {
     category: "privacy",
@@ -95,6 +144,13 @@ const FAQ_KNOWLEDGE_BASE = [
     question: "Is my personal career information private and secure?",
     answer:
       "Yes. Your documents and contact information are processed securely with enterprise-grade encryption. We never sell your personal data or share your documents with third parties.",
+  },
+  {
+    category: "start_over",
+    keywords: ["new", "start over", "reset", "fresh", "clear", "another"],
+    question: "How do I start over with a fresh resume?",
+    answer:
+      "Click 'New CV' in the top right navigation bar or click the easyCV logo at the top left to return to the home page and start a new resume.",
   },
 ];
 
@@ -105,7 +161,7 @@ export function FAQAssistantChat() {
     {
       id: "welcome",
       sender: "bot",
-      text: "Hello! I am your easyCV Assistant. Ask me how to upload files, tailor your resume for a job, use Auto-Improve, or download your PDF.",
+      text: "Hello! I am your easyCV Assistant. Ask me simple questions like 'How to edit my text?', 'How to download?', 'How to fit on 1 page?', or click any button below.",
     },
   ]);
   const [isTyping, setIsTyping] = useState(false);
@@ -150,7 +206,7 @@ export function FAQAssistantChat() {
     }
 
     return {
-      text: "easyCV helps you build clean, professional resumes tailored for modern hiring. You can upload past files, auto-improve your bullet points, match specific jobs, and download your final PDF with Pro ($14).",
+      text: "easyCV helps you build clean, professional resumes ready for job applications. You can upload past files, edit details directly on screen, auto-improve your bullet points, and download your final PDF with Pro ($14).",
       category: "general",
       hasUpgradeCta: false,
     };
@@ -240,7 +296,7 @@ export function FAQAssistantChat() {
 
       {/* Expanded Interactive Chat Modal */}
       {isOpen && (
-        <div className="flex flex-col w-[350px] sm:w-[380px] h-[500px] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="flex flex-col w-[350px] sm:w-[380px] h-[520px] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
           
           {/* Chat Header */}
           <div className="flex items-center justify-between px-4 py-3.5 border-b border-border bg-muted/40 backdrop-blur-sm">
@@ -255,7 +311,7 @@ export function FAQAssistantChat() {
                     Online
                   </Badge>
                 </div>
-                <p className="text-[10px] text-muted-foreground">Instant help with creating & downloading</p>
+                <p className="text-[10px] text-muted-foreground">Dead-simple answers for every question</p>
               </div>
             </div>
             <button
@@ -269,11 +325,12 @@ export function FAQAssistantChat() {
           {/* Quick FAQ Chips */}
           <div className="p-2 border-b border-border bg-muted/10 overflow-x-auto flex gap-1.5 select-none no-scrollbar">
             {[
+              "How to edit text?",
               "How to download?",
+              "Fit on 1 page",
               "What is Pro ($14)?",
-              "How to auto-improve?",
-              "Tailor to a job",
-              "Multiple resumes",
+              "How to add a job?",
+              "Change colors",
             ].map((chip) => (
               <button
                 key={chip}
@@ -350,7 +407,7 @@ export function FAQAssistantChat() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask a question about easyCV..."
+              placeholder="Ask any simple question..."
               className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
             />
             <button
