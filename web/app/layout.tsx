@@ -9,7 +9,6 @@ import { PostHogProvider } from "./PostHogProvider";
 // --font-family-heading in @astryxdesign/core) -- used here as the same
 // visual-identity token, loaded normally via next/font (no astryx package).
 import { AppHeader } from "@/components/AppHeader";
-import { DevDebugMenu } from "@/components/DevDebugMenu";
 import { FAQAssistantChat } from "@/components/FAQAssistantChat";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
@@ -20,6 +19,13 @@ export const metadata = {
   description:
     "Upload your CVs. Get a clean, professional resume in seconds.",
 };
+
+// DevDebugMenu only renders in development — tree-shaken from production builds
+async function DevDebugMenuSlot() {
+  if (process.env.NODE_ENV !== "development") return null;
+  const { DevDebugMenu } = await import("@/components/DevDebugMenu");
+  return <DevDebugMenu />;
+}
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
@@ -39,7 +45,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                   </p>
                 </footer>
                 <FAQAssistantChat />
-                <DevDebugMenu />
+                <DevDebugMenuSlot />
               </div>
             </ThemeProvider>
           </ConvexClientProvider>
