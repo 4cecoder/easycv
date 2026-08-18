@@ -69,6 +69,9 @@ spec:
         - your-domain.com
         - www.your-domain.com
       secretName: easycv-tls
+    - hosts:
+        - convex.your-domain.com
+      secretName: convex-tls
   rules:
     - host: your-domain.com
       http:
@@ -90,3 +93,27 @@ spec:
                 name: easycv-frontend
                 port:
                   number: 80
+    - host: convex.your-domain.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: convex-backend
+                port:
+                  number: 3210
+          - path: /http
+            pathType: Prefix
+            backend:
+              service:
+                name: convex-backend
+                port:
+                  number: 3211
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: convex-dashboard
+                port:
+                  number: 6791

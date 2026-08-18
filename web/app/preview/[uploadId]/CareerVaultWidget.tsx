@@ -164,7 +164,7 @@ export function CareerVaultWidget({
 
         {/* LaTeX Template Customization */}
         <div className="flex flex-col gap-3">
-          <h3 className="text-sm font-semibold tracking-tight">LaTeX Output Customization</h3>
+          <h3 className="text-sm font-semibold tracking-tight text-foreground">LaTeX Output Configuration</h3>
           <div className="flex gap-2">
             {(["industry", "academic", "executive"] as const).map((t) => (
               <Button
@@ -172,20 +172,64 @@ export function CareerVaultWidget({
                 variant={latexTemplate === t ? "default" : "outline"}
                 size="sm"
                 onClick={() => setLatexTemplate(t)}
-                className="capitalize"
+                className="capitalize text-xs font-semibold"
               >
-                {t}
+                {t} Template
               </Button>
             ))}
           </div>
-          <Alert className="bg-primary/5 border-primary/20 mt-2">
-            <AlertDescription className="flex items-center justify-between">
-              <span className="text-sm">
-                Ready to generate the <strong>{latexTemplate}</strong> LaTeX template?
+          <Alert className="bg-primary/5 border-primary/20 mt-2 rounded-lg">
+            <AlertDescription className="flex items-center justify-between gap-4">
+              <span className="text-xs text-foreground">
+                Compiled for <strong>{latexTemplate}</strong> single-column ATS LaTeX format.
               </span>
-              <Button size="sm" variant="outline" className="gap-2">
-                <Download className="size-4" />
-                Export .tex
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 text-xs font-medium border-primary/30 text-primary hover:bg-primary/10 shrink-0"
+                onClick={() => {
+                  const texContent = `\\documentclass[11pt,a4paper]{article}
+\\usepackage[margin=0.75in]{geometry}
+\\usepackage{hyperref}
+\\usepackage{enumitem}
+
+\\begin{document}
+\\begin{center}
+    {\\LARGE \\textbf{${profile.name || "Resume"}}}\\\\
+    \\vspace{2pt}
+    ${profile.titles ? profile.titles.join(" $\\cdot$ ") : ""}\\\\
+    \\vspace{2pt}
+    ${profile.contact ? Object.values(profile.contact).filter(Boolean).join(" $\\cdot$ ") : ""}
+\\end{center}
+
+\\vspace{4pt}
+\\section*{Professional Summary}
+${profile.summary || ""}
+
+\\section*{Experience}
+${(profile.experience || []).map((exp: any) => `
+\\textbf{${exp.title || "Role"}}, ${exp.company || ""} \\hfill ${[exp.start, exp.end].filter(Boolean).join(" -- ")}\\\\
+\\begin{itemize}[leftmargin=*,noitemsep,topsep=2pt]
+${(exp.bullets || []).map((b: string) => `    \\item ${b.replace(/%/g, "\\%").replace(/&/g, "\\&")}`).join("\n")}
+\\end{itemize}
+`).join("\n")}
+
+\\section*{Education}
+${(profile.education || []).map((edu: any) => `\\textbf{${edu.degree || ""}}, ${edu.school || ""} \\hfill ${edu.years || ""}`).join("\\\\ \n")}
+
+\\end{document}
+`;
+                  const blob = new Blob([texContent], { type: "text/x-tex" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `${(profile.name || "resume").toLowerCase().replace(/\s+/g, "_")}_${latexTemplate}.tex`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                <Download className="size-3.5" />
+                Export .tex (Free)
               </Button>
             </AlertDescription>
           </Alert>

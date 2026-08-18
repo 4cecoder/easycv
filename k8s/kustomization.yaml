@@ -23,6 +23,9 @@ resources:
   - namespace.yaml
   - secrets.yaml
   - configmap.yaml
+  - convex-storage.yaml
+  - convex-backend.yaml
+  - convex-dashboard.yaml
   - frontend-deployment.yaml
   - frontend-service.yaml
   - worker-deployment.yaml

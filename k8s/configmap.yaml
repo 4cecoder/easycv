@@ -16,8 +16,13 @@ metadata:
     app.kubernetes.io/part-of: easycv
     app.kubernetes.io/component: config
 data:
-  # ── Convex (public, client-safe) ──────────────────────────────────────────
-  NEXT_PUBLIC_CONVEX_URL: "https://your-deployment.convex.cloud"
+  # ── Self-Hosted Convex Configuration ──────────────────────────────────────
+  INSTANCE_NAME: "easycv-prod"
+  CONVEX_CLOUD_ORIGIN: "https://convex.yourdomain.com"
+  CONVEX_SITE_ORIGIN: "https://convex-site.yourdomain.com"
+  CONVEX_URL: "http://convex-backend:3210"
+  CONVEX_SITE_URL: "http://convex-backend:3211"
+  NEXT_PUBLIC_CONVEX_URL: "https://convex.yourdomain.com"
 
   # ── Analytics (public, client-safe) ───────────────────────────────────────
   NEXT_PUBLIC_POSTHOG_KEY: "phc_YOUR_POSTHOG_KEY"

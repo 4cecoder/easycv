@@ -103,9 +103,14 @@ The resume pipeline works in stages:
 
 A web frontend (Next.js + Convex) provides upload, preview, and download. A long-lived worker process handles background consolidation jobs.
 
-## Tech Stack
+## Tech Stack & CLI Tooling
 
-- **Python 3.13+** -- pipeline, extraction, generation
+- **Python 3.13+ (`uv`)** -- pipeline, extraction, generation (`uv run pytest`, `uv run python pipeline.py`)
+- **JavaScript / TypeScript (`bun`)** -- Next.js web frontend & Convex backend
+  > **Note**: Always use `bun` and `bunx` for all frontend development, scripts, and package management. **Do NOT use `npx` or `npm`.**
+  > - `bun run dev` / `bun run build` / `bun run test` / `bun run typecheck`
+  > - `bunx convex dev` / `bunx vitest run`
 - **OpenAI / Anthropic / Ollama** -- LLM providers
 - **Next.js + Convex** -- web frontend
 - **LaTeX** -- PDF resume output
+

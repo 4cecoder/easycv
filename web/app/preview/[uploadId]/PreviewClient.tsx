@@ -13,6 +13,17 @@ import {
   ShieldAlert,
   Sparkles,
   Target,
+  Copy,
+  Check,
+  FileText,
+  Code,
+  Layers,
+  Settings2,
+  Printer,
+  Share2,
+  ChevronRight,
+  Award,
+  Crown
 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -31,7 +42,6 @@ import {
   Card,
   CardContent,
   CardHeader,
-  Separator,
   Skeleton,
 } from "@bytecats/ui-kit";
 
@@ -42,20 +52,6 @@ const SKILL_LABELS: [string, string][] = [
   ["databases", "Databases"],
   ["tools", "Tools"],
 ];
-
-function PageChrome({ children }: { children: React.ReactNode }) {
-  return (
-    <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 px-4 py-10 sm:px-6">
-      <Link
-        href="/"
-        className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-      >
-        &larr; easyCV
-      </Link>
-      {children}
-    </main>
-  );
-}
 
 const ENGAGEMENT_TIPS = [
   "⚡ Instant AI Consolidation: Processing experience history into single-column LaTeX ATS format.",
@@ -108,19 +104,14 @@ function LoadingEngagementWidget({ status }: { status: "queued" | "processing" }
   const progressPercent = Math.min(96, Math.floor((elapsed / estimatedTotal) * 100));
 
   return (
-    <Card className="overflow-hidden border-primary/30 shadow-xl backdrop-blur-xl bg-card/70 relative">
-      {/* Dynamic Animated Pulse Glow */}
-      <div className="absolute -top-24 -left-24 size-48 rounded-full bg-primary/20 blur-3xl animate-pulse pointer-events-none" />
-      <div className="absolute -bottom-24 -right-24 size-48 rounded-full bg-emerald-500/20 blur-3xl animate-pulse pointer-events-none delay-700" />
-      
-      <CardHeader className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent pb-6 border-b border-primary/10">
+    <Card className="overflow-hidden border-primary/30 shadow-md bg-card/90">
+      <CardHeader className="bg-primary/[0.04] pb-6 border-b border-border">
         <div className="flex flex-col items-center gap-4 text-center">
-          <div className="relative flex items-center justify-center p-3">
-            <Loader2 className="size-10 animate-spin text-primary relative z-10" />
-            <div className="absolute inset-0 bg-primary/30 rounded-full animate-ping opacity-60"></div>
+          <div className="flex items-center justify-center p-3 rounded-full bg-primary/10 text-primary">
+            <Loader2 className="size-8 animate-spin text-primary" />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <h3 className="font-bold text-xl tracking-tight text-foreground transition-all duration-300">
+          <div className="flex flex-col gap-1">
+            <h3 className="font-bold text-lg tracking-tight text-foreground transition-all duration-300">
               {STAGE_MESSAGES[stageIndex]}
             </h3>
             <p className="text-xs text-muted-foreground max-w-sm">
@@ -132,33 +123,33 @@ function LoadingEngagementWidget({ status }: { status: "queued" | "processing" }
         </div>
       </CardHeader>
       
-      <CardContent className="flex flex-col gap-6 pt-6">
-        <div className="flex flex-col gap-2.5">
+      <CardContent className="flex flex-col gap-5 pt-6">
+        <div className="flex flex-col gap-2">
           <div className="flex justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            <span>Processing Pipeline</span>
+            <span>Compilation Progress</span>
             {remaining > 0 ? (
               <span className="text-primary font-mono font-bold">~{remaining}s remaining</span>
             ) : (
-              <span className="text-emerald-500 animate-pulse font-bold">Finalizing Master Profile...</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-bold">Finalizing Master Profile...</span>
             )}
           </div>
-          <div className="h-3 w-full bg-secondary/80 overflow-hidden rounded-full p-0.5 border border-primary/10">
+          <div className="h-2 w-full bg-muted overflow-hidden rounded-full p-0.5 border border-border">
             <div 
-              className="h-full bg-gradient-to-r from-primary via-emerald-500 to-primary transition-all duration-1000 ease-linear rounded-full"
+              className="h-full bg-primary transition-all duration-1000 ease-linear rounded-full"
               style={{ width: `${status === "queued" ? 8 : Math.max(12, progressPercent)}%` }}
             />
           </div>
         </div>
 
-        <div className="rounded-xl bg-gradient-to-br from-primary/5 to-transparent p-5 border border-primary/20 min-h-[95px] flex flex-col justify-center gap-2 shadow-inner">
+        <div className="rounded-lg bg-muted/40 p-4 border border-border flex flex-col gap-1.5 shadow-2xs">
           <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-primary">
             <div className="flex items-center gap-1.5">
               <Sparkles className="size-3.5" />
-              <span>While you wait — Career Insights</span>
+              <span>ATS Precision Insight</span>
             </div>
             <span className="text-muted-foreground font-normal">Tip {tipIndex + 1}/{ENGAGEMENT_TIPS.length}</span>
           </div>
-          <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed font-medium transition-all duration-500 animate-in fade-in" key={tipIndex}>
+          <p className="text-xs text-foreground/90 leading-relaxed font-medium transition-all duration-500 animate-in fade-in" key={tipIndex}>
             {ENGAGEMENT_TIPS[tipIndex]}
           </p>
         </div>
@@ -167,19 +158,6 @@ function LoadingEngagementWidget({ status }: { status: "queued" | "processing" }
   );
 }
 
-// This is the FREE part per rf-1 ("gate the final download/export, not the
-// building/editing"): the consolidated resume renders unconditionally, no
-// payment check gates the render itself. Only the PDF download link is
-// gated, and that gate lives entirely in Convex's getByDownloadToken (see
-// app/api/download/[token]/route.ts).
-//
-// Reactive by design: consolidation now runs in a separate, long-lived
-// worker process (worker.py), not inside this HTTP request (see that
-// file's module docstring for why -- serverless function timeouts). This
-// component's useQuery subscribes to the upload's live status and
-// re-renders automatically the moment the worker's mutation lands --
-// queued -> processing -> ready | error -- no polling loop, no manual
-// refresh.
 export function PreviewClient({
   uploadId,
   sessionId,
@@ -200,20 +178,38 @@ export function PreviewClient({
     sessionId,
   });
 
+  const [activeTab, setActiveTab] = useState<"document" | "match" | "linter" | "vault" | "raw">("document");
   const [template, setTemplate] = useState<"modern" | "classic" | "minimal">("modern");
   const [fontSize, setFontSize] = useState<"sm" | "base" | "lg">("base");
   const [primaryColor, setPrimaryColor] = useState<"blue" | "emerald" | "slate" | "violet">("blue");
+  const [copiedSection, setCopiedSection] = useState<string | null>(null);
 
-  // undefined = still loading the first response; null = confirmed
-  // nonexistent or not owned by this session (see convex/authz.ts --
-  // both cases return the same shape deliberately, so this can't be used
-  // to probe for the existence of someone else's uploadId).
+  // Keyboard shortcut for switching tabs (1-5)
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (["INPUT", "TEXTAREA"].includes((e.target as HTMLElement).tagName)) return;
+      if (e.key === "1") setActiveTab("document");
+      if (e.key === "2") setActiveTab("match");
+      if (e.key === "3") setActiveTab("linter");
+      if (e.key === "4") setActiveTab("vault");
+      if (e.key === "5") setActiveTab("raw");
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, []);
+
+  function handleCopyText(text: string, sectionKey: string) {
+    navigator.clipboard.writeText(text);
+    setCopiedSection(sectionKey);
+    setTimeout(() => setCopiedSection(null), 2000);
+  }
+
   if (upload === undefined) {
     return (
-      <PageChrome>
-        <Card>
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6">
+        <Card className="border-border">
           <CardHeader className="gap-2 border-b pb-6">
-            <Skeleton className="h-7 w-48" />
+            <Skeleton className="h-6 w-48" />
             <Skeleton className="h-4 w-64" />
           </CardHeader>
           <CardContent className="flex flex-col gap-3 pt-6">
@@ -222,451 +218,626 @@ export function PreviewClient({
             <Skeleton className="h-4 w-2/3" />
           </CardContent>
         </Card>
-      </PageChrome>
+      </div>
     );
   }
 
   if (upload === null) {
     return (
-      <PageChrome>
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6">
         <Alert variant="destructive" role="alert">
-          <ShieldAlert />
-          <AlertTitle>We can&apos;t find that upload</AlertTitle>
-          <AlertDescription>
-            It may not exist, or it belongs to a different browser session.
+          <ShieldAlert className="size-4" />
+          <AlertTitle className="text-sm font-semibold">Upload not found</AlertTitle>
+          <AlertDescription className="text-xs">
+            This upload may not exist or belongs to a different browser session.
           </AlertDescription>
         </Alert>
-      </PageChrome>
+      </div>
     );
   }
 
   if (upload.status === "queued" || upload.status === "processing") {
     return (
-      <PageChrome>
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-12 sm:px-6">
         <LoadingEngagementWidget status={upload.status} />
-      </PageChrome>
+      </div>
     );
   }
 
   if (upload.status === "error") {
     return (
-      <PageChrome>
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6">
         <Alert variant="destructive" role="alert">
-          <ShieldAlert />
-          <AlertTitle>Something went wrong</AlertTitle>
-          <AlertDescription>
-            {upload.errorMessage ?? "We couldn't process this upload."} Try
-            uploading again from the{" "}
-            <Link href="/" className="underline underline-offset-2">
-              home page
+          <ShieldAlert className="size-4" />
+          <AlertTitle className="text-sm font-semibold">Processing Failed</AlertTitle>
+          <AlertDescription className="text-xs">
+            {upload.errorMessage ?? "We couldn't process this upload."} Try{" "}
+            <Link href="/" className="underline underline-offset-2 font-semibold">
+              uploading again
             </Link>
             .
           </AlertDescription>
         </Alert>
-      </PageChrome>
+      </div>
     );
   }
 
   const profile = upload.structuredProfile;
   if (!profile) {
-    // status is "ready" but the row isn't there yet -- a brief in-between
-    // moment right as the worker's two mutations (saveStructuredProfile,
-    // then markReady) land; the next reactive update resolves it.
     return (
-      <PageChrome>
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6">
         <Skeleton className="h-40 w-full" />
-      </PageChrome>
+      </div>
     );
   }
 
   const skills = profile.skills;
   const hasWarnings = profile.qualityWarnings && profile.qualityWarnings.length > 0;
-
   const allBullets = (profile.experience || []).flatMap((e) => e.bullets || []);
   const ste100Summary = analyzeProfileBulletsSTE100(allBullets);
 
+  // Generate plain text version for instant 1-click clipboard
+  const plainTextResume = `
+${profile.name ?? ""}
+${profile.titles?.join(" / ") ?? ""}
+${profile.contact ? Object.values(profile.contact).filter(Boolean).join(" | ") : ""}
+
+SUMMARY
+${profile.summary ?? ""}
+
+SKILLS
+${SKILL_LABELS.map(([key, label]) => {
+  const items = (skills as Record<string, string[]> | undefined)?.[key];
+  return items && items.length > 0 ? `${label}: ${items.join(", ")}` : null;
+}).filter(Boolean).join("\n")}
+
+EXPERIENCE
+${(profile.experience || []).map((e) => `
+${e.title ?? "Role"} - ${e.company ?? ""} (${[e.start, e.end].filter(Boolean).join(" - ")})
+${(e.bullets || []).map((b) => `• ${b}`).join("\n")}
+`).join("\n")}
+
+EDUCATION
+${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} (${e.years ?? ""})`).join("\n")}
+`.trim();
+
   return (
-    <PageChrome>
-      <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-lg border border-border bg-card/50 p-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge
-            variant={profile.qualityCritical ? "destructive" : hasWarnings ? "warning" : "secondary"}
-            className="text-xs font-semibold px-2.5 py-1"
-          >
-            Quality score: {profile.qualityScore}/{profile.qualityMaxScore}
-          </Badge>
-
-          <Badge
-            variant={
-              ste100Summary.overallScore >= 85
-                ? "outline"
-                : ste100Summary.overallScore >= 65
-                ? "warning"
-                : "destructive"
-            }
-            className="text-xs font-semibold px-2.5 py-1 flex items-center gap-1.5"
-          >
-            <FileCheck className="size-3.5 text-primary" />
-            STE-100 ATS: {ste100Summary.overallScore}/100
-          </Badge>
-
-          {jobMatch ? (
-            <Badge
-              variant={
-                jobMatch.matchScore >= 80
-                  ? "outline"
-                  : jobMatch.matchScore >= 50
-                  ? "warning"
-                  : "destructive"
-              }
-              className="text-xs font-semibold px-2.5 py-1 flex items-center gap-1.5"
+    <div className="relative min-h-[calc(100vh-3rem)] w-full fluent-subtle-grid pb-20">
+      
+      {/* Microsoft 365 / Azure Command Ribbon */}
+      <div className="sticky top-12 z-30 w-full border-b border-border bg-card/95 backdrop-blur-md shadow-2xs">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-2 sm:px-6">
+          
+          {/* Left: Navigation & Document Meta */}
+          <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             >
-              <Sparkles className="size-3.5" />
-              Job Match: {jobMatch.matchScore}%
-            </Badge>
-          ) : (
-            <a href="#job-match-widget">
-              <Badge
-                variant="outline"
-                className="text-xs font-semibold px-2.5 py-1 text-primary border-primary/40 hover:bg-primary/5 cursor-pointer flex items-center gap-1.5"
-              >
-                <Target className="size-3.5" />
-                Job Match: Not Analyzed &rarr;
-              </Badge>
-            </a>
-          )}
+              &larr; <span className="font-semibold">New Resume</span>
+            </Link>
+            <div className="h-4 w-px bg-border hidden sm:block" />
+            <div className="flex items-center gap-2">
+              <FileText className="size-4 text-primary" />
+              <span className="text-xs font-bold text-foreground truncate max-w-[180px] sm:max-w-none">
+                {profile.name ? `${profile.name} — ATS Master` : "ATS Master Resume"}
+              </span>
+              <span className="rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 px-1.5 py-0.2 text-[10px] font-semibold">
+                LaTeX Compiled
+              </span>
+            </div>
+          </div>
+
+          {/* Right: Rapid Action Buttons */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleCopyText(plainTextResume, "all")}
+              className="h-8 text-xs font-medium border-border hover:bg-muted"
+            >
+              {copiedSection === "all" ? (
+                <>
+                  <Check className="size-3.5 text-emerald-600 dark:text-emerald-400 mr-1.5" />
+                  <span>Copied Plaintext!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="size-3.5 mr-1.5" />
+                  <span>Copy Text</span>
+                </>
+              )}
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => exportHtmlResume(profile, template, fontSize, primaryColor)}
+              className="h-8 text-xs font-medium border-border hover:bg-muted"
+            >
+              <Share2 className="size-3.5 mr-1.5" />
+              <span>Export HTML (Free)</span>
+            </Button>
+
+            {paymentStatus?.paid && paymentStatus.downloadToken ? (
+              <Button asChild size="sm" className="h-8 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs">
+                <a href={`/api/download/${paymentStatus.downloadToken}`}>
+                  <Download className="size-3.5 mr-1.5" />
+                  <span>Download PDF</span>
+                </a>
+              </Button>
+            ) : (
+              <div className="scale-90 origin-right">
+                <CheckoutButton uploadId={uploadId} />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {profile.qualityCritical ? (
-        <Alert variant="destructive" role="alert">
-          <ShieldAlert />
-          <AlertTitle>This resume needs attention</AlertTitle>
-          <AlertDescription>
-            <ul className="list-inside list-disc">
-              {profile.qualityWarnings.map((warning, i) => (
-                <li key={i}>{warning}</li>
-              ))}
-            </ul>
-          </AlertDescription>
-        </Alert>
-      ) : (
-        hasWarnings && (
-          <Alert variant="warning" role="status">
-            <AlertTriangle />
-            <AlertTitle>A few minor things to double-check</AlertTitle>
-            <AlertDescription>
-              <ul className="list-inside list-disc">
+      <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 pt-6 sm:px-6">
+        
+        {/* Power BI Style KPI Metric Scorecards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Tile 1: Overall Quality Score */}
+          <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3.5 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Profile Quality</span>
+              <Award className="size-4 text-primary" />
+            </div>
+            <div className="flex items-baseline gap-1.5 mt-1">
+              <span className="text-2xl font-extrabold tracking-tight text-foreground">{profile.qualityScore}</span>
+              <span className="text-xs text-muted-foreground font-mono">/ {profile.qualityMaxScore}</span>
+            </div>
+            <span className={`text-[11px] font-semibold ${profile.qualityCritical ? "text-destructive" : hasWarnings ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+              {profile.qualityCritical ? "Needs Critical Fixes" : hasWarnings ? "Minor Polish Suggested" : "Optimal Quality"}
+            </span>
+          </div>
+
+          {/* Tile 2: ASD-STE100 Compliance Score */}
+          <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3.5 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">ASD-STE100 ATS Index</span>
+              <FileCheck className="size-4 text-primary" />
+            </div>
+            <div className="flex items-baseline gap-1.5 mt-1">
+              <span className="text-2xl font-extrabold tracking-tight text-foreground">{ste100Summary.overallScore}</span>
+              <span className="text-xs text-muted-foreground font-mono">/ 100</span>
+            </div>
+            <span className={`text-[11px] font-semibold ${ste100Summary.overallScore >= 85 ? "text-emerald-600 dark:text-emerald-400" : ste100Summary.overallScore >= 65 ? "text-amber-600 dark:text-amber-400" : "text-destructive"}`}>
+              {ste100Summary.overallScore >= 85 ? "High ATS Compatibility" : ste100Summary.overallScore >= 65 ? "Moderate Alignment" : "Action Needed"}
+            </span>
+          </div>
+
+          {/* Tile 3: Job Match Score */}
+          <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3.5 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Requisition Match</span>
+              <Target className="size-4 text-primary" />
+            </div>
+            <div className="flex items-baseline gap-1.5 mt-1">
+              <span className="text-2xl font-extrabold tracking-tight text-foreground">
+                {jobMatch ? `${jobMatch.matchScore}%` : "--"}
+              </span>
+              {jobMatch && <span className="text-xs text-muted-foreground font-mono">match</span>}
+            </div>
+            <span className="text-[11px] font-semibold text-primary cursor-pointer hover:underline" onClick={() => setActiveTab("match")}>
+              {jobMatch ? "View Keyword Analysis →" : "Run Requisition Match →"}
+            </span>
+          </div>
+
+          {/* Tile 4: Experience & Skills Breadth */}
+          <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3.5 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Verified Bullets</span>
+              <Layers className="size-4 text-primary" />
+            </div>
+            <div className="flex items-baseline gap-1.5 mt-1">
+              <span className="text-2xl font-extrabold tracking-tight text-foreground">{allBullets.length}</span>
+              <span className="text-xs text-muted-foreground font-mono">achievements</span>
+            </div>
+            <span className="text-[11px] font-semibold text-muted-foreground">
+              {profile.experience?.length || 0} Career Roles Documented
+            </span>
+          </div>
+        </div>
+
+        {/* Quality Alerts */}
+        {profile.qualityCritical ? (
+          <Alert variant="destructive" role="alert" className="rounded-lg border-destructive/40">
+            <ShieldAlert className="size-4" />
+            <AlertTitle className="text-xs font-semibold">Critical Parsing Warnings</AlertTitle>
+            <AlertDescription className="text-xs">
+              <ul className="list-inside list-disc mt-1 space-y-0.5">
                 {profile.qualityWarnings.map((warning, i) => (
                   <li key={i}>{warning}</li>
                 ))}
               </ul>
             </AlertDescription>
           </Alert>
-        )
-      )}
-
-      {profile.rawFallback && (
-        <Alert variant="warning" role="alert">
-          <AlertTriangle />
-          <AlertTitle>Couldn&apos;t fully structure this resume automatically</AlertTitle>
-          <AlertDescription>
-            Raw extracted content is preserved, but some sections below may be incomplete.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Dynamic Style Settings Toolbar */}
-      <Card className="border-border/50 bg-muted/10 my-4">
-        <CardContent className="flex flex-col gap-4 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
-            <h2 className="text-sm font-semibold tracking-tight">Customize CV Preview Style</h2>
-            <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider bg-background">Live Customization</Badge>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-3">
-            {/* Template Selector */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Style Template</label>
-              <div className="flex rounded-md border border-border bg-background p-0.5">
-                {(["modern", "classic", "minimal"] as const).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setTemplate(t)}
-                    className={`flex-1 rounded py-1 text-xs font-medium capitalize transition-all ${
-                      template === t
-                        ? "bg-primary text-primary-foreground shadow"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Font Budget Selector */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Font Budget</label>
-              <div className="flex rounded-md border border-border bg-background p-0.5">
-                {(["sm", "base", "lg"] as const).map((sz) => (
-                  <button
-                    key={sz}
-                    onClick={() => setFontSize(sz)}
-                    className={`flex-1 rounded py-1 text-xs font-medium transition-all ${
-                      fontSize === sz
-                        ? "bg-primary text-primary-foreground shadow"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {sz === "sm" ? "Compact" : sz === "base" ? "Normal" : "Large"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Theme Accent Color Selector */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Color Accent</label>
-              <div className="flex items-center gap-3 h-8">
-                {(["blue", "emerald", "slate", "violet"] as const).map((color) => {
-                  const colorMap = {
-                    blue: "bg-blue-600 border-blue-200",
-                    emerald: "bg-emerald-600 border-emerald-200",
-                    slate: "bg-slate-800 border-slate-300",
-                    violet: "bg-violet-600 border-violet-200",
-                  };
-                  return (
-                    <button
-                      key={color}
-                      onClick={() => setPrimaryColor(color)}
-                      className={`size-6 rounded-full border transition-all ${colorMap[color]} ${
-                        primaryColor === color ? "scale-115 ring-2 ring-primary/40" : "hover:scale-105"
-                      }`}
-                      title={color}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Styled Resume Preview Card */}
-      <Card
-        className={`transition-all duration-300 ${
-          template === "classic" ? "font-serif tracking-normal" : template === "minimal" ? "font-mono tracking-tight" : "font-sans tracking-tight"
-        } ${fontSize === "sm" ? "text-xs" : fontSize === "lg" ? "text-base" : "text-sm"}`}
-        style={{
-          "--primary-color": primaryColor === "blue" ? "#2563eb" : primaryColor === "emerald" ? "#059669" : primaryColor === "violet" ? "#7c3aed" : "#1e293b",
-          "--primary-light": primaryColor === "blue" ? "#eff6ff" : primaryColor === "emerald" ? "#ecfdf5" : primaryColor === "violet" ? "#f5f3ff" : "#f1f5f9",
-          "--primary-border": primaryColor === "blue" ? "#bfdbfe" : primaryColor === "emerald" ? "#a7f3d0" : primaryColor === "violet" ? "#ddd6fe" : "#cbd5e1",
-        } as React.CSSProperties}
-      >
-        <CardHeader className={`gap-2 border-b pb-6 ${template === "classic" ? "text-center" : ""}`}>
-          <h1 className={`font-bold tracking-tight text-balance ${
-            template === "classic" ? "text-3xl text-[var(--primary-color)]" : template === "minimal" ? "text-2xl text-slate-900" : "text-2xl text-[var(--primary-color)]"
-          }`}>
-            {profile.name ?? "Your consolidated resume"}
-          </h1>
-          {profile.titles && profile.titles.length > 0 && (
-            <p className="text-sm text-muted-foreground font-medium">{profile.titles.join(" / ")}</p>
-          )}
-          {profile.summary && <p className="text-sm text-pretty leading-relaxed text-muted-foreground">{profile.summary}</p>}
-        </CardHeader>
-
-        <CardContent className={`flex flex-col ${fontSize === "sm" ? "gap-4 pt-4" : fontSize === "lg" ? "gap-8 pt-8" : "gap-6 pt-6"}`}>
-          {skills && (
-            <section className="flex flex-col gap-2">
-              <h2 className={
-                template === "modern" ? "text-[11px] font-bold uppercase tracking-wider text-[var(--primary-color)] border-l-2 border-[var(--primary-color)] pl-2" :
-                template === "classic" ? "text-[11px] font-bold uppercase tracking-wider text-center text-[var(--primary-color)] border-b pb-1 w-full" :
-                "text-[11px] font-black uppercase tracking-widest text-slate-800"
-              }>
-                Skills
-              </h2>
-              <div className="flex flex-col gap-2.5">
-                {SKILL_LABELS.map(([key, label]) => {
-                  const items = (skills as Record<string, string[]>)[key];
-                  if (!items || items.length === 0) return null;
-                  return (
-                    <div key={key} className="flex flex-wrap items-start gap-2 text-sm">
-                      <span className="w-24 shrink-0 font-medium text-muted-foreground">
-                        {label}
-                      </span>
-                      <div className="flex flex-1 flex-wrap gap-1.5">
-                        {items.map((item, i) => (
-                          <Badge key={i} variant="outline" className="border-[var(--primary-border)] text-[var(--primary-color)] bg-[var(--primary-light)]/30 font-medium">
-                            {item}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          {profile.experience && profile.experience.length > 0 && (
-            <>
-              <Separator />
-              <section className="flex flex-col gap-4">
-                <h2 className={
-                  template === "modern" ? "flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--primary-color)] border-l-2 border-[var(--primary-color)] pl-2" :
-                  template === "classic" ? "flex items-center justify-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-center text-[var(--primary-color)] border-b pb-1 w-full" :
-                  "flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-slate-800"
-                }>
-                  <Briefcase className="size-4" />
-                  Experience
-                </h2>
-                <div className="flex flex-col gap-5">
-                  {profile.experience.map((entry, i) => (
-                    <article key={i} className="flex flex-col gap-1">
-                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                        <h3 className="text-sm font-semibold text-slate-900">
-                          {entry.title ?? "Role"}
-                          {entry.company ? (
-                            <span className="font-normal text-muted-foreground">
-                              {" "}
-                              &mdash; {entry.company}
-                            </span>
-                          ) : null}
-                        </h3>
-                        <p className="text-xs whitespace-nowrap text-muted-foreground font-medium">
-                          {[entry.start, entry.end].filter(Boolean).join(" - ")}
-                          {entry.location ? ` (${entry.location})` : ""}
-                        </p>
-                      </div>
-                      {entry.bullets.length > 0 && (
-                        <ul className="ml-4 list-outside list-disc text-sm text-pretty leading-relaxed text-muted-foreground space-y-1.5">
-                          {entry.bullets.map((bullet, j) => {
-                            const steRes = validateBulletSTE100(bullet);
-                            return (
-                              <li key={j} className="group">
-                                <div className="flex items-start justify-between gap-2">
-                                  <span className="flex-1">{bullet}</span>
-                                  <Badge
-                                    variant={steRes.isCompliant ? "outline" : "warning"}
-                                    className={`text-[9px] shrink-0 font-medium px-1.5 py-0.2 ${
-                                      steRes.isCompliant
-                                        ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/10"
-                                        : "border-amber-500/30 text-amber-600 bg-amber-500/10"
-                                    }`}
-                                    title={
-                                      steRes.improvementTips.length > 0
-                                        ? steRes.improvementTips.join("\n")
-                                        : "STE-100 Compliant"
-                                    }
-                                  >
-                                    {steRes.isCompliant ? "STE-100" : `${steRes.violations.length} Tips`}
-                                  </Badge>
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-                    </article>
-                  ))}
-                </div>
-              </section>
-            </>
-          )}
-
-          {profile.education && profile.education.length > 0 && (
-            <>
-              <Separator />
-              <section className="flex flex-col gap-2">
-                <h2 className={
-                  template === "modern" ? "flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--primary-color)] border-l-2 border-[var(--primary-color)] pl-2" :
-                  template === "classic" ? "flex items-center justify-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-center text-[var(--primary-color)] border-b pb-1 w-full" :
-                  "flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-slate-800"
-                }>
-                  <GraduationCap className="size-4" />
-                  Education
-                </h2>
-                <ul className="flex flex-col gap-1 text-sm text-muted-foreground">
-                  {profile.education.map((entry, i) => (
-                    <li key={i} className="leading-relaxed">
-                      <span className="font-semibold text-slate-800">{entry.degree ?? ""}</span>
-                      {entry.school ? ` — ${entry.school}` : ""}
-                      {entry.years ? (
-                        <span className="text-muted-foreground font-medium"> ({entry.years})</span>
-                      ) : (
-                        ""
-                      )}
-                    </li>
+        ) : (
+          hasWarnings && (
+            <Alert variant="warning" role="status" className="rounded-lg border-warning/40">
+              <AlertTriangle className="size-4" />
+              <AlertTitle className="text-xs font-semibold">Optimization Opportunities</AlertTitle>
+              <AlertDescription className="text-xs">
+                <ul className="list-inside list-disc mt-1 space-y-0.5">
+                  {profile.qualityWarnings.map((warning, i) => (
+                    <li key={i}>{warning}</li>
                   ))}
                 </ul>
-              </section>
-            </>
-          )}
+              </AlertDescription>
+            </Alert>
+          )
+        )}
 
-          {profile.certifications && profile.certifications.length > 0 && (
-            <>
-              <Separator />
-              <section className="flex flex-col gap-2">
-                <h2 className={
-                  template === "modern" ? "text-[11px] font-bold uppercase tracking-wider text-[var(--primary-color)] border-l-2 border-[var(--primary-color)] pl-2" :
-                  template === "classic" ? "text-[11px] font-bold uppercase tracking-wider text-center text-[var(--primary-color)] border-b pb-1 w-full" :
-                  "text-[11px] font-black uppercase tracking-widest text-slate-800"
-                }>
-                  Certifications
-                </h2>
-                <div className="flex flex-wrap gap-1.5">
-                  {profile.certifications.map((cert, i) => (
-                    <Badge key={i} variant="outline" className="border-[var(--primary-border)] text-[var(--primary-color)] bg-[var(--primary-light)]/20 font-medium">
-                      {cert}
-                    </Badge>
-                  ))}
+        {/* Microsoft Fluent Pivot Navigation Tab Strip */}
+        <div className="flex items-center gap-1 border-b border-border overflow-x-auto pb-px">
+          {[
+            { id: "document", label: "Master Resume Canvas", icon: FileText, num: "1" },
+            { id: "match", label: "ATS Keyword & Job Match", icon: Target, num: "2" },
+            { id: "linter", label: "ASD-STE100 Linter", icon: FileCheck, num: "3" },
+            { id: "vault", label: "Career Vault & Hierarchy", icon: Layers, num: "4" },
+            { id: "raw", label: "Raw LaTeX & JSON", icon: Code, num: "5" },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-all ${
+                  isActive
+                    ? "border-primary text-primary bg-primary/[0.03]"
+                    : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                }`}
+              >
+                <Icon className="size-3.5" />
+                <span>{tab.label}</span>
+                <span className="hidden md:inline rounded bg-muted px-1.5 py-0.2 font-mono text-[9px] text-muted-foreground">
+                  {tab.num}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Tab 1: Executive Document Canvas */}
+        {activeTab === "document" && (
+          <div className="flex flex-col gap-6">
+            
+            {/* Style Customizer Ribbon */}
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-card p-3 shadow-2xs">
+              <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                <Settings2 className="size-4 text-primary" />
+                <span>Live Document Customization</span>
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-4">
+                {/* Template Mode */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-medium text-muted-foreground">Template:</span>
+                  <div className="flex rounded-md border border-border bg-muted/40 p-0.5">
+                    {(["modern", "classic", "minimal"] as const).map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setTemplate(t)}
+                        className={`rounded px-2.5 py-0.5 text-xs font-medium capitalize transition-all ${
+                          template === t ? "bg-card text-foreground shadow-2xs font-semibold" : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </section>
-            </>
-          )}
-        </CardContent>
-      </Card>
 
-      <STE100BulletWidget experience={profile.experience} />
+                {/* Font Scaling */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-medium text-muted-foreground">Density:</span>
+                  <div className="flex rounded-md border border-border bg-muted/40 p-0.5">
+                    {(["sm", "base", "lg"] as const).map((sz) => (
+                      <button
+                        key={sz}
+                        onClick={() => setFontSize(sz)}
+                        className={`rounded px-2 py-0.5 text-xs font-medium transition-all ${
+                          fontSize === sz ? "bg-card text-foreground shadow-2xs font-semibold" : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {sz === "sm" ? "Compact" : sz === "base" ? "Normal" : "Large"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-      <JobMatchWidget uploadId={uploadId} initialMatch={jobMatch ?? undefined} />
+                {/* Theme Accent Color */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-medium text-muted-foreground">Accent:</span>
+                  <div className="flex items-center gap-1.5">
+                    {(["blue", "emerald", "slate", "violet"] as const).map((color) => {
+                      const colorMap = {
+                        blue: "bg-[#0F6CBD]",
+                        emerald: "bg-[#107C41]",
+                        slate: "bg-[#242424]",
+                        violet: "bg-[#5C5B9F]",
+                      };
+                      return (
+                        <button
+                          key={color}
+                          onClick={() => setPrimaryColor(color)}
+                          className={`size-5 rounded-full border border-border transition-all ${colorMap[color]} ${
+                            primaryColor === color ? "ring-2 ring-primary ring-offset-2" : "hover:scale-110"
+                          }`}
+                          title={color}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
 
-      <CareerVaultWidget uploadId={uploadId} sessionId={sessionId} profile={profile} />
+            {/* Word Online / LaTeX Executive Canvas */}
+            <div className="mx-auto w-full max-w-4xl rounded-lg border border-border bg-card shadow-md">
+              <div
+                className={`p-8 sm:p-12 transition-all duration-150 ${
+                  template === "classic" ? "font-serif" : template === "minimal" ? "font-mono" : "font-sans"
+                } ${fontSize === "sm" ? "text-xs" : fontSize === "lg" ? "text-base" : "text-sm"}`}
+                style={{
+                  "--primary-color": primaryColor === "blue" ? "#0F6CBD" : primaryColor === "emerald" ? "#107C41" : primaryColor === "violet" ? "#5C5B9F" : "#242424",
+                  "--primary-light": primaryColor === "blue" ? "#EBF3FC" : primaryColor === "emerald" ? "#E6F4EA" : primaryColor === "violet" ? "#EFEFF9" : "#F3F4F6",
+                  "--primary-border": primaryColor === "blue" ? "#B4D6FA" : primaryColor === "emerald" ? "#A8DAB5" : primaryColor === "violet" ? "#CCCBF0" : "#D1D5DB",
+                } as React.CSSProperties}
+              >
+                {/* Header Profile Section */}
+                <div className={`pb-6 border-b border-border flex flex-col gap-2 ${template === "classic" ? "text-center items-center" : ""}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2 w-full">
+                    <h1 className={`font-bold tracking-tight ${template === "classic" ? "text-3xl text-[var(--primary-color)]" : "text-2xl text-[var(--primary-color)]"}`}>
+                      {profile.name ?? "Your Consolidated Resume"}
+                    </h1>
+                    <button
+                      onClick={() => handleCopyText(`${profile.name}\n${profile.titles?.join(" / ")}\n${profile.summary}`, "header")}
+                      className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 rounded p-1 hover:bg-muted"
+                      title="Copy header"
+                    >
+                      {copiedSection === "header" ? <Check className="size-3 text-emerald-600" /> : <Copy className="size-3" />}
+                    </button>
+                  </div>
 
-      <Card className="border-primary/20 bg-primary/[0.03]">
-        <CardContent className="flex flex-col items-center gap-3 py-2 text-center">
-          {paymentStatus?.paid && paymentStatus.downloadToken ? (
-            <div className="flex flex-col sm:flex-row gap-3 w-full justify-center items-center">
-              <Button asChild size="lg" className="w-full sm:w-auto">
+                  {profile.titles && profile.titles.length > 0 && (
+                    <p className="text-sm font-semibold text-foreground/80">{profile.titles.join("  |  ")}</p>
+                  )}
+
+                  {profile.contact && (
+                    <p className="text-xs text-muted-foreground">
+                      {Object.values(profile.contact).filter(Boolean).join("  •  ")}
+                    </p>
+                  )}
+
+                  {profile.summary && (
+                    <p className="text-xs sm:text-sm text-pretty leading-relaxed text-muted-foreground mt-2">
+                      {profile.summary}
+                    </p>
+                  )}
+                </div>
+
+                {/* Skills Section */}
+                {skills && (
+                  <div className="py-6 border-b border-border flex flex-col gap-3">
+                    <h2 className={
+                      template === "modern" ? "text-xs font-bold uppercase tracking-wider text-[var(--primary-color)] border-l-2 border-[var(--primary-color)] pl-2" :
+                      template === "classic" ? "text-xs font-bold uppercase tracking-wider text-center text-[var(--primary-color)] border-b pb-1 w-full" :
+                      "text-xs font-bold uppercase tracking-wider text-foreground"
+                    }>
+                      Technical Skills & Competencies
+                    </h2>
+                    <div className="flex flex-col gap-2">
+                      {SKILL_LABELS.map(([key, label]) => {
+                        const items = (skills as Record<string, string[]>)[key];
+                        if (!items || items.length === 0) return null;
+                        return (
+                          <div key={key} className="flex flex-wrap items-baseline gap-2 text-xs sm:text-sm">
+                            <span className="w-28 shrink-0 font-semibold text-foreground">{label}:</span>
+                            <div className="flex flex-1 flex-wrap gap-1.5">
+                              {items.map((item, i) => (
+                                <span key={i} className="rounded bg-[var(--primary-light)] text-[var(--primary-color)] border border-[var(--primary-border)] px-2 py-0.5 text-xs font-medium">
+                                  {item}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Experience Section */}
+                {profile.experience && profile.experience.length > 0 && (
+                  <div className="py-6 border-b border-border flex flex-col gap-5">
+                    <h2 className={
+                      template === "modern" ? "flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--primary-color)] border-l-2 border-[var(--primary-color)] pl-2" :
+                      template === "classic" ? "flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider text-center text-[var(--primary-color)] border-b pb-1 w-full" :
+                      "flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-foreground"
+                    }>
+                      <Briefcase className="size-3.5" />
+                      Professional Experience
+                    </h2>
+
+                    <div className="flex flex-col gap-6">
+                      {profile.experience.map((entry, i) => (
+                        <article key={i} className="flex flex-col gap-1.5 group/entry">
+                          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                            <h3 className="text-sm font-bold text-foreground">
+                              {entry.title ?? "Role"}
+                              {entry.company ? (
+                                <span className="font-normal text-muted-foreground"> &mdash; {entry.company}</span>
+                              ) : null}
+                            </h3>
+                            <p className="text-xs whitespace-nowrap text-muted-foreground font-mono">
+                              {[entry.start, entry.end].filter(Boolean).join(" — ")}
+                              {entry.location ? ` | ${entry.location}` : ""}
+                            </p>
+                          </div>
+
+                          {entry.bullets && entry.bullets.length > 0 && (
+                            <ul className="ml-4 list-outside list-disc text-xs sm:text-sm text-pretty leading-relaxed text-muted-foreground space-y-2 pt-1">
+                              {entry.bullets.map((bullet, j) => {
+                                const steRes = validateBulletSTE100(bullet);
+                                return (
+                                  <li key={j} className="group/bullet pl-1">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <span className="flex-1 text-foreground/90">{bullet}</span>
+                                      <div className="flex items-center gap-1.5 opacity-0 group-hover/bullet:opacity-100 transition-opacity">
+                                        <button
+                                          onClick={() => handleCopyText(bullet, `b-${i}-${j}`)}
+                                          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+                                          title="Copy bullet"
+                                        >
+                                          {copiedSection === `b-${i}-${j}` ? <Check className="size-3 text-emerald-600" /> : <Copy className="size-3" />}
+                                        </button>
+                                        <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-semibold ${
+                                          steRes.isCompliant ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                                        }`}>
+                                          {steRes.isCompliant ? "STE-100 ✓" : `${steRes.violations.length} Tips`}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Education Section */}
+                {profile.education && profile.education.length > 0 && (
+                  <div className="py-6 border-b border-border flex flex-col gap-3">
+                    <h2 className={
+                      template === "modern" ? "flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--primary-color)] border-l-2 border-[var(--primary-color)] pl-2" :
+                      template === "classic" ? "flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider text-center text-[var(--primary-color)] border-b pb-1 w-full" :
+                      "flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-foreground"
+                    }>
+                      <GraduationCap className="size-3.5" />
+                      Education
+                    </h2>
+                    <ul className="flex flex-col gap-1.5 text-xs sm:text-sm text-muted-foreground">
+                      {profile.education.map((entry, i) => (
+                        <li key={i} className="flex items-baseline justify-between gap-2">
+                          <span className="font-semibold text-foreground">{entry.degree ?? ""} {entry.school ? `— ${entry.school}` : ""}</span>
+                          {entry.years && <span className="font-mono text-xs text-muted-foreground">{entry.years}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Certifications Section */}
+                {profile.certifications && profile.certifications.length > 0 && (
+                  <div className="pt-6 flex flex-col gap-3">
+                    <h2 className={
+                      template === "modern" ? "text-xs font-bold uppercase tracking-wider text-[var(--primary-color)] border-l-2 border-[var(--primary-color)] pl-2" :
+                      template === "classic" ? "text-xs font-bold uppercase tracking-wider text-center text-[var(--primary-color)] border-b pb-1 w-full" :
+                      "text-xs font-bold uppercase tracking-wider text-foreground"
+                    }>
+                      Certifications & Credentials
+                    </h2>
+                    <div className="flex flex-wrap gap-1.5">
+                      {profile.certifications.map((cert, i) => (
+                        <span key={i} className="rounded bg-muted px-2.5 py-1 text-xs font-medium text-foreground border border-border">
+                          {cert}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 2: ATS Keyword & Job Match */}
+        {activeTab === "match" && (
+          <JobMatchWidget uploadId={uploadId} initialMatch={jobMatch ?? undefined} />
+        )}
+
+        {/* Tab 3: ASD-STE100 Linter Studio */}
+        {activeTab === "linter" && (
+          <STE100BulletWidget experience={profile.experience} />
+        )}
+
+        {/* Tab 4: Career Vault & Role Reordering */}
+        {activeTab === "vault" && (
+          <CareerVaultWidget uploadId={uploadId} sessionId={sessionId} profile={profile} />
+        )}
+
+        {/* Tab 5: Raw LaTeX & JSON */}
+        {activeTab === "raw" && (
+          <Card className="border-border bg-card">
+            <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Code className="size-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">Structured JSON & LaTeX Source</h3>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleCopyText(JSON.stringify(profile, null, 2), "json")}
+                className="h-8 text-xs font-medium"
+              >
+                {copiedSection === "json" ? <Check className="size-3.5 text-emerald-600 mr-1" /> : <Copy className="size-3.5 mr-1" />}
+                Copy JSON
+              </Button>
+            </CardHeader>
+            <CardContent className="p-4">
+              <pre className="rounded-lg bg-muted/60 p-4 font-mono text-xs text-foreground overflow-x-auto max-h-[500px] border border-border">
+                {JSON.stringify(profile, null, 2)}
+              </pre>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Floating Download & Export Bar at Bottom */}
+        <div className="sticky bottom-4 z-20 mx-auto w-full max-w-2xl rounded-lg border border-border bg-card/95 backdrop-blur-md p-3 shadow-lg flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <div className="flex size-7 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <Check className="size-4" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-foreground">Master Profile Ready</span>
+              <span className="text-[10px] text-muted-foreground font-mono">100% Client-Side Safe • Single Column</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => exportHtmlResume(profile, template, fontSize, primaryColor)}
+              className="h-8 text-xs font-semibold border-border hover:bg-muted"
+            >
+              Export HTML (Free)
+            </Button>
+
+            {paymentStatus?.paid && paymentStatus.downloadToken ? (
+              <Button asChild size="sm" className="h-8 text-xs font-semibold bg-primary text-primary-foreground shadow-xs">
                 <a href={`/api/download/${paymentStatus.downloadToken}`}>
-                  <Download />
+                  <Download className="size-3.5 mr-1.5" />
                   Download PDF
                 </a>
               </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() => exportHtmlResume(profile, template, fontSize, primaryColor)}
-                className="w-full sm:w-auto border-primary/20 hover:bg-primary/5 text-primary"
-              >
-                Export Standalone HTML (Free)
-              </Button>
-            </div>
-          ) : (
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full justify-center">
+            ) : (
               <CheckoutButton uploadId={uploadId} />
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() => exportHtmlResume(profile, template, fontSize, primaryColor)}
-                className="w-full sm:w-auto border-primary/20 hover:bg-primary/5 text-primary animate-pulse"
-              >
-                Export Standalone HTML (Free)
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </PageChrome>
+            )}
+          </div>
+        </div>
+
+      </main>
+    </div>
   );
 }
+

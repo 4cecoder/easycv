@@ -33,8 +33,10 @@ echo ""
 
 # ── Build images ────────────────────────────────────────────────────────────
 echo -e "${YELLOW}Building Docker images...${NC}"
-docker build -t "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-frontend:latest" -f web/Dockerfile web/
-docker build -t "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-worker:latest"   -f Dockerfile .
+docker build \
+  --build-arg NEXT_PUBLIC_CONVEX_URL="$(get NEXT_PUBLIC_CONVEX_URL)" \
+  -t "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-frontend:latest" -f web/Dockerfile web/
+docker build -t "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-worker:latest" -f Dockerfile .
 
 echo -e "${YELLOW}Pushing to Vultr Container Registry...${NC}"
 docker push "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-frontend:latest"
@@ -54,6 +56,13 @@ kubectl create secret docker-registry vultr-registry-credentials \
   -n "$NS" 2>/dev/null || true
 
 # ── Secrets from .env.production ─────────────────────────────────────────────
+INSTANCE_NAME="$(get INSTANCE_NAME:-easycv-prod)"
+INSTANCE_SECRET="$(get INSTANCE_SECRET:-)"
+if [[ -z "$INSTANCE_SECRET" || "$INSTANCE_SECRET" == "generate_with_openssl_rand_hex_32" ]]; then
+  INSTANCE_SECRET="$(openssl rand -hex 32)"
+fi
+POSTGRES_URL="$(get POSTGRES_URL:-)"
+
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: Secret
@@ -62,7 +71,10 @@ metadata:
   namespace: ${NS}
 type: Opaque
 data:
-  CONVEX_URL: $(b64 "$(get CONVEX_URL)")
+  INSTANCE_SECRET: $(b64 "$INSTANCE_SECRET")
+  POSTGRES_URL: $(b64 "$POSTGRES_URL")
+  CONVEX_SELF_HOSTED_ADMIN_KEY: $(b64 "${INSTANCE_NAME}|${INSTANCE_SECRET}")
+  CONVEX_URL: $(b64 "$(get CONVEX_URL:-http://convex-backend:3210)")
   APP_URL: $(b64 "$(get APP_URL)")
   STRIPE_SECRET_KEY: $(b64 "$(get STRIPE_SECRET_KEY)")
   STRIPE_WEBHOOK_SECRET: $(b64 "$(get STRIPE_WEBHOOK_SECRET)")
@@ -81,8 +93,14 @@ metadata:
   name: easycv-config
   namespace: ${NS}
 data:
-  NEXT_PUBLIC_CONVEX_URL: "$(get NEXT_PUBLIC_CONVEX_URL)"
+  INSTANCE_NAME: "${INSTANCE_NAME}"
+  CONVEX_CLOUD_ORIGIN: "https://convex.${DOMAIN}/api"
+  CONVEX_SITE_ORIGIN: "https://convex.${DOMAIN}/http"
+  CONVEX_URL: "http://convex-backend:3210"
+  CONVEX_SITE_URL: "http://convex-backend:3211"
+  NEXT_PUBLIC_CONVEX_URL: "$(get NEXT_PUBLIC_CONVEX_URL:-https://convex.${DOMAIN}/api)"
   NEXT_PUBLIC_POSTHOG_KEY: "$(get NEXT_PUBLIC_POSTHOG_KEY:-)"
+  APP_URL: "$(get APP_URL:-https://${DOMAIN})"
   LLM_PROVIDER: "$(get LLM_PROVIDER)"
   LLM_MODEL: "$(get LLM_MODEL)"
   OLLAMA_API_BASE: "$(get OLLAMA_API_BASE:-)"
@@ -102,7 +120,7 @@ for f in "$K8S"/*.yaml; do
   cp "$f" "$TMP/$name"
 done
 
-# Patch image references
+# Patch image references and domain substitutions
 sed -i.bak "s|your-registry|${VCR_PROJECT}|g" "$TMP"/*.yaml
 sed -i.bak "s|your-domain.com|${DOMAIN}|g" "$TMP"/*.yaml
 sed -i.bak "s|your-email@example.com|${EMAIL}|g" "$TMP"/*.yaml
@@ -110,6 +128,9 @@ rm -f "$TMP"/*.bak
 
 # Apply all manifests
 kubectl apply -f "$TMP/namespace.yaml"
+kubectl apply -f "$TMP/convex-storage.yaml"   -n "$NS"
+kubectl apply -f "$TMP/convex-backend.yaml"   -n "$NS"
+kubectl apply -f "$TMP/convex-dashboard.yaml" -n "$NS"
 kubectl apply -f "$TMP/frontend-deployment.yaml" -n "$NS"
 kubectl apply -f "$TMP/frontend-service.yaml"    -n "$NS"
 kubectl apply -f "$TMP/worker-deployment.yaml"   -n "$NS"
@@ -118,29 +139,41 @@ kubectl apply -f "$TMP/ingress.yaml"             -n "$NS"
 
 # ── Wait ────────────────────────────────────────────────────────────────────
 echo -e "${YELLOW}Waiting for rollout...${NC}"
-kubectl rollout status deployment/easycv-frontend -n "$NS" --timeout=300s
-kubectl rollout status deployment/easycv-worker   -n "$NS" --timeout=300s
+kubectl rollout status deployment/convex-backend   -n "$NS" --timeout=300s
+kubectl rollout status deployment/convex-dashboard -n "$NS" --timeout=300s
+kubectl rollout status deployment/easycv-frontend  -n "$NS" --timeout=300s
+kubectl rollout status deployment/easycv-worker    -n "$NS" --timeout=300s
+
+# ── Fetch Convex Admin Key ──────────────────────────────────────────────────
+ADMIN_KEY=$(kubectl exec deploy/convex-backend -n "$NS" -- ./generate_admin_key.sh 2>/dev/null || echo "${INSTANCE_NAME}|${INSTANCE_SECRET}")
 
 # ── Done ────────────────────────────────────────────────────────────────────
 IP=$(kubectl get svc easycv-frontend -n "$NS" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
 
 echo ""
 echo -e "${CYAN}════════════════════════════════════════════════${NC}"
-echo -e "${CYAN}  Deployed!${NC}"
+echo -e "${CYAN}  Deployed to Vultr Kubernetes!${NC}"
 echo -e "${CYAN}════════════════════════════════════════════════${NC}"
 echo ""
-echo -e "  ${GREEN}External IP:${NC}  ${IP}"
-echo -e "  ${GREEN}Domain:${NC}      ${DOMAIN}"
-echo -e "  ${GREEN}Namespace:${NC}   ${NS}"
+echo -e "  ${GREEN}App URL:${NC}          https://${DOMAIN}"
+echo -e "  ${GREEN}Convex Dashboard:${NC} https://convex.${DOMAIN}"
+echo -e "  ${GREEN}Convex Backend:${NC}   https://convex.${DOMAIN}/api"
+echo -e "  ${GREEN}External IP:${NC}      ${IP}"
+echo -e "  ${GREEN}Namespace:${NC}        ${NS}"
 echo ""
-if [[ "$IP" == "pending" ]]; then
-  echo -e "  ${YELLOW}IP is provisioning — check in a few minutes:${NC}"
-  echo "    kubectl get svc easycv-frontend -n ${NS} -w"
-  echo ""
-fi
+echo -e "  ${YELLOW}Convex Admin Key:${NC}"
+echo -e "  ${CYAN}${ADMIN_KEY}${NC}"
+echo ""
 echo -e "  ${YELLOW}Next steps:${NC}"
-echo "  1. Point DNS for ${DOMAIN} → ${IP}"
-echo "  2. Configure Stripe webhook: https://${DOMAIN}/api/webhook"
-echo "  3. Set WORKER_SECRET in Convex: npx convex env set WORKER_SECRET <same-value>"
-echo "  4. Verify: kubectl get pods -n ${NS}"
+echo "  1. Point DNS records to ${IP}:"
+echo "       ${DOMAIN}        → ${IP}"
+echo "       convex.${DOMAIN} → ${IP}"
+echo "  2. Deploy Convex schema & functions to self-hosted backend:"
+echo "       cd web && CONVEX_SELF_HOSTED_URL=\"https://convex.${DOMAIN}/api\" CONVEX_SELF_HOSTED_ADMIN_KEY=\"${ADMIN_KEY}\" bunx convex deploy"
+echo "  3. Configure WORKER_SECRET in self-hosted Convex:"
+echo "       cd web && CONVEX_SELF_HOSTED_URL=\"https://convex.${DOMAIN}/api\" CONVEX_SELF_HOSTED_ADMIN_KEY=\"${ADMIN_KEY}\" bunx convex env set WORKER_SECRET $(get WORKER_SECRET)"
+echo "  4. Configure Stripe webhook:"
+echo "       https://${DOMAIN}/api/webhook"
+echo "  5. Verify pods:"
+echo "       kubectl get pods -n ${NS}"
 echo ""
