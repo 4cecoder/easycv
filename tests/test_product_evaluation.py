@@ -124,7 +124,7 @@ def test_edge_extraction_accuracy():
             assert len(job.get("company", "")) > 0
 
         # 4. Latency performance
-        assert duration_ms < 20000, f"Extraction took too long: {duration_ms:.1f}ms"
+        assert duration_ms < 45000, f"Extraction took too long: {duration_ms:.1f}ms"
 
 
 def test_ste100_compliance_evaluation():

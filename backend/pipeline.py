@@ -1186,8 +1186,12 @@ def consolidate_files(paths: list[str], llm_client: LLMClient) -> dict:
                 bundle.extracted_texts[filename] = text
 
         data = None
-        # 1. Primary: On-device structured extraction using Needle 2
-        if NEEDLE_AVAILABLE and bundle.extracted_texts:
+        # 1. If an explicit LLM client was provided (CLI/mock/API), use it
+        if llm_client and bundle.extracted_texts:
+            data = llm_consolidate(llm_client, bundle)
+
+        # 2. Otherwise default to on-device zero-cost Needle 2 extractor
+        if not data and NEEDLE_AVAILABLE and bundle.extracted_texts:
             try:
                 combined = "\n\n".join(bundle.extracted_texts.values())
                 needle_extractor = NeedleExtractor()
@@ -1197,10 +1201,6 @@ def consolidate_files(paths: list[str], llm_client: LLMClient) -> dict:
                     print(f"  [needle] extracted profile on-device in {needle_res.elapsed_ms:.1f}ms")
             except Exception as e:
                 logger.debug(f"Needle extraction exception: {e}")
-
-        # 2. Fallback to LLM consolidation if Needle extraction wasn't available or empty
-        if not data and bundle.extracted_texts and llm_client:
-            data = llm_consolidate(llm_client, bundle)
 
         profile = data if isinstance(data, dict) else {"_raw": "no extractable text or empty LLM response"}
 

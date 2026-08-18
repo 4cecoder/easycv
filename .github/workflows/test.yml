@@ -19,13 +19,24 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Configure Git for GitHub dependencies
+        run: git config --global url."https://${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "git@github.com:"
+
       - name: Install dependencies
         working-directory: ./web
         run: bun install
 
+      - name: Run TypeScript Check
+        working-directory: ./web
+        run: bun run typecheck
+
       - name: Run Vitest Unit Tests
         working-directory: ./web
         run: bun run test
+
+      - name: Run Edge Pipeline Benchmark
+        working-directory: ./web
+        run: bun run evaluate
 
       - name: Run Next.js Build Check
         working-directory: ./web
@@ -40,6 +51,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils
 
       - name: Setup Python
         uses: actions/setup-python@v5

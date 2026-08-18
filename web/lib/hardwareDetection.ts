@@ -32,15 +32,15 @@ export async function detectHardwareProfile(): Promise<HardwareProfile> {
   // 1. Check WebGPU
   if (typeof navigator !== "undefined" && "gpu" in navigator) {
     try {
-      const adapter = await navigator.gpu.requestAdapter();
-      if (adapter) {
-        hasWebGPU = true;
-        // @ts-ignore
-        if (adapter.info) {
-          // @ts-ignore
-          gpuVendor = adapter.info.vendor || "WebGPU";
-          // @ts-ignore
-          gpuRenderer = adapter.info.architecture || adapter.info.device || "WebGPU Hardware Accelerator";
+      const gpu = (navigator as any).gpu;
+      if (gpu && typeof gpu.requestAdapter === "function") {
+        const adapter = await gpu.requestAdapter();
+        if (adapter) {
+          hasWebGPU = true;
+          if (adapter.info) {
+            gpuVendor = adapter.info.vendor || "WebGPU";
+            gpuRenderer = adapter.info.architecture || adapter.info.device || "WebGPU Hardware Accelerator";
+          }
         }
       }
     } catch {
