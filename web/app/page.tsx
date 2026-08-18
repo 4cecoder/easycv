@@ -148,6 +148,19 @@ export default function UploadPage() {
   const detectedJobInfo = detectJobUrls(jobDescription);
 
   function syncInputFiles(next: File[]) {
+    setError(null);
+    let totalBytes = 0;
+    for (const f of next) {
+      if (f.size > 10 * 1024 * 1024) {
+        setError(`File '${f.name}' exceeds the 10MB limit (${(f.size / (1024 * 1024)).toFixed(1)}MB).`);
+        return;
+      }
+      totalBytes += f.size;
+    }
+    if (totalBytes > 25 * 1024 * 1024) {
+      setError(`Total payload exceeds 25MB limit (${(totalBytes / (1024 * 1024)).toFixed(1)}MB). Please select fewer or smaller files.`);
+      return;
+    }
     if (!fileInputRef.current) return;
     const dt = new DataTransfer();
     for (const file of next) dt.items.add(file);

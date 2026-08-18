@@ -55,6 +55,14 @@ async function uploadBytesToConvexStorage(bytes: Buffer, contentType: string): P
   return body.storageId;
 }
 
+import {
+  validateMagicBytes,
+  sanitizePdfBuffer,
+  sanitizeTextForLLM,
+  MAX_FILE_SIZE_BYTES,
+  MAX_TOTAL_PAYLOAD_BYTES,
+} from "../../../lib/sanitizer";
+
 // This route ONLY saves files and queues the upload -- it does not run any
 // LLM consolidation itself. That work happens in a separate, long-lived
 // process (worker.py), which polls Convex for "queued" uploads. Why: this
@@ -72,6 +80,22 @@ export async function POST(request: NextRequest) {
     if (files.length === 0) {
       return NextResponse.json({ error: "No files uploaded" }, { status: 400 });
     }
+
+    // 1. Enforce Total Upload Payload Limit (25MB)
+    let totalPayloadBytes = 0;
+    for (const file of files) {
+      totalPayloadBytes += file.size;
+    }
+    if (totalPayloadBytes > MAX_TOTAL_PAYLOAD_BYTES) {
+      return NextResponse.json(
+        {
+          error: `Total upload size exceeds 25MB limit (${(totalPayloadBytes / (1024 * 1024)).toFixed(1)}MB). Please upload smaller documents.`,
+        },
+        { status: 400 },
+      );
+    }
+
+    // 2. Validate Extensions & Individual File Size Limits (10MB)
     for (const file of files) {
       const ext = path.extname(file.name).toLowerCase();
       if (!ALLOWED_EXTENSIONS.has(ext)) {
@@ -80,7 +104,16 @@ export async function POST(request: NextRequest) {
           { status: 400 },
         );
       }
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        return NextResponse.json(
+          {
+            error: `File '${file.name}' exceeds maximum permitted size of 10MB (${(file.size / (1024 * 1024)).toFixed(1)}MB).`,
+          },
+          { status: 400 },
+        );
+      }
     }
+
     if (!process.env.NEXT_PUBLIC_CONVEX_URL) {
       return NextResponse.json(
         { error: "Server is not configured with NEXT_PUBLIC_CONVEX_URL" },
@@ -88,27 +121,63 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 3. Process, Verify Magic Bytes, and Sanitize Files
+    const preparedFiles: {
+      name: string;
+      ext: string;
+      bytes: Buffer;
+      category: string;
+    }[] = [];
+
+    for (const file of files) {
+      const ext = path.extname(file.name).toLowerCase();
+      let bytes: Buffer = Buffer.from(await file.arrayBuffer());
+
+      // Magic Byte & Extension Verification
+      const validation = validateMagicBytes(bytes, ext, file.name);
+      if (!validation.valid) {
+        return NextResponse.json({ error: validation.error }, { status: 400 });
+      }
+
+      // PDF Sanitization (strip /JavaScript, /Launch, /EmbeddedFiles)
+      if (ext === ".pdf") {
+        const sanitized = sanitizePdfBuffer(bytes);
+        bytes = Buffer.from(sanitized.buffer);
+      } else if (ext === ".txt" || ext === ".md") {
+        // Text / Prompt Injection Sanitization
+        const text = bytes.toString("utf-8");
+        const sanitizedText = sanitizeTextForLLM(text);
+        bytes = Buffer.from(sanitizedText, "utf-8");
+      }
+
+      preparedFiles.push({
+        name: file.name,
+        ext,
+        bytes,
+        category: classifyFilename(file.name),
+      });
+    }
+
     const jobDescription = (formData.get("jobDescription") as string) || undefined;
+    const sanitizedJobDesc = jobDescription ? sanitizeTextForLLM(jobDescription) : undefined;
     const jobLink = (formData.get("jobLink") as string) || undefined;
     const sessionId = request.cookies.get(SESSION_COOKIE)?.value ?? randomUUID();
     const convex = getConvexClient();
     const uploadId = await convex.mutation(api.uploads.createUpload, {
       sessionId,
-      jobDescription,
+      jobDescription: sanitizedJobDesc,
       jobLink,
     });
 
-    for (const file of files) {
-      const ext = path.extname(file.name).toLowerCase();
-      const bytes = Buffer.from(await file.arrayBuffer());
-      const storageId = await uploadBytesToConvexStorage(bytes, contentTypeFor(ext));
+    for (const item of preparedFiles) {
+      const storageId = await uploadBytesToConvexStorage(item.bytes, contentTypeFor(item.ext));
       await convex.mutation(api.resumeFiles.addResumeFile, {
         uploadId,
-        filename: file.name,
+        filename: item.name,
         storageId: storageId as Id<"_storage">,
-        ext,
-        sizeKb: Math.round(bytes.byteLength / 1024),
-        category: classifyFilename(file.name),
+        ext: item.ext,
+        sizeKb: Math.max(1, Math.round(item.bytes.byteLength / 1024)),
+        category: item.category,
       });
     }
 
