@@ -9,6 +9,7 @@ jobs:
   deploy:
     name: Build Multi-Arch & Deploy to VKE
     runs-on: ubuntu-latest
+    if: "${{ secrets.VCR_PASSWORD != '' }}"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
