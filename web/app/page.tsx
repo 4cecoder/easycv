@@ -35,6 +35,9 @@ import {
 import { detectJobUrls } from "@/lib/jobUrlDetector";
 import { LoadingSplashScreen } from "@/components/LoadingSplashScreen";
 import { RecentUploadsList } from "@/components/RecentUploadsList";
+import { collectDeviceProfile } from "@/lib/fingerprint";
+import { trackUploadStarted, trackUploadComplete } from "@/lib/analytics";
+import { trackSampleLoad, trackFileRemove } from "@/lib/tracker";
 
 const ACCEPTED_EXTENSIONS = ".pdf,.txt,.md";
 
@@ -158,10 +161,12 @@ export default function UploadPage() {
   }
 
   function removeFile(index: number) {
+    trackFileRemove(files[index]?.name ?? "unknown");
     syncInputFiles(files.filter((_, i) => i !== index));
   }
 
   function loadSampleProfile(sample: typeof SAMPLE_PROFILES[0]) {
+    trackSampleLoad(sample.person);
     const file = new File([sample.content], `${sample.person.toLowerCase().replace(/\s+/g, "_")}_resume.md`, {
       type: "text/markdown",
     });
@@ -176,13 +181,34 @@ export default function UploadPage() {
     setError(null);
     setPending(true);
 
+    const device = await collectDeviceProfile();
+    const fileTypes = files.map((f) => f.name.split(".").pop() || "");
+    const totalSizeKb = files.reduce((sum, f) => sum + f.size / 1024, 0);
+
+    trackUploadStarted({
+      fileCount: files.length,
+      fileTypes,
+      totalSizeKb,
+      hasJobDescription: Boolean(jobDescription.trim()),
+      hasJobUrl: detectedJobInfo.hasUrl,
+      device,
+    });
+
     const formData = new FormData(event.currentTarget);
+    const t0 = Date.now();
     try {
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(body.error ?? `Upload failed (${res.status})`);
       }
+
+      trackUploadComplete({
+        uploadId: body.uploadId,
+        processingTimeMs: Date.now() - t0,
+        fileCount: files.length,
+        device,
+      });
 
       posthog.capture("cv_uploaded", {
         file_count: files.length,
