@@ -23,7 +23,8 @@ import {
   Share2,
   ChevronRight,
   Award,
-  Crown
+  Crown,
+  CheckCircle2
 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -171,7 +172,7 @@ export function PreviewClient({
     sessionId,
   });
 
-  const [activeTab, setActiveTab] = useState<"document" | "match" | "linter" | "vault" | "raw">("document");
+  const [activeTab, setActiveTab] = useState<"document" | "match" | "linter" | "vault" | "export">("document");
   const [template, setTemplate] = useState<"modern" | "classic" | "minimal">("modern");
   const [fontSize, setFontSize] = useState<"sm" | "base" | "lg">("base");
   const [primaryColor, setPrimaryColor] = useState<"blue" | "emerald" | "slate" | "violet">("blue");
@@ -185,7 +186,7 @@ export function PreviewClient({
       if (e.key === "2") setActiveTab("match");
       if (e.key === "3") setActiveTab("linter");
       if (e.key === "4") setActiveTab("vault");
-      if (e.key === "5") setActiveTab("raw");
+      if (e.key === "5") setActiveTab("export");
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
@@ -323,45 +324,30 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
 
           {/* Right: Rapid Action Buttons */}
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleCopyText(plainTextResume, "all")}
-              className="h-8 text-xs font-medium border-border hover:bg-muted"
-            >
-              {copiedSection === "all" ? (
-                <>
-                  <Check className="size-3.5 text-emerald-600 dark:text-emerald-400 mr-1.5" />
-                  <span>Copied Plaintext!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="size-3.5 mr-1.5" />
-                  <span>Copy Text</span>
-                </>
-              )}
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => exportHtmlResume(profile, template, fontSize, primaryColor)}
-              className="h-8 text-xs font-medium border-border hover:bg-muted"
-            >
-              <Share2 className="size-3.5 mr-1.5" />
-              <span>Export HTML (Free)</span>
-            </Button>
-
             {paymentStatus?.paid && paymentStatus.downloadToken ? (
-              <Button asChild size="sm" className="h-8 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs">
-                <a href={`/api/download/${paymentStatus.downloadToken}`}>
-                  <Download className="size-3.5 mr-1.5" />
-                  <span>Download PDF</span>
-                </a>
-              </Button>
+              <>
+                <Button asChild size="sm" className="h-8 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs">
+                  <a href={`/api/download/${paymentStatus.downloadToken}`}>
+                    <Download className="size-3.5 mr-1.5" />
+                    <span>Download PDF</span>
+                  </a>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCopyText(plainTextResume, "all")}
+                  className="h-8 text-xs font-medium border-border hover:bg-muted"
+                >
+                  <Copy className="size-3.5 mr-1.5" />
+                  <span>Copy Source</span>
+                </Button>
+              </>
             ) : (
-              <div className="scale-90 origin-right">
-                <CheckoutButton uploadId={uploadId} />
+              <div className="flex items-center gap-2.5">
+                <span className="hidden md:inline text-xs text-muted-foreground font-medium">
+                  🔒 ATS-Optimized Vector PDF
+                </span>
+                <CheckoutButton uploadId={uploadId} label="Unlock Official PDF ($14)" size="sm" />
               </div>
             )}
           </div>
@@ -471,7 +457,7 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
             { id: "match", label: "Job Match", icon: Target },
             { id: "linter", label: "Linter", icon: FileCheck },
             { id: "vault", label: "Vault", icon: Layers },
-            { id: "raw", label: "JSON", icon: Code },
+            { id: "export", label: "Pro Package", icon: Sparkles },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -566,6 +552,24 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
                 </div>
               </div>
             </div>
+
+            {/* Upgrade Banner for Unpaid Users */}
+            {!paymentStatus?.paid && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-lg border border-primary/25 bg-primary/[0.04] p-3 text-xs shadow-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-xs shrink-0">
+                    <Sparkles className="size-3.5" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-foreground">Interactive Preview Mode</span>
+                    <p className="text-muted-foreground text-[11px]">
+                      Tweak fonts, colors & templates in real-time. Unlock Pro to download the recruiter-ready vector PDF & LaTeX source.
+                    </p>
+                  </div>
+                </div>
+                <CheckoutButton uploadId={uploadId} label="Unlock PDF & LaTeX ($14)" size="sm" />
+              </div>
+            )}
 
             {/* Word Online / LaTeX Executive Canvas */}
             <div className="mx-auto w-full max-w-4xl rounded-lg border border-border bg-card shadow-md">
@@ -765,63 +769,139 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
           <CareerVaultWidget uploadId={uploadId} sessionId={sessionId} profile={profile} />
         )}
 
-        {/* Tab 5: Raw LaTeX & JSON */}
-        {activeTab === "raw" && (
-          <Card className="border-border bg-card">
-            <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Code className="size-4 text-primary" />
-                <h3 className="text-sm font-semibold text-foreground">Raw Data</h3>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleCopyText(JSON.stringify(profile, null, 2), "json")}
-                className="h-8 text-xs font-medium"
-              >
-                {copiedSection === "json" ? <Check className="size-3.5 text-emerald-600 mr-1" /> : <Copy className="size-3.5 mr-1" />}
-                Copy JSON
-              </Button>
-            </CardHeader>
-            <CardContent className="p-4">
-              <pre className="rounded-lg bg-muted/60 p-4 font-mono text-xs text-foreground overflow-x-auto max-h-[500px] border border-border">
-                {JSON.stringify(profile, null, 2)}
-              </pre>
-            </CardContent>
-          </Card>
+        {/* Tab 5: Pro Package & Locked Exports */}
+        {activeTab === "export" && (
+          <div className="flex flex-col gap-6 max-w-4xl mx-auto w-full">
+            {paymentStatus?.paid && paymentStatus.downloadToken ? (
+              <Card className="border-border bg-card shadow-lg">
+                <CardHeader className="border-b pb-4">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-5 text-emerald-500" />
+                    <div>
+                      <h3 className="text-base font-bold text-foreground">easyCV Pro Package Unlocked</h3>
+                      <p className="text-xs text-muted-foreground">Download your vector PDF and export source code below.</p>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6 grid sm:grid-cols-2 gap-4">
+                  <div className="flex flex-col justify-between rounded-xl border border-border bg-muted/30 p-5 gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 text-primary font-bold text-sm">
+                        <FileText className="size-4" />
+                        <span>Recruiter-Ready Vector PDF</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Single-column ATS optimized PDF compiled with TeX engine.</p>
+                    </div>
+                    <Button asChild size="sm" className="w-full font-bold">
+                      <a href={`/api/download/${paymentStatus.downloadToken}`}>
+                        <Download className="size-3.5 mr-1.5" />
+                        Download Official PDF
+                      </a>
+                    </Button>
+                  </div>
+
+                  <div className="flex flex-col justify-between rounded-xl border border-border bg-muted/30 p-5 gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 text-foreground font-bold text-sm">
+                        <Code className="size-4" />
+                        <span>LaTeX Source (.tex)</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Full source code ready for Overleaf, TeXLive, or custom editing.</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCopyText(plainTextResume, "tex")}
+                      className="w-full font-semibold"
+                    >
+                      <Copy className="size-3.5 mr-1.5" />
+                      Copy LaTeX Source
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="border-primary/40 bg-card shadow-xl overflow-hidden">
+                <div className="bg-primary/[0.06] border-b border-primary/20 p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+                  <div className="space-y-2">
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/20 px-3 py-1 text-xs font-bold text-primary uppercase tracking-wider">
+                      <Sparkles className="size-3.5" />
+                      <span>Pro Unlock</span>
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+                      Unlock Full ATS Resume Package
+                    </h2>
+                    <p className="text-xs sm:text-sm text-muted-foreground max-w-xl">
+                      Get instant access to your recruiter-ready vector PDF, unminified LaTeX source (.tex) for Overleaf, and unlimited job-tailored variations.
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-center sm:items-end gap-1 shrink-0 w-full sm:w-auto">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-extrabold text-foreground">$14</span>
+                      <span className="text-xs text-muted-foreground">one-time</span>
+                    </div>
+                    <CheckoutButton uploadId={uploadId} label="Unlock Everything ($14)" size="lg" className="w-full sm:w-auto" />
+                  </div>
+                </div>
+
+                <CardContent className="p-6 sm:p-8 grid sm:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-foreground font-bold text-sm">
+                      <FileCheck className="size-4 text-emerald-500" />
+                      <span>Vector PDF Download</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Pixel-perfect ATS-compliant document guaranteed to pass Taleo, Greenhouse, and Workday filters.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-foreground font-bold text-sm">
+                      <Code className="size-4 text-primary" />
+                      <span>LaTeX Source (.tex)</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Editable modular source code formatted with clean packages, custom slots, and deterministic macros.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-foreground font-bold text-sm">
+                      <Layers className="size-4 text-primary" />
+                      <span>Job Match & Vault</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Remix your career history for different job descriptions with smart skill taxonomy prioritization.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         )}
 
         {/* Floating Download & Export Bar at Bottom */}
-        <div className="sticky bottom-4 z-20 mx-auto w-full max-w-2xl rounded-lg border border-border bg-card/95 backdrop-blur-md p-3 shadow-lg flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="flex size-7 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <Check className="size-4" />
+        <div className="sticky bottom-4 z-20 mx-auto w-full max-w-2xl rounded-xl border border-border bg-card/95 backdrop-blur-md p-3.5 shadow-xl flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Sparkles className="size-4" />
             </div>
             <div className="flex flex-col">
-              <span className="text-xs font-bold text-foreground">Done</span>
-              <span className="text-[10px] text-muted-foreground font-mono">Professional • PDF</span>
+              <span className="text-xs font-bold text-foreground">ATS Quality Validated</span>
+              <span className="text-[10px] text-muted-foreground font-mono">STE-100 Compliant • Single Column</span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => exportHtmlResume(profile, template, fontSize, primaryColor)}
-              className="h-8 text-xs font-semibold border-border hover:bg-muted"
-            >
-              Export HTML (Free)
-            </Button>
-
             {paymentStatus?.paid && paymentStatus.downloadToken ? (
-              <Button asChild size="sm" className="h-8 text-xs font-semibold bg-primary text-primary-foreground shadow-xs">
+              <Button asChild size="sm" className="h-9 text-xs font-bold bg-primary text-primary-foreground shadow-xs">
                 <a href={`/api/download/${paymentStatus.downloadToken}`}>
                   <Download className="size-3.5 mr-1.5" />
                   Download PDF
                 </a>
               </Button>
             ) : (
-              <CheckoutButton uploadId={uploadId} />
+              <CheckoutButton uploadId={uploadId} label="Download PDF ($14)" size="sm" className="h-9" />
             )}
           </div>
         </div>
