@@ -35,6 +35,9 @@ import {
 import { detectJobUrls } from "@/lib/jobUrlDetector";
 import { LoadingSplashScreen } from "@/components/LoadingSplashScreen";
 import { RecentUploadsList } from "@/components/RecentUploadsList";
+import { collectDeviceProfile } from "@/lib/fingerprint";
+import { trackUploadStarted, trackUploadComplete } from "@/lib/analytics";
+import { trackSampleLoad, trackFileRemove } from "@/lib/tracker";
 
 const ACCEPTED_EXTENSIONS = ".pdf,.txt,.md";
 
@@ -158,17 +161,20 @@ export default function UploadPage() {
   }
 
   function removeFile(index: number) {
+    trackFileRemove(files[index]?.name ?? "unknown");
     syncInputFiles(files.filter((_, i) => i !== index));
   }
 
   function loadSampleProfile(sample: typeof SAMPLE_PROFILES[0]) {
+    trackSampleLoad(sample.person);
     const file = new File([sample.content], `${sample.person.toLowerCase().replace(/\s+/g, "_")}_resume.md`, {
       type: "text/markdown",
     });
+    setFiles([file]);
     syncInputFiles([file]);
     setTimeout(() => {
       formRef.current?.requestSubmit();
-    }, 50);
+    }, 100);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -177,12 +183,38 @@ export default function UploadPage() {
     setPending(true);
 
     const formData = new FormData(event.currentTarget);
+    if (files.length > 0 && formData.getAll("files").filter((f: any) => f && typeof f === "object" && "size" in f && f.size > 0).length === 0) {
+      formData.delete("files");
+      files.forEach((f) => formData.append("files", f));
+    }
+
+    const device = await collectDeviceProfile();
+    const fileTypes = files.map((f) => f.name.split(".").pop() || "");
+    const totalSizeKb = files.reduce((sum, f) => sum + f.size / 1024, 0);
+
+    trackUploadStarted({
+      fileCount: files.length,
+      fileTypes,
+      totalSizeKb,
+      hasJobDescription: Boolean(jobDescription.trim()),
+      hasJobUrl: detectedJobInfo.hasUrl,
+      device,
+    });
+
+    const t0 = Date.now();
     try {
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(body.error ?? `Upload failed (${res.status})`);
       }
+
+      trackUploadComplete({
+        uploadId: body.uploadId,
+        processingTimeMs: Date.now() - t0,
+        fileCount: files.length,
+        device,
+      });
 
       posthog.capture("cv_uploaded", {
         file_count: files.length,

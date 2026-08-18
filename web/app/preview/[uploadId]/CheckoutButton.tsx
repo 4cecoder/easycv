@@ -6,6 +6,7 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { usePostHog } from "posthog-js/react";
 
 import { Alert, AlertDescription, Button } from "@bytecats/ui-kit";
+import { trackCheckoutStart, trackCheckoutDone, trackCheckoutFail } from "@/lib/tracker";
 
 // Its own small client component (PreviewClient, which renders this, is
 // also a client component now -- kept split out anyway since this is a
@@ -28,6 +29,7 @@ export function CheckoutButton({
   async function handleClick() {
     setPending(true);
     setError(null);
+    trackCheckoutStart(uploadId, "payment");
     posthog.capture("checkout_initiated", { upload_id: uploadId });
     try {
       const res = await fetch("/api/checkout", {
@@ -37,9 +39,11 @@ export function CheckoutButton({
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
+        trackCheckoutFail(uploadId, body.error);
         posthog.capture("checkout_failed", { upload_id: uploadId, error: body.error });
         throw new Error(body.error ?? `Checkout failed (${res.status})`);
       }
+      trackCheckoutDone(uploadId, 1400);
       posthog.capture("checkout_redirect", { upload_id: uploadId });
       window.location.href = body.url;
     } catch (err) {
