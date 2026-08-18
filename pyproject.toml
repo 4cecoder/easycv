@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "anthropic>=0.117.0",
+    "cactus-needle>=2.0.0",
     "convex>=0.7.0",
     "python-dotenv>=1.2.2",
     "requests>=2.34.2",
@@ -20,3 +21,8 @@ include = ["backend*", "automation*"]
 
 [dependency-groups]
 dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+markers = [
+    "local: marks tests as developer-local / on-device benchmark tests (deselect in CI with '-m \"not local\"')",
+]

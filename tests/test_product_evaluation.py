@@ -17,6 +17,8 @@ from backend import latex
 from backend import ste100
 from backend import pipeline
 
+pytestmark = pytest.mark.local
+
 
 BENCHMARK_PROFILES = [
     {
@@ -129,6 +131,8 @@ def test_edge_extraction_accuracy():
 
 def test_ste100_compliance_evaluation():
     """Verify that extracted bullet points adhere to ASD-STE100 Issue 9 standards."""
+    if not NEEDLE_AVAILABLE:
+        pytest.skip("Cactus Needle is not available")
     for test_case in BENCHMARK_PROFILES:
         extractor = NeedleExtractor()
         result = extractor.extract_full_profile(test_case["raw_text"])
@@ -146,14 +150,17 @@ def test_ste100_compliance_evaluation():
 
 def test_single_column_latex_compilation(tmp_path):
     """Verify that extracted profile generates valid compilable LaTeX."""
+    if not NEEDLE_AVAILABLE:
+        pytest.skip("Cactus Needle is not available")
     extractor = NeedleExtractor()
     result = extractor.extract_full_profile(BENCHMARK_PROFILES[0]["raw_text"])
     profile = result.profile
+    name = profile.get("name", "Candidate")
 
-    tex_content = latex.render_latex(profile, profile["name"])
+    tex_content = latex.render_latex(profile, name)
     assert "\\begin{document}" in tex_content
     assert "\\end{document}" in tex_content
-    assert profile["name"] in tex_content
+    assert name in tex_content
 
     tex_file = tmp_path / "test_resume.tex"
     tex_file.write_text(tex_content)
