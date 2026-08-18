@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@bytecats/ui-kit": "github:4cecoder/ui-kit",
+    "@convex-dev/stripe": "^0.1.6",
     "@huggingface/transformers": "^4.2.0",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.221.0",
     "@opentelemetry/resources": "^2.10.0",
