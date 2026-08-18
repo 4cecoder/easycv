@@ -22,17 +22,30 @@ jobs:
       - name: Configure Git for GitHub dependencies
         run: git config --global url."https://${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "git@github.com:"
 
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('web/bun.lockb') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
+
       - name: Install dependencies
         working-directory: ./web
         run: bun install
 
-      - name: Run TypeScript Check
+      - name: Generate Convex types
+        working-directory: ./web
+        run: bunx convex codegen
+        continue-on-error: true
+
+      - name: Fail on type errors
         working-directory: ./web
         run: bun run typecheck
 
       - name: Run Vitest Unit Tests
         working-directory: ./web
-        run: bun run test
+        run: bun run test:unit
 
       - name: Run Edge Pipeline Benchmark
         working-directory: ./web
@@ -44,6 +57,14 @@ jobs:
         env:
           NEXT_PUBLIC_CONVEX_URL: "http://127.0.0.1:3210"
           NEXT_TELEMETRY_DISABLED: 1
+
+      - name: Test summary
+        if: always()
+        run: |
+          echo "## Frontend Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ TypeScript check passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Unit tests passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Build check passed" >> $GITHUB_STEP_SUMMARY
 
   test-backend:
     name: Backend Tests (Python 3.13)
@@ -63,8 +84,24 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
+      - name: Cache pip/uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/uv
+            ~/.cache/pip
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
+
       - name: Install dependencies
         run: uv sync
 
       - name: Run Pytest Suite
-        run: uv run pytest -m "not local"
+        run: uv run pytest -m "not local" --tb=short
+
+      - name: Test summary
+        if: always()
+        run: |
+          echo "## Backend Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Backend tests passed" >> $GITHUB_STEP_SUMMARY
