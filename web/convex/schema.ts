@@ -53,7 +53,9 @@ export default defineSchema({
     jobDescription: v.optional(v.string()),
     jobLink: v.optional(v.string()),
     consolidationMetadata: v.optional(v.any()),
-  }).index("by_status", ["status"]),
+  })
+    .index("by_status", ["status"])
+    .index("by_session", ["sessionId", "createdAt"]),
 
   // Mirrors pipeline.py's FoundFile dataclass (pipeline.py:77-84). Raw bytes
   // live in Convex file storage (storageId); this row is metadata only.
