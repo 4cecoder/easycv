@@ -2,18 +2,31 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useQuery } from "convex/react";
+import { api } from "../convex/_generated/api";
+import { getBrowserSessionId } from "../lib/fingerprint";
 import { 
   Command, 
   FileText, 
   Zap, 
-  Keyboard,
-  X,
-  Sparkles,
-  Layers
+  Keyboard, 
+  X, 
+  User, 
+  CheckCircle2, 
+  Lock 
 } from "lucide-react";
+import { AccountSignupModal } from "./AccountSignupModal";
 
 export function AppHeader() {
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [sessionId, setSessionId] = useState("");
+
+  useEffect(() => {
+    setSessionId(getBrowserSessionId());
+  }, []);
+
+  const account = useQuery(api.auth.getAccountBySession, sessionId ? { sessionId } : "skip");
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -56,18 +69,29 @@ export function AppHeader() {
             </div>
           </div>
 
-          {/* Center / Right: Engine Status & Fast Command Bar */}
+          {/* Center / Right: Engine Status & Account Action */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Engine Status Badge */}
-            <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-400">
-              <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>AI Engine Active</span>
-            </div>
+            
+            {/* User Account / Sync Button */}
+            {account?.verified ? (
+              <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs text-emerald-400 font-medium">
+                <CheckCircle2 className="size-3 text-emerald-400" />
+                <span className="max-w-[120px] truncate">{account.email}</span>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className="flex items-center gap-1.5 rounded-md border border-border bg-muted/40 hover:bg-muted px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-all"
+              >
+                <User className="size-3.5" />
+                <span className="text-[11px] font-medium">Sign In / Sync</span>
+              </button>
+            )}
 
             {/* Quick Command Palette Button */}
             <button
               onClick={() => setShowShortcuts(true)}
-              className="flex items-center gap-1.5 rounded-md border border-border bg-muted/40 hover:bg-muted px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-all"
+              className="hidden sm:flex items-center gap-1.5 rounded-md border border-border bg-muted/40 hover:bg-muted px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-all"
               title="Keyboard Shortcuts (Press ? or ⌘K)"
             >
               <Keyboard className="size-3.5" />
@@ -83,11 +107,17 @@ export function AppHeader() {
               className="flex items-center gap-1.5 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground px-2.5 py-1 text-xs font-semibold shadow-xs transition-all active:scale-95"
             >
               <Zap className="size-3.5" />
-              <span>New Analysis</span>
+              <span>New CV</span>
             </Link>
           </div>
         </div>
       </header>
+
+      {/* Account Signup / Sync Modal */}
+      <AccountSignupModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+      />
 
       {/* Keyboard Shortcuts Modal */}
       {showShortcuts && (
@@ -108,33 +138,37 @@ export function AppHeader() {
 
             <div className="py-3 flex flex-col gap-2.5 text-xs">
               <div className="flex items-center justify-between py-1 border-b border-border/40">
-                <span className="text-muted-foreground">Toggle Shortcuts Palette</span>
-                <kbd className="rounded bg-muted px-2 py-0.5 font-mono text-[11px] border border-border">⌘K or ?</kbd>
+                <span className="text-muted-foreground">Open Document Preview</span>
+                <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">1</kbd>
               </div>
               <div className="flex items-center justify-between py-1 border-b border-border/40">
-                <span className="text-muted-foreground">Submit / Generate Resume</span>
-                <kbd className="rounded bg-muted px-2 py-0.5 font-mono text-[11px] border border-border">Enter ↵</kbd>
+                <span className="text-muted-foreground">Job Match Scoring</span>
+                <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">2</kbd>
               </div>
               <div className="flex items-center justify-between py-1 border-b border-border/40">
-                <span className="text-muted-foreground">Switch Resume Preview Tabs</span>
-                <kbd className="rounded bg-muted px-2 py-0.5 font-mono text-[11px] border border-border">1, 2, 3, 4, 5</kbd>
+                <span className="text-muted-foreground">Grammar & Impact Linter</span>
+                <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">3</kbd>
               </div>
               <div className="flex items-center justify-between py-1 border-b border-border/40">
-                <span className="text-muted-foreground">Vector PDF & LaTeX Export</span>
-                <kbd className="rounded bg-muted px-2 py-0.5 font-mono text-[11px] border border-border">Pro Package</kbd>
+                <span className="text-muted-foreground">Multi-Doc Career Vault</span>
+                <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">4</kbd>
               </div>
-              <div className="flex items-center justify-between py-1">
-                <span className="text-muted-foreground">Quality Check</span>
-                <span className="font-mono text-emerald-400 font-semibold">ASD-STE100 Validated</span>
+              <div className="flex items-center justify-between py-1 border-b border-border/40">
+                <span className="text-muted-foreground">Export Documents</span>
+                <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">5</kbd>
+              </div>
+              <div className="flex items-center justify-between py-1 border-b border-border/40">
+                <span className="text-muted-foreground">Show Keyboard Shortcuts</span>
+                <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">⌘K or ?</kbd>
               </div>
             </div>
 
-            <div className="pt-3 border-t border-border flex justify-end">
+            <div className="pt-2 border-t border-border flex justify-end">
               <button
                 onClick={() => setShowShortcuts(false)}
-                className="rounded-md bg-secondary hover:bg-secondary/80 px-3 py-1.5 text-xs font-semibold text-foreground transition-colors"
+                className="px-3 py-1.5 text-xs font-semibold rounded bg-muted hover:bg-muted/80 text-foreground"
               >
-                Close (Esc)
+                Close
               </button>
             </div>
           </div>

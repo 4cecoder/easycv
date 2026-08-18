@@ -285,4 +285,17 @@ export default defineSchema({
   })
     .index("by_session", ["sessionId"])
     .index("by_category", ["category"]),
+
+  // User account signup & email verification (via Resend)
+  userAccounts: defineTable({
+    email: v.string(),
+    sessionId: v.string(),
+    verified: v.boolean(),
+    verificationCode: v.optional(v.string()),
+    codeExpiresAt: v.optional(v.number()),
+    createdAt: v.number(),
+    lastLoginAt: v.number(),
+  })
+    .index("by_email", ["email"])
+    .index("by_session", ["sessionId"]),
 });

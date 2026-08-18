@@ -11,15 +11,10 @@ import {
   Send,
   Sparkles,
   Bot,
-  User,
   ThumbsUp,
   ThumbsDown,
-  ChevronDown,
-  Lock,
-  ArrowRight,
   CheckCircle2,
   HelpCircle,
-  Zap,
 } from "lucide-react";
 import { Button, Badge } from "@bytecats/ui-kit";
 
@@ -38,47 +33,47 @@ interface ChatMessage {
 
 const FAQ_KNOWLEDGE_BASE = [
   {
-    category: "ats",
-    keywords: ["ats", "applicant tracking", "scanner", "parse", "filter", "score"],
-    question: "How does easyCV ensure 100% ATS compatibility?",
+    category: "download",
+    keywords: ["download", "pdf", "get", "file", "save", "export", "print"],
+    question: "How do I download my resume?",
     answer:
-      "easyCV compiles your resume using standard single-column semantic structures with certified machine-readable typographics. Our autonomous engine scores your density against enterprise ATS parsers (Workday, Greenhouse, Lever, Taleo) and flags any missing keywords before submission.",
+      "Once your resume is generated, click the 'Download PDF' button in the top action bar of your preview workspace. You'll get a clean, high-resolution document ready to send directly to employers.",
   },
   {
     category: "pricing",
-    keywords: ["cost", "price", "pro", "pay", "upgrade", "14", "dollar", "buy", "subscription"],
+    keywords: ["cost", "price", "pro", "pay", "upgrade", "14", "dollar", "buy", "subscription", "fee"],
     question: "What comes with easyCV Pro ($14)?",
     answer:
-      "easyCV Pro is a $14 one-time upgrade (never a recurring subscription). It unlocks unlimited AI Auto-Improvements, unwatermarked Vector PDF compilation, modular LaTeX source code (.tex for Overleaf), and standalone HTML exports.",
+      "easyCV Pro is a simple $14 one-time purchase (no recurring subscriptions). It gives you unlimited resume auto-improvements, unwatermarked PDF downloads, and complete document source files.",
     hasUpgradeCta: true,
   },
   {
-    category: "latex",
-    keywords: ["latex", "tex", "overleaf", "source", "code", "compile"],
-    question: "Can I download and edit the raw LaTeX (.tex) code?",
+    category: "formatting",
+    keywords: ["ats", "format", "compatible", "layout", "scanner", "read", "style"],
+    question: "How does easyCV format my resume?",
     answer:
-      "Yes! easyCV Pro gives you full access to the underlying modular LaTeX source. You can download the `.tex` file with 1 click and import it into Overleaf, TeXShop, or compile locally with pdflatex/xelatex.",
+      "easyCV formats your resume to match standard company hiring guidelines so hiring managers and recruiting systems can easily read your skills, titles, and career history without layout errors.",
   },
   {
-    category: "consolidation",
-    keywords: ["multiple", "files", "merge", "consolidate", "old", "vault", "history"],
-    question: "How does multi-resume consolidation work?",
+    category: "multiple_files",
+    keywords: ["multiple", "files", "merge", "combine", "old", "history", "past", "vault"],
+    question: "Can I upload multiple previous resumes?",
     answer:
-      "You can drop 2, 5, or 10 past resumes, LinkedIn PDFs, and performance reviews together. The neural engine deduplicates overlapping titles, resolves chronology, and synthesizes your single best master executive CV.",
+      "Yes! You can drop all your past resumes, profiles, and project notes at once. Our system automatically combines your experiences into a single, polished master resume.",
   },
   {
-    category: "ste100",
-    keywords: ["ste", "ste100", "ste-100", "grammar", "rule", "gerund", "words", "sentence"],
-    question: "What is ASD-STE100 Technical Grammar Linting?",
+    category: "clarity",
+    keywords: ["grammar", "score", "clarity", "bullets", "words", "improve", "fix"],
+    question: "How does resume clarity scoring work?",
     answer:
-      "ASD-STE100 (Simplified Technical English) is the aerospace standard for mission-critical documentation. easyCV enforces Rule 5.1 (max 25 words per sentence) and Rule 3.5 (strong active verbs, restricting vague gerunds like 'managing' or 'helping') so recruiters read punchy, high-impact accomplishments.",
+      "We check your resume bullet points for concise phrasing, strong active accomplishments, and clear metrics so recruiters can quickly see your biggest achievements.",
   },
   {
-    category: "pdf",
-    keywords: ["pdf", "vector", "download", "watermark", "print"],
-    question: "What is the difference between regular and Vector PDF?",
+    category: "account",
+    keywords: ["account", "sign in", "login", "email", "save", "sync", "device", "phone"],
+    question: "How do I access my saved resumes on another device?",
     answer:
-      "Standard web PDFs often rasterize text or break font embedding when uploaded to job portals. easyCV compiles true Vector PDFs with selectable embedded vector glyphs, guaranteeing crisp typography on any screen or high-resolution printer.",
+      "Enter your email in the 'Sign In' button in the top menu. We will send you a fast 6-digit login code so you can access your saved resumes on any computer or phone.",
   },
 ];
 
@@ -89,7 +84,7 @@ export function FAQAssistantChat() {
     {
       id: "welcome",
       sender: "bot",
-      text: "Hello! I am your easyCV AI Concierge. Ask me anything about ATS optimization, LaTeX exports, ASD-STE100 grammar scoring, or Pro features.",
+      text: "Hello! I am your easyCV Assistant. Ask me any question about formatting your resume, downloading files, or upgrading your account.",
     },
   ]);
   const [isTyping, setIsTyping] = useState(false);
@@ -111,7 +106,6 @@ export function FAQAssistantChat() {
   const findBestAnswer = (queryText: string) => {
     const lower = queryText.toLowerCase();
     
-    // Match against knowledge base
     let bestMatch = null;
     let maxScore = 0;
 
@@ -134,9 +128,8 @@ export function FAQAssistantChat() {
       };
     }
 
-    // Default intelligent fallback
     return {
-      text: "easyCV uses an on-device neural parser and modular LaTeX engine to build recruiter-grade resumes. You can upload past files, auto-improve gaps with ASD-STE100 compliance, and unlock full Vector PDF exports with Pro ($14).",
+      text: "easyCV helps you build clean, recruiter-ready resumes in seconds. You can upload past files, auto-improve your bullet points, and download your final PDF with Pro ($14).",
       category: "general",
       hasUpgradeCta: false,
     };
@@ -188,7 +181,7 @@ export function FAQAssistantChat() {
         },
       ]);
       setIsTyping(false);
-    }, 450);
+    }, 350);
   };
 
   const handleFeedback = async (msgId: string, queryId: Id<"faqQueries"> | undefined, rating: "helpful" | "unhelpful") => {
@@ -211,7 +204,7 @@ export function FAQAssistantChat() {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="group flex items-center gap-2.5 rounded-full bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground shadow-xl transition-all hover:scale-105 active:scale-95 hover:shadow-2xl border border-primary/40"
+          className="group flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground shadow-xl transition-all hover:scale-105 active:scale-95 hover:shadow-2xl border border-primary/40"
         >
           <div className="relative">
             <MessageSquare className="size-4" />
@@ -220,13 +213,13 @@ export function FAQAssistantChat() {
               <span className="relative inline-flex rounded-full size-2 bg-emerald-500"></span>
             </span>
           </div>
-          <span>AI Concierge & FAQ</span>
+          <span>Help & Support</span>
         </button>
       )}
 
       {/* Expanded Interactive Chat Modal */}
       {isOpen && (
-        <div className="flex flex-col w-[360px] sm:w-[400px] h-[520px] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="flex flex-col w-[350px] sm:w-[380px] h-[500px] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
           
           {/* Chat Header */}
           <div className="flex items-center justify-between px-4 py-3.5 border-b border-border bg-muted/40 backdrop-blur-sm">
@@ -236,12 +229,12 @@ export function FAQAssistantChat() {
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <h3 className="text-xs font-bold text-foreground">easyCV Concierge</h3>
+                  <h3 className="text-xs font-bold text-foreground">easyCV Support</h3>
                   <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-emerald-500/10 text-emerald-400 border-emerald-500/20 font-mono">
-                    AI Online
+                    Online
                   </Badge>
                 </div>
-                <p className="text-[10px] text-muted-foreground">Instant answers on ATS, LaTeX & Pro</p>
+                <p className="text-[10px] text-muted-foreground">Instant help with formatting & downloads</p>
               </div>
             </div>
             <button
@@ -255,10 +248,10 @@ export function FAQAssistantChat() {
           {/* Quick FAQ Chips */}
           <div className="p-2 border-b border-border bg-muted/10 overflow-x-auto flex gap-1.5 select-none no-scrollbar">
             {[
-              "ATS Compatibility",
+              "How to download?",
               "What is Pro ($14)?",
-              "Overleaf LaTeX Export",
-              "STE-100 Grammar Rules",
+              "Multiple resumes",
+              "Resume formatting",
             ].map((chip) => (
               <button
                 key={chip}
@@ -287,7 +280,7 @@ export function FAQAssistantChat() {
                   {m.text}
                 </div>
 
-                {/* Bot Feedback Rating & Action Buttons */}
+                {/* Bot Feedback Rating */}
                 {m.sender === "bot" && m.id !== "welcome" && (
                   <div className="flex items-center gap-2 mt-1.5 px-1 text-[10px] text-muted-foreground">
                     <span>Was this helpful?</span>
@@ -317,7 +310,7 @@ export function FAQAssistantChat() {
             {isTyping && (
               <div className="flex items-center gap-2 text-muted-foreground text-[11px] px-2 py-1">
                 <Sparkles className="size-3 text-primary animate-spin" />
-                <span>easyCV Concierge is thinking...</span>
+                <span>easyCV Support is typing...</span>
               </div>
             )}
             <div ref={messagesEndRef} />
@@ -335,7 +328,7 @@ export function FAQAssistantChat() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about ATS, LaTeX, exports..."
+              placeholder="Ask a question about easyCV..."
               className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
             />
             <button
