@@ -297,7 +297,7 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
   return (
     <div className="relative min-h-[calc(100vh-3rem)] w-full fluent-subtle-grid pb-20">
       
-      {/* Microsoft 365 / Azure Command Ribbon */}
+      {/* Action Command Ribbon */}
       <div className="sticky top-12 z-30 w-full border-b border-border bg-card/95 backdrop-blur-md shadow-2xs">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-2 sm:px-6">
           
@@ -464,8 +464,8 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
           )
         )}
 
-        {/* Microsoft Fluent Pivot Navigation Tab Strip */}
-        <div className="flex items-center gap-1 border-b border-border overflow-x-auto pb-px">
+        {/* Pivot Navigation Tab Strip */}
+        <div className="flex items-center justify-between gap-4 border-b border-border bg-card/60 backdrop-blur-xs px-4 sm:px-6">
           {[
             { id: "document", label: "Resume", icon: FileText },
             { id: "match", label: "Job Match", icon: Target },

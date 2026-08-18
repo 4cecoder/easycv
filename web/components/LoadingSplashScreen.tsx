@@ -64,16 +64,13 @@ export const LoadingSplashScreen: React.FC = () => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
       <div className="relative z-10 flex w-full max-w-lg flex-col rounded-2xl border border-border bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-200">
         
-        {/* Header with Fluent Quad Badge & Hardware Status */}
+        {/* Header with Clean Brand Badge & Hardware Status */}
         <div className="flex items-center justify-between pb-4 border-b border-border/80">
           <div className="flex items-center gap-2.5">
-            <div className="grid grid-cols-2 gap-0.5 size-4 p-0.5 rounded bg-muted/80">
-              <div className="size-1.5 rounded-[1px] bg-[#F25022]"></div>
-              <div className="size-1.5 rounded-[1px] bg-[#7FBA00]"></div>
-              <div className="size-1.5 rounded-[1px] bg-[#00A4EF]"></div>
-              <div className="size-1.5 rounded-[1px] bg-[#FFB900]"></div>
+            <div className="flex size-5 items-center justify-center rounded bg-primary text-primary-foreground shadow-2xs">
+              <Zap className="size-3" />
             </div>
-            <span className="text-xs font-bold tracking-tight text-foreground">easyCV Processing Engine</span>
+            <span className="text-xs font-bold tracking-tight text-foreground">easyCV Engine</span>
           </div>
 
           <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-primary/10 text-primary border border-primary/20">

@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 test.describe("Landing Page & Job URL Detection E2E Workflow", () => {
   test("renders heading and dropzone elements cleanly", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator("h1")).toContainText("Professional ATS Resume Intelligence");
+    await expect(page.locator("h1")).toContainText("Build your resume");
     await expect(page.getByText("Drop your resume documents here")).toBeVisible();
   });
 
