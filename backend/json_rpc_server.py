@@ -57,6 +57,10 @@ class EdgeRpcDispatcher:
                 result = self._lint_ste100(params)
             elif method == "latex.render":
                 result = self._render_latex(params)
+            elif method == "resume.remix":
+                result = self._remix_resume(params)
+            elif method == "resume.categorizeSkills":
+                result = self._categorize_skills(params)
             elif method == "pipeline.consolidate":
                 result = self._consolidate(params)
             else:
@@ -129,6 +133,23 @@ class EdgeRpcDispatcher:
         display_name = params.get("name") or profile.get("name", "Candidate")
         tex_code = latex.render_latex(profile, display_name)
         return {"tex": tex_code, "name": display_name}
+
+    def _remix_resume(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        from backend.resume_remixer import ResumeRemixer
+        remixer = ResumeRemixer()
+        profile = params.get("profile", {})
+        target_role = params.get("target_role")
+        highlight_skills = params.get("highlight_skills")
+        max_bullets = params.get("max_bullets", 4)
+        remixed = remixer.remix_profile(profile, target_role, highlight_skills, max_bullets)
+        tex = remixer.remix_and_render_latex(profile, target_role, highlight_skills)
+        return {"profile": remixed, "tex": tex}
+
+    def _categorize_skills(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        from backend.resume_remixer import SmartCategorizer
+        skills = params.get("skills", [])
+        categorized = SmartCategorizer.categorize_skills(skills)
+        return {"categories": categorized}
 
     def _consolidate(self, params: Dict[str, Any]) -> Dict[str, Any]:
         paths = params.get("paths", [])
