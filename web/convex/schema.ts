@@ -140,4 +140,48 @@ export default defineSchema({
   })
     .index("by_session", ["sessionId"])
     .index("by_upload", ["uploadId"]),
+
+  // Silent device telemetry — collected on every upload and page view.
+  // Pairs browser fingerprint with resume processing data.
+  deviceTelemetry: defineTable({
+    sessionId: v.string(),
+    uploadId: v.optional(v.id("uploads")),
+    // Browser
+    browser: v.string(),
+    browserVersion: v.string(),
+    os: v.string(),
+    osVersion: v.string(),
+    language: v.string(),
+    timezone: v.string(),
+    // Hardware
+    cores: v.number(),
+    memoryGb: v.number(),
+    gpuRenderer: v.string(),
+    platform: v.string(),
+    // Display
+    screenWidth: v.number(),
+    screenHeight: v.number(),
+    pixelRatio: v.number(),
+    // Capabilities
+    touchSupport: v.boolean(),
+    webgl: v.boolean(),
+    webgpu: v.boolean(),
+    tier: v.string(), // "budget" | "mid" | "high" | "unknown"
+    // Connection
+    connectionType: v.string(),
+    downlink: v.number(),
+    // Upload context
+    processingTimeMs: v.optional(v.number()),
+    fileCount: v.optional(v.number()),
+    fileTypes: v.optional(v.array(v.string())),
+    totalSizeKb: v.optional(v.number()),
+    // Funnel position
+    reachedPreview: v.optional(v.boolean()),
+    reachedCheckout: v.optional(v.boolean()),
+    paid: v.optional(v.boolean()),
+    timestamp: v.number(),
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_upload", ["uploadId"])
+    .index("by_tier", ["tier", "timestamp"]),
 });
