@@ -83,6 +83,50 @@ export const getUpload = query({
   },
 });
 
+export const listSessionUploads = query({
+  args: {
+    sessionId: v.string(),
+  },
+  handler: async (ctx, { sessionId }) => {
+    if (!sessionId) return [];
+    const uploads = await ctx.db
+      .query("uploads")
+      .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+      .order("desc")
+      .take(15);
+
+    const results = await Promise.all(
+      uploads.map(async (u) => {
+        const profile = await ctx.db
+          .query("structuredProfiles")
+          .withIndex("by_upload", (q) => q.eq("uploadId", u._id))
+          .first();
+        const files = await ctx.db
+          .query("resumeFiles")
+          .withIndex("by_upload", (q) => q.eq("uploadId", u._id))
+          .collect();
+        const payment = await ctx.db
+          .query("payments")
+          .withIndex("by_upload", (q) => q.eq("uploadId", u._id))
+          .first();
+
+        return {
+          _id: u._id,
+          status: u.status,
+          createdAt: u.createdAt,
+          name: profile?.name || files[0]?.filename || "Resume Document",
+          role: profile?.titles?.[0] || "Consolidated Profile",
+          filesCount: files.length,
+          qualityScore: profile?.qualityScore ?? 88,
+          isPaid: Boolean(payment?.status === "paid"),
+        };
+      })
+    );
+
+    return results;
+  },
+});
+
 // --- Worker-facing mutations ------------------------------------------
 // See convex/workerAuth.ts for why these are public-but-secret-gated
 // rather than internalMutation.

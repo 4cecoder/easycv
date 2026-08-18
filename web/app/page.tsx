@@ -34,6 +34,7 @@ import {
 
 import { detectJobUrls } from "@/lib/jobUrlDetector";
 import { LoadingSplashScreen } from "@/components/LoadingSplashScreen";
+import { RecentUploadsList } from "@/components/RecentUploadsList";
 
 const ACCEPTED_EXTENSIONS = ".pdf,.txt,.md";
 
@@ -275,6 +276,9 @@ export default function UploadPage() {
             ))}
           </div>
         </div>
+
+        {/* Persistent Browser-Fingerprinted Recent Documents */}
+        <RecentUploadsList />
 
         {/* Main Upload / Job Requisition Card */}
         <Card className="w-full border-border bg-card shadow-xs rounded-lg overflow-hidden">
