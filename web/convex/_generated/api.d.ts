@@ -10,10 +10,8 @@
 
 import type * as admin from "../admin.js";
 import type * as audit from "../audit.js";
-import type * as auth from "../auth.js";
 import type * as authz from "../authz.js";
 import type * as behavior from "../behavior.js";
-import type * as faq from "../faq.js";
 import type * as files from "../files.js";
 import type * as http from "../http.js";
 import type * as identity from "../identity.js";
@@ -36,10 +34,8 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   audit: typeof audit;
-  auth: typeof auth;
   authz: typeof authz;
   behavior: typeof behavior;
-  faq: typeof faq;
   files: typeof files;
   http: typeof http;
   identity: typeof identity;
