@@ -11,6 +11,7 @@ import { PostHogProvider } from "./PostHogProvider";
 import { AppHeader } from "@/components/AppHeader";
 import { DevDebugMenu } from "@/components/DevDebugMenu";
 import { FAQAssistantChat } from "@/components/FAQAssistantChat";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 const figtree = Figtree({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -22,23 +23,25 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={cn("dark font-sans", figtree.variable)} style={{ colorScheme: "dark" }}>
-      <body className="min-h-screen bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary dark">
+    <html lang="en" className={cn("dark font-sans", figtree.variable)} suppressHydrationWarning>
+      <body className="min-h-screen bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary transition-colors duration-150">
         <PostHogProvider>
           <ConvexClientProvider>
-            <div className="flex min-h-screen flex-col">
-              <AppHeader />
-              <div className="flex-1">{children}</div>
-              <footer className="border-t border-border py-4 px-6 text-center">
-                <p className="text-[11px] text-muted-foreground">
-                  easyCV uses analytics to improve our service.{" "}
-                  <a href="/privacy" className="underline hover:text-foreground transition-colors">Privacy</a>{" "}
-                  · <a href="/terms" className="underline hover:text-foreground transition-colors">Terms</a>
-                </p>
-              </footer>
-              <FAQAssistantChat />
-              <DevDebugMenu />
-            </div>
+            <ThemeProvider>
+              <div className="flex min-h-screen flex-col">
+                <AppHeader />
+                <div className="flex-1">{children}</div>
+                <footer className="border-t border-border py-4 px-6 text-center">
+                  <p className="text-[11px] text-muted-foreground">
+                    easyCV uses analytics to improve our service.{" "}
+                    <a href="/privacy" className="underline hover:text-foreground transition-colors">Privacy</a>{" "}
+                    · <a href="/terms" className="underline hover:text-foreground transition-colors">Terms</a>
+                  </p>
+                </footer>
+                <FAQAssistantChat />
+                <DevDebugMenu />
+              </div>
+            </ThemeProvider>
           </ConvexClientProvider>
         </PostHogProvider>
       </body>
