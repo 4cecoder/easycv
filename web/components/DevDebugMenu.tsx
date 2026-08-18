@@ -14,7 +14,10 @@ import {
   Sparkles,
   CheckCircle2,
   XCircle,
-  FileCode
+  FileCode,
+  Wifi,
+  Copy,
+  Check
 } from "lucide-react";
 import { detectHardwareProfile, type HardwareProfile } from "../lib/hardwareDetection";
 
@@ -24,10 +27,22 @@ export const DevDebugMenu: React.FC = () => {
   const [rpcStatus, setRpcStatus] = useState<"checking" | "online" | "offline">("checking");
   const [convexStatus, setConvexStatus] = useState<"checking" | "online" | "offline">("checking");
   const [pingMs, setPingMs] = useState<number | null>(null);
+  const [lanInfo, setLanInfo] = useState<{ lanIp: string; networkUrl: string } | null>(null);
+  const [copiedLan, setCopiedLan] = useState(false);
 
   useEffect(() => {
     // Detect hardware profile
     detectHardwareProfile().then(setHardware);
+
+    // Fetch LAN IP for mobile network testing
+    fetch("/api/dev/lan-ip")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.networkUrl) {
+          setLanInfo(data);
+        }
+      })
+      .catch(() => {});
 
     // Probe Convex health
     const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL || "http://127.0.0.1:3210";
@@ -54,6 +69,14 @@ export const DevDebugMenu: React.FC = () => {
       });
   }, []);
 
+  const handleCopyLan = () => {
+    if (lanInfo?.networkUrl) {
+      navigator.clipboard.writeText(lanInfo.networkUrl);
+      setCopiedLan(true);
+      setTimeout(() => setCopiedLan(false), 2000);
+    }
+  };
+
   // Only render in local development
   if (process.env.NODE_ENV === "production") {
     return null;
@@ -70,16 +93,19 @@ export const DevDebugMenu: React.FC = () => {
           <span className="flex size-2 rounded-full bg-emerald-500 animate-pulse" />
           <Terminal className="size-3.5 text-primary group-hover:rotate-12 transition-transform" />
           <span className="font-mono font-semibold tracking-tight">DEV TOOLS</span>
-          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
-            {hardware?.hasWebGPU ? "WebGPU" : "CPU"}
-          </span>
+          {lanInfo?.lanIp && (
+            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground flex items-center gap-1">
+              <Wifi className="size-2.5" />
+              {lanInfo.lanIp}
+            </span>
+          )}
           <ChevronUp className="size-3 text-muted-foreground" />
         </button>
       )}
 
       {/* Expanded Dev Panel */}
       {isOpen && (
-        <div className="flex w-88 flex-col rounded-xl border border-border bg-card/98 p-4 shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom-3 duration-200">
+        <div className="flex w-92 flex-col rounded-xl border border-border bg-card/98 p-4 shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom-3 duration-200">
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-border">
             <div className="flex items-center gap-2">
@@ -99,8 +125,35 @@ export const DevDebugMenu: React.FC = () => {
             </button>
           </div>
 
+          {/* Network & LAN Host Address */}
+          {lanInfo?.networkUrl && (
+            <div className="my-2.5 rounded-lg border border-primary/25 bg-primary/[0.04] p-2.5 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="flex size-6 items-center justify-center rounded bg-primary/10 text-primary shrink-0">
+                  <Wifi className="size-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                    LAN Mobile Access
+                  </span>
+                  <span className="font-mono text-xs font-semibold text-foreground truncate block">
+                    {lanInfo.networkUrl}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={handleCopyLan}
+                className="flex items-center gap-1 rounded bg-muted/60 hover:bg-muted px-2 py-1 text-[11px] font-medium text-foreground transition-colors shrink-0"
+                title="Copy LAN URL"
+              >
+                {copiedLan ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
+                <span>{copiedLan ? "Copied" : "Copy"}</span>
+              </button>
+            </div>
+          )}
+
           {/* Backend & Edge Services Probe */}
-          <div className="my-3 space-y-2">
+          <div className="mb-3 space-y-2">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               Local Service Probes
             </span>
@@ -112,7 +165,7 @@ export const DevDebugMenu: React.FC = () => {
                   <span className="truncate">Convex DB</span>
                 </div>
                 {convexStatus === "online" ? (
-                  <span className="flex items-center gap-1 text-emerald-600 font-semibold text-[10px]">
+                  <span className="flex items-center gap-1 text-emerald-400 font-semibold text-[10px]">
                     <CheckCircle2 className="size-3" /> 3210
                   </span>
                 ) : (
@@ -129,7 +182,7 @@ export const DevDebugMenu: React.FC = () => {
                   <span className="truncate">Edge Engine RPC</span>
                 </div>
                 {rpcStatus === "online" ? (
-                  <span className="flex items-center gap-1 text-emerald-600 font-semibold text-[10px]">
+                  <span className="flex items-center gap-1 text-emerald-400 font-semibold text-[10px]">
                     <CheckCircle2 className="size-3" /> {pingMs}ms
                   </span>
                 ) : (
@@ -143,6 +196,12 @@ export const DevDebugMenu: React.FC = () => {
 
           {/* Detected Hardware Specs */}
           <div className="mb-3 space-y-1.5 rounded-lg border border-border bg-muted/20 p-2.5 font-mono text-[11px]">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">LAN IP:</span>
+              <span className="font-semibold text-foreground font-mono">
+                {lanInfo?.lanIp || "Detecting..."}
+              </span>
+            </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">GPU / Renderer:</span>
               <span className="font-semibold text-foreground truncate max-w-[140px]">
