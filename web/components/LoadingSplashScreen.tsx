@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Cpu, ShieldCheck, Zap, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Cpu, ShieldCheck, Zap, Sparkles, CheckCircle2, Layers } from 'lucide-react';
 import { detectHardwareProfile, type HardwareProfile } from '../lib/hardwareDetection';
 
 const PIPELINE_STEPS = [
-  { id: 'extract', label: 'Ingesting documents & parsing text', weight: 0.25 },
-  { id: 'needle', label: 'Extracting structured profile with Needle 2', weight: 0.35 },
-  { id: 'ste100', label: 'Applying ASD-STE100 technical grammar linting', weight: 0.20 },
-  { id: 'latex', label: 'Compiling single-column LaTeX & PDF', weight: 0.20 },
+  { id: 'extract', label: 'Scanning document layout & historical structure', weight: 0.25 },
+  { id: 'neural', label: 'Synthesizing career trajectory & technical skills', weight: 0.35 },
+  { id: 'ste100', label: 'Auditing action verbs & ATS compliance metrics', weight: 0.20 },
+  { id: 'latex', label: 'Compiling high-density executive resume', weight: 0.20 },
 ];
 
 export const LoadingSplashScreen: React.FC = () => {
@@ -34,16 +34,15 @@ export const LoadingSplashScreen: React.FC = () => {
     };
   }, []);
 
-  const totalEstimatedMs = hardware?.estimatedPipelineDurationMs || 5000;
+  const totalEstimatedMs = hardware?.estimatedPipelineDurationMs || 4500;
 
   useEffect(() => {
     const updateIntervalMs = 50;
-    const progressPerInterval = (updateIntervalMs / totalEstimatedMs) * 92; // Reach 92% linearly, then wait for completion
+    const progressPerInterval = (updateIntervalMs / totalEstimatedMs) * 92;
 
     const progressTimer = setInterval(() => {
       setProgress((prev) => {
         const next = Math.min(prev + progressPerInterval, 95);
-        // Update current step index based on progress percent
         if (next < 25) setCurrentStepIndex(0);
         else if (next < 60) setCurrentStepIndex(1);
         else if (next < 80) setCurrentStepIndex(2);
@@ -61,21 +60,21 @@ export const LoadingSplashScreen: React.FC = () => {
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
       <div className="relative z-10 flex w-full max-w-lg flex-col rounded-2xl border border-border bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-200">
         
-        {/* Header with Clean Brand Badge & Hardware Status */}
+        {/* Header with Brand Badge & Status */}
         <div className="flex items-center justify-between pb-4 border-b border-border/80">
           <div className="flex items-center gap-2.5">
-            <div className="flex size-5 items-center justify-center rounded bg-primary text-primary-foreground shadow-2xs">
-              <Zap className="size-3" />
+            <div className="flex size-6 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-2xs">
+              <Zap className="size-3.5" />
             </div>
-            <span className="text-xs font-bold tracking-tight text-foreground">easyCV Engine</span>
+            <span className="text-xs font-bold tracking-tight text-foreground">easyCV AI Pipeline</span>
           </div>
 
           <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-primary/10 text-primary border border-primary/20">
-            <Zap className="size-3 text-primary animate-pulse" />
-            <span>{hardware?.hasWebGPU ? 'WebGPU Active' : 'Edge Optimized'}</span>
+            <Sparkles className="size-3 text-primary animate-pulse" />
+            <span>Neural Engine Active</span>
           </div>
         </div>
 
@@ -83,18 +82,18 @@ export const LoadingSplashScreen: React.FC = () => {
         <div className="my-5 text-center flex flex-col items-center">
           <div className="relative mb-3 flex size-14 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20 text-primary shadow-inner">
             <Cpu className="size-7 animate-pulse text-primary" />
-            <Sparkles className="absolute -top-1 -right-1 size-4 text-amber-500 animate-bounce" />
+            <Sparkles className="absolute -top-1 -right-1 size-4 text-primary animate-bounce" />
           </div>
 
           <p className="text-sm font-semibold text-foreground tracking-tight">
             {PIPELINE_STEPS[currentStepIndex].label}
           </p>
           <p className="text-xs font-mono text-muted-foreground mt-1">
-            Engine: {hardware?.engineName || 'Needle 2 CQ2-bit'}
+            Optimizing ATS keywords & impact metrics...
           </p>
         </div>
 
-        {/* Fluent Progress Bar */}
+        {/* Progress Bar */}
         <div className="space-y-2">
           <div className="h-2 w-full overflow-hidden rounded-full bg-muted border border-border">
             <div 
@@ -134,17 +133,16 @@ export const LoadingSplashScreen: React.FC = () => {
           })}
         </div>
 
-        {/* Live Hardware Telemetry Bar */}
+        {/* Telemetry Bar */}
         <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-background px-3 py-1.5 text-[11px] font-mono text-muted-foreground">
-          <span className="flex items-center gap-1.5 truncate max-w-[240px]">
+          <span className="flex items-center gap-1.5">
             <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-foreground truncate">{hardware?.gpuRenderer || 'Detecting hardware...'}</span>
+            <span className="text-foreground font-semibold">Autonomous Synthesis</span>
           </span>
-          <span>Cores: {hardware?.cpuCores || 4} &bull; {elapsedSeconds}s elapsed</span>
+          <span>{elapsedSeconds}s elapsed</span>
         </div>
 
       </div>
     </div>
   );
 };
-

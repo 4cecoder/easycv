@@ -94,10 +94,10 @@ export async function detectHardwareProfile(): Promise<HardwareProfile> {
   }
 
   const engineName = hasWebGPU
-    ? "Needle 2 + WebGPU Acceleration"
+    ? "AI Neural Hardware Engine"
     : isAppleSilicon
-    ? "Needle 2 (NEON/Metal Optimized)"
-    : "Needle 2 On-Device Engine";
+    ? "AI Neural Core"
+    : "AI Processing Engine";
 
   return {
     hasWebGPU,
