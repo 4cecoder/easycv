@@ -212,7 +212,7 @@ export default function UploadPage() {
                   <span className="rounded bg-primary/15 px-1.5 py-0.2 text-[10px] font-bold text-primary">$14/mo</span>
               </div>
               <span className="text-xs text-muted-foreground">
-                Unlimited LaTeX exports, ATS scoring, and job matching.
+                Unlimited exports, scoring, and job matching.
               </span>
             </div>
           </div>
@@ -233,13 +233,13 @@ export default function UploadPage() {
         <div className="flex w-full flex-col items-center gap-2 text-center mt-2">
           <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground shadow-xs">
             <span className="flex size-2 rounded-full bg-emerald-500" />
-            <span>LaTeX • ATS-Optimized</span>
+            <span>Professional Format</span>
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl text-foreground">
             Build your resume
           </h1>
           <p className="max-w-2xl text-balance text-sm text-muted-foreground font-normal">
-            Upload your CVs. Get a clean, ATS-optimized resume in seconds.
+            Upload your CVs. Get a clean, professional resume in seconds.
           </p>
         </div>
 
@@ -399,7 +399,7 @@ export default function UploadPage() {
                       <CheckCircle2 className="size-3 mr-1 inline" /> Valid Job Requisition Link
                     </Badge>
                     <span className="text-[11px] text-muted-foreground">
-                      Requirements and ATS keywords will be parsed automatically
+                      Keywords matched automatically
                     </span>
                   </div>
                 )}
@@ -420,7 +420,7 @@ export default function UploadPage() {
                   ) : (
                     <>
                       <Sparkles className="size-4" />
-                      <span>Generate ATS Master Resume</span>
+                      <span>Generate Resume</span>
                       <ArrowRight className="size-3.5 ml-1 opacity-70" />
                     </>
                   )}
@@ -443,40 +443,40 @@ export default function UploadPage() {
           <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3 shadow-2xs">
             <div className="flex items-center gap-2 text-primary font-semibold text-xs">
               <Shield className="size-3.5" />
-              <span>No Storage</span>
+              <span>Private</span>
             </div>
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Processed and deleted instantly.
+              Deleted after processing.
             </p>
           </div>
 
           <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3 shadow-2xs">
             <div className="flex items-center gap-2 text-primary font-semibold text-xs">
               <FileCheck className="size-3.5" />
-              <span>ATS-Safe</span>
+              <span>Professional</span>
             </div>
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Single-column, parser-friendly.
+              Clean, recruiter-ready format.
             </p>
           </div>
 
           <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3 shadow-2xs">
             <div className="flex items-center gap-2 text-primary font-semibold text-xs">
               <Clock className="size-3.5" />
-              <span>Instant</span>
+              <span>Fast</span>
             </div>
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Results in under a minute.
+              Done in under a minute.
             </p>
           </div>
 
           <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3 shadow-2xs">
             <div className="flex items-center gap-2 text-primary font-semibold text-xs">
               <Layers className="size-3.5" />
-              <span>LaTeX Output</span>
+              <span>PDF Export</span>
             </div>
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Professional PDF format.
+              Download or share instantly.
             </p>
           </div>
         </div>

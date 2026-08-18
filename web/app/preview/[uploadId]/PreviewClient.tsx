@@ -54,10 +54,10 @@ const SKILL_LABELS: [string, string][] = [
 ];
 
 const ENGAGEMENT_TIPS = [
-  "Quantify achievements with metrics (%",
-  "Start bullets with action verbs.",
-  "Tailor keywords to the job posting.",
-  "Single-column beats multi-column for ATS.",
+  "Use numbers to quantify achievements.",
+  "Start bullets with strong action verbs.",
+  "Tailor your resume to the job posting.",
+  "Keep it clean and easy to scan.",
 ];
 
 const STAGE_MESSAGES = [
@@ -138,7 +138,7 @@ function LoadingEngagementWidget({ status }: { status: "queued" | "processing" }
           <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-primary">
             <div className="flex items-center gap-1.5">
               <Sparkles className="size-3.5" />
-              <span>ATS Precision Insight</span>
+              <span>Score</span>
             </div>
             <span className="text-muted-foreground font-normal">Tip {tipIndex + 1}/{ENGAGEMENT_TIPS.length}</span>
           </div>
@@ -315,8 +315,8 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
               <span className="text-xs font-bold text-foreground truncate max-w-[180px] sm:max-w-none">
                 {profile.name ? `${profile.name} — ATS Master` : "ATS Master Resume"}
               </span>
-              <span className="rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 px-1.5 py-0.2 text-[10px] font-semibold">
-                LaTeX Compiled
+                <span className="rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 px-1.5 py-0.2 text-[10px] font-semibold">
+                Ready
               </span>
             </div>
           </div>
@@ -390,7 +390,7 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
           {/* Tile 2: ASD-STE100 Compliance Score */}
           <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3.5 shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">ASD-STE100 ATS Index</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Quality Score</span>
               <FileCheck className="size-4 text-primary" />
             </div>
             <div className="flex items-baseline gap-1.5 mt-1">
@@ -398,7 +398,7 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
               <span className="text-xs text-muted-foreground font-mono">/ 100</span>
             </div>
             <span className={`text-[11px] font-semibold ${ste100Summary.overallScore >= 85 ? "text-emerald-600 dark:text-emerald-400" : ste100Summary.overallScore >= 65 ? "text-amber-600 dark:text-amber-400" : "text-destructive"}`}>
-              {ste100Summary.overallScore >= 85 ? "High ATS Compatibility" : ste100Summary.overallScore >= 65 ? "Moderate Alignment" : "Action Needed"}
+              {ste100Summary.overallScore >= 85 ? "Looks great" : ste100Summary.overallScore >= 65 ? "Could be better" : "Needs work"}
             </span>
           </div>
 
@@ -771,7 +771,7 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
             <CardHeader className="border-b pb-3 flex flex-row items-center justify-between">
               <div className="flex items-center gap-2">
                 <Code className="size-4 text-primary" />
-                <h3 className="text-sm font-semibold text-foreground">Structured JSON & LaTeX Source</h3>
+                <h3 className="text-sm font-semibold text-foreground">Raw Data</h3>
               </div>
               <Button
                 variant="outline"
@@ -798,8 +798,8 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
               <Check className="size-4" />
             </div>
             <div className="flex flex-col">
-              <span className="text-xs font-bold text-foreground">Resume Ready</span>
-              <span className="text-[10px] text-muted-foreground font-mono">ATS-Optimized • LaTeX</span>
+              <span className="text-xs font-bold text-foreground">Done</span>
+              <span className="text-[10px] text-muted-foreground font-mono">Professional • PDF</span>
             </div>
           </div>
 

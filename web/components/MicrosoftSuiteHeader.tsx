@@ -58,7 +58,7 @@ export function MicrosoftSuiteHeader() {
             <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground pl-2 border-l border-border/60">
               <span>Studio</span>
               <span className="text-muted-foreground/50">/</span>
-              <span className="text-foreground font-medium">Resume Intelligence & ATS Engine</span>
+              <span className="text-foreground font-medium">Resume Builder</span>
             </div>
           </div>
 
@@ -130,7 +130,7 @@ export function MicrosoftSuiteHeader() {
                 <kbd className="rounded bg-muted px-2 py-0.5 font-mono text-[11px] border border-border">Instant (Free)</kbd>
               </div>
               <div className="flex items-center justify-between py-1">
-                <span className="text-muted-foreground">LaTeX Single-Column Engine</span>
+                <span className="text-muted-foreground">AI-Powered</span>
                 <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">ASD-STE100 Validated</span>
               </div>
             </div>

@@ -31,18 +31,18 @@ Vultr Kubernetes Engine (VKE)
 
 ---
 
-## Storage & Database Strategy
+## Database Architecture Options
 
-### 1. SQLite with PersistentVolume (Default)
-- **Zero configuration**: Runs out of the box using `k8s/convex-storage.yaml` (backed by Vultr Block Storage).
-- Ideal for quick test setups, staging, and demo deployments.
+### Option A: Self-Hosted Convex on Vultr (Default)
+- **In-Cluster Pods**: Runs `convex-backend` (port 3210/3211) and `convex-dashboard` (port 6791) directly in your Kubernetes cluster.
+- **Storage**:
+  - **SQLite (Default)**: Uses `k8s/convex-storage.yaml` persistent volume backed by Vultr Block Storage.
+  - **Vultr Managed Postgres**: Set `POSTGRES_URL=postgres://...` in `.env.production` — Convex automatically switches to `postgres-v5`.
 
-### 2. Vultr Managed Postgres (Production Recommendation)
-- High availability, automated backups, and survivability across node restarts.
-- Add `POSTGRES_URL` in `.env.production` — Convex detects it automatically and switches the database driver to `postgres-v5`:
-  ```bash
-  POSTGRES_URL=postgres://vultradmin:secretpassword@vultr-db-host.vultrdb.com:16751/easycv?sslmode=require
-  ```
+### Option B: Convex Cloud (Zero in-cluster database pods)
+- If you or your collaborator already have a Convex Cloud deployment (`https://<project>.convex.cloud`) and deploy key (`CONVEX_DEPLOY_KEY`):
+  - Set `CONVEX_MODE=cloud` and `CONVEX_DEPLOY_KEY=prod:...` in `.env.production`.
+  - `deploy.sh` automatically skips spinning up in-cluster database pods, deploys schema directly to Convex Cloud, and points the frontend/worker pods to Convex Cloud.
 
 ### Multi-Architecture Support (macOS Apple Silicon ARM64 vs Vultr AMD64)
 - **Local Testing (macOS M1 / Apple Silicon)**: `test-local.sh` and `docker-compose.yml` build images natively for `linux/arm64` for zero-lag native execution.

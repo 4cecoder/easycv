@@ -13,9 +13,9 @@ import { MicrosoftSuiteHeader } from "@/components/MicrosoftSuiteHeader";
 const figtree = Figtree({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata = {
-  title: "easyCV 365 | Professional Resume Intelligence & ATS Engine",
+  title: "easyCV | Build Your Resume",
   description:
-    "AI resume builder. Upload CVs, get a clean ATS-optimized LaTeX resume.",
+    "Upload your CVs. Get a clean, professional resume in seconds.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
