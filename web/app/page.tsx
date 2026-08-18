@@ -181,6 +181,8 @@ export default function UploadPage() {
     setError(null);
     setPending(true);
 
+    // Grab form data FIRST — event.currentTarget is null after any await
+    const formData = new FormData(event.currentTarget);
     const device = await collectDeviceProfile();
     const fileTypes = files.map((f) => f.name.split(".").pop() || "");
     const totalSizeKb = files.reduce((sum, f) => sum + f.size / 1024, 0);
@@ -194,7 +196,6 @@ export default function UploadPage() {
       device,
     });
 
-    const formData = new FormData(event.currentTarget);
     const t0 = Date.now();
     try {
       const res = await fetch("/api/upload", { method: "POST", body: formData });

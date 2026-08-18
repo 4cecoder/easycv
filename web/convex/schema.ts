@@ -270,6 +270,32 @@ export default defineSchema({
   usageQuotas: defineTable({
     sessionId: v.string(),
     autoImproveCount: v.number(),
+    sampleViewCount: v.optional(v.number()),
     lastUsedAt: v.number(),
   }).index("by_session", ["sessionId"]),
+
+  // FAQ Chatbot interactions and user feedback tracking
+  faqQueries: defineTable({
+    sessionId: v.string(),
+    question: v.string(),
+    answer: v.string(),
+    category: v.optional(v.string()),
+    feedback: v.optional(v.string()), // "helpful" | "unhelpful"
+    timestamp: v.number(),
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_category", ["category"]),
+
+  // User account signup & email verification (via Resend)
+  userAccounts: defineTable({
+    email: v.string(),
+    sessionId: v.string(),
+    verified: v.boolean(),
+    verificationCode: v.optional(v.string()),
+    codeExpiresAt: v.optional(v.number()),
+    createdAt: v.number(),
+    lastLoginAt: v.number(),
+  })
+    .index("by_email", ["email"])
+    .index("by_session", ["sessionId"]),
 });
