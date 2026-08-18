@@ -1,7 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState, type DragEvent, type FormEvent } from "react";
+import { useRef, useState, useEffect, type DragEvent, type FormEvent } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import {
   AlertCircle,
   CheckCircle2,
@@ -18,7 +20,8 @@ import {
   Cpu,
   Layers,
   ArrowRight,
-  FileCheck
+  FileCheck,
+  Lock
 } from "lucide-react";
 import { usePostHog } from "posthog-js/react";
 
@@ -35,7 +38,7 @@ import {
 import { detectJobUrls } from "@/lib/jobUrlDetector";
 import { LoadingSplashScreen } from "@/components/LoadingSplashScreen";
 import { RecentUploadsList } from "@/components/RecentUploadsList";
-import { collectDeviceProfile } from "@/lib/fingerprint";
+import { collectDeviceProfile, getBrowserSessionId } from "@/lib/fingerprint";
 import { trackUploadStarted, trackUploadComplete } from "@/lib/analytics";
 import { trackSampleLoad, trackFileRemove } from "@/lib/tracker";
 
@@ -133,6 +136,15 @@ export default function UploadPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
+  const [sessionId, setSessionId] = useState("");
+  useEffect(() => {
+    setSessionId(getBrowserSessionId());
+  }, []);
+
+  const sampleQuota = useQuery(api.faq.getSampleQuota, sessionId ? { sessionId } : "skip");
+  const consumeSample = useMutation(api.faq.consumeSampleQuota);
+  const [showSampleLimitModal, setShowSampleLimitModal] = useState(false);
+
   const detectedJobInfo = detectJobUrls(jobDescription);
 
   function syncInputFiles(next: File[]) {
@@ -166,6 +178,13 @@ export default function UploadPage() {
   }
 
   function loadSampleProfile(sample: typeof SAMPLE_PROFILES[0]) {
+    if (sampleQuota?.isExhausted) {
+      setShowSampleLimitModal(true);
+      return;
+    }
+    if (sessionId) {
+      consumeSample({ sessionId }).catch(() => {});
+    }
     trackSampleLoad(sample.person);
     const file = new File([sample.content], `${sample.person.toLowerCase().replace(/\s+/g, "_")}_resume.md`, {
       type: "text/markdown",
@@ -521,6 +540,62 @@ export default function UploadPage() {
 
         {pending && (
           <LoadingSplashScreen />
+        )}
+
+        {/* Free Sample Limit Upgrade Modal */}
+        {showSampleLimitModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+            <div className="relative z-10 flex w-full max-w-md flex-col rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200 text-center">
+              <div className="mx-auto size-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-inner">
+                <Crown className="size-6 text-primary" />
+              </div>
+              <div className="space-y-1.5">
+                <h3 className="text-lg font-bold text-foreground">
+                  Free Sample Previews Explored (2/2)
+                </h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  You've experienced your 2 free sample career previews. Ready to create your own recruiter-grade master resume?
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-border bg-muted/40 p-3.5 text-xs text-left space-y-2 font-mono">
+                <div className="flex items-center gap-2 text-foreground font-semibold">
+                  <CheckCircle2 className="size-3.5 text-emerald-400" />
+                  <span>Drop your own CV files for instant parsing</span>
+                </div>
+                <div className="flex items-center gap-2 text-foreground font-semibold">
+                  <CheckCircle2 className="size-3.5 text-emerald-400" />
+                  <span>ASD-STE100 grammar scoring & optimization</span>
+                </div>
+                <div className="flex items-center gap-2 text-foreground font-semibold">
+                  <CheckCircle2 className="size-3.5 text-emerald-400" />
+                  <span>Pro Vector PDF & LaTeX (.tex) for Overleaf</span>
+                </div>
+              </div>
+
+              <div className="pt-2 flex flex-col gap-2">
+                <Button
+                  onClick={() => {
+                    setShowSampleLimitModal(false);
+                    const element = document.getElementById("files");
+                    element?.scrollIntoView({ behavior: "smooth" });
+                  }}
+                  className="w-full h-10 text-xs font-bold bg-primary text-primary-foreground shadow-xs"
+                >
+                  <UploadCloud className="size-4 mr-1.5" />
+                  Drop My Own Files to Build CV
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowSampleLimitModal(false)}
+                  className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Close Preview
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
 
       </main>
