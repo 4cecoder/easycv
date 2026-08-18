@@ -298,4 +298,28 @@ export default defineSchema({
   })
     .index("by_email", ["email"])
     .index("by_session", ["sessionId"]),
+
+  // Indeed job postings — scraped listings tracked for matching and cleanup.
+  // status: "active" | "expired" | "removed"
+  jobPostings: defineTable({
+    title: v.string(),
+    company: v.string(),
+    location: v.optional(v.string()),
+    url: v.string(),
+    description: v.optional(v.string()),
+    // Keywords extracted from the posting for matching against profiles
+    keywords: v.array(v.string()),
+    // "active" — still live on Indeed
+    // "expired" — older than 30 days or confirmed gone
+    // "removed" — confirmed removed from Indeed before expiry
+    status: v.string(),
+    scrapedAt: v.number(),
+    lastRefreshedAt: v.optional(v.number()),
+    // Expiry and deletion thresholds (timestamps)
+    expiresAt: v.number(),
+    deletedAt: v.optional(v.number()),
+  })
+    .index("by_status", ["status"])
+    .index("by_status_and_expiresAt", ["status", "expiresAt"])
+    .index("by_url", ["url"]),
 });
