@@ -12,11 +12,13 @@ import type * as admin from "../admin.js";
 import type * as authz from "../authz.js";
 import type * as files from "../files.js";
 import type * as http from "../http.js";
+import type * as identity from "../identity.js";
 import type * as insights from "../insights.js";
 import type * as payments from "../payments.js";
 import type * as profiles from "../profiles.js";
 import type * as resumeFiles from "../resumeFiles.js";
 import type * as seed from "../seed.js";
+import type * as telemetry from "../telemetry.js";
 import type * as uploads from "../uploads.js";
 import type * as workerAuth from "../workerAuth.js";
 
@@ -31,11 +33,13 @@ declare const fullApi: ApiFromModules<{
   authz: typeof authz;
   files: typeof files;
   http: typeof http;
+  identity: typeof identity;
   insights: typeof insights;
   payments: typeof payments;
   profiles: typeof profiles;
   resumeFiles: typeof resumeFiles;
   seed: typeof seed;
+  telemetry: typeof telemetry;
   uploads: typeof uploads;
   workerAuth: typeof workerAuth;
 }>;
