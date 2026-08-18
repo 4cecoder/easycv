@@ -60,7 +60,7 @@ const ENGAGEMENT_TIPS = [
   "✨ STE-100 ATS Tip: Avoid multi-column layouts and tables for flawless ATS parsing.",
   "🔗 Career Fact: Tailoring bullet points to match target job keywords increases callback rates by 50%.",
   "📐 STE-100 ATS Tip: Start every bullet with strong action verbs ('Spearheaded', 'Architected', 'Optimized').",
-  "🚀 AI Pipeline: Your files are processed server-side by GPT-4o and never stored after processing."
+  "🚀 Instant Consolidation: Experience history merged into ATS-optimized single-column format."
 ];
 
 const STAGE_MESSAGES = [

@@ -443,10 +443,10 @@ export default function UploadPage() {
           <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3 shadow-2xs">
             <div className="flex items-center gap-2 text-primary font-semibold text-xs">
               <Shield className="size-3.5" />
-              <span>No Data Stored</span>
+              <span>Zero-Retention Processing</span>
             </div>
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Files are processed then discarded. No accounts, no tracking, no retention.
+              Your documents are processed instantly and never stored. No accounts, no logs.
             </p>
           </div>
 
