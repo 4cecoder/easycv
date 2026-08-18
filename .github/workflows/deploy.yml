@@ -1,0 +1,81 @@
+name: Deploy to Vultr Kubernetes
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Build Multi-Arch & Deploy to VKE
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Vultr Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.VCR_REGISTRY || 'registry.vultrcr.com' }}
+          username: ${{ secrets.VCR_USERNAME }}
+          password: ${{ secrets.VCR_PASSWORD }}
+
+      - name: Build & Push Frontend Image (linux/amd64)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./web
+          file: ./web/Dockerfile
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            NEXT_PUBLIC_CONVEX_URL=${{ secrets.NEXT_PUBLIC_CONVEX_URL || 'https://convex.yourdomain.com/api' }}
+          tags: |
+            ${{ secrets.VCR_REGISTRY || 'registry.vultrcr.com' }}/${{ secrets.VCR_PROJECT }}/easycv-frontend:latest
+            ${{ secrets.VCR_REGISTRY || 'registry.vultrcr.com' }}/${{ secrets.VCR_PROJECT }}/easycv-frontend:${{ github.sha }}
+
+      - name: Build & Push Worker Image (linux/amd64)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ secrets.VCR_REGISTRY || 'registry.vultrcr.com' }}/${{ secrets.VCR_PROJECT }}/easycv-worker:latest
+            ${{ secrets.VCR_REGISTRY || 'registry.vultrcr.com' }}/${{ secrets.VCR_PROJECT }}/easycv-worker:${{ github.sha }}
+
+      - name: Set up kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Run Autonomous Deployment Script
+        env:
+          VCR_PROJECT: ${{ secrets.VCR_PROJECT }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
+          CONVEX_MODE: ${{ secrets.CONVEX_MODE || 'self-hosted' }}
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          STRIPE_PRICE_ID: ${{ secrets.STRIPE_PRICE_ID }}
+          STRIPE_PRO_PRICE_ID: ${{ secrets.STRIPE_PRO_PRICE_ID }}
+          WORKER_SECRET: ${{ secrets.WORKER_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          chmod +x deploy.sh
+          ./deploy.sh

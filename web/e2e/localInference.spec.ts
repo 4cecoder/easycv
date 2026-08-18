@@ -18,7 +18,7 @@ test.describe("Free Tier Local Inference & Upload", () => {
     await page.goto("/");
     
     // Click 1-click sample resume button (which auto-submits)
-    await page.getByRole("button", { name: "Load Sample Resume" }).click();
+    await page.getByText("Alex Mercer").first().click();
 
     // Should navigate to preview route automatically via auto-submission
     await page.waitForURL("**/preview/mock-upload-id");

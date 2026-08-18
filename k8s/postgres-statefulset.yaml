@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: easycv-postgres
+  namespace: easycv
+  labels:
+    app: easycv-postgres
+    app.kubernetes.io/name: easycv-postgres
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: easycv
+spec:
+  serviceName: easycv-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: easycv-postgres
+  template:
+    metadata:
+      labels:
+        app: easycv-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_DB
+              value: "easycv"
+            - name: POSTGRES_USER
+              value: "easycv"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: easycv-secrets
+                  key: POSTGRES_PASSWORD
+                  optional: true
+            - name: PGDATA
+              value: "/var/lib/postgresql/data/pgdata"
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - easycv
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - easycv
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: easycv-postgres
+  namespace: easycv
+  labels:
+    app: easycv-postgres
+    app.kubernetes.io/name: easycv-postgres
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: easycv
+spec:
+  type: ClusterIP
+  selector:
+    app: easycv-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+      protocol: TCP

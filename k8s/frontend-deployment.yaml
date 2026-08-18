@@ -1,0 +1,103 @@
+# =============================================================================
+# easyCV Frontend Deployment — Next.js on Vultr Kubernetes Engine
+# =============================================================================
+#
+# Manages the easycv-frontend Deployment with 2 replicas, health probes,
+# resource limits, and environment variables from Secrets + ConfigMap.
+#
+# Apply:
+#   kubectl apply -f k8s/frontend-deployment.yaml -n easycv
+#
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: easycv-frontend
+  namespace: easycv
+  labels:
+    app: easycv-frontend
+    app.kubernetes.io/part-of: easycv
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: easycv-frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: easycv-frontend
+        app.kubernetes.io/part-of: easycv
+        app.kubernetes.io/component: frontend
+    spec:
+      containers:
+        - name: frontend
+          # Replace with your VCR registry path, e.g.:
+          # registry.vultrcr.com/your-registry/easycv-frontend:latest
+          image: registry.vultrcr.com/your-registry/easycv-frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          # ── Resources ────────────────────────────────────────────────────
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "250m"
+          # ── Liveness Probe ───────────────────────────────────────────────
+          # Restarts the container if the app becomes unresponsive.
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # ── Readiness Probe ──────────────────────────────────────────────
+          # Removes the pod from the Service load balancer until ready.
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          # ── Startup Probe ────────────────────────────────────────────────
+          # Next.js cold start can be slow; give it time before liveness kicks in.
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+          # ── Environment Variables ────────────────────────────────────────
+          envFrom:
+            - secretRef:
+                name: easycv-secrets
+            - configMapRef:
+                name: easycv-config
+          # ── Extra env overrides (if needed) ──────────────────────────────
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+      # ── Pod-level settings ──────────────────────────────────────────────
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      # Pull images from Vultr Container Registry
+      imagePullSecrets:
+        - name: vultr-registry-credentials

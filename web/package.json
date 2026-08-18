@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
+    "evaluate": "bun run scripts/evaluate-edge-pipeline.ts",
     "dev:convex": "convex dev",
     "typecheck": "tsc --noEmit"
   },

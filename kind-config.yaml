@@ -1,0 +1,22 @@
+# kind cluster config — maps host ports to the cluster for local testing
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      # Frontend: host 3000 → cluster NodePort 30000
+      - containerPort: 30000
+        hostPort: 3000
+        protocol: TCP
+      # Convex Backend API: host 3210 → cluster NodePort 32100
+      - containerPort: 32100
+        hostPort: 3210
+        protocol: TCP
+      # Convex Site Actions: host 3211 → cluster NodePort 32110
+      - containerPort: 32110
+        hostPort: 3211
+        protocol: TCP
+      # Convex Dashboard: host 6791 → cluster NodePort 30791
+      - containerPort: 30791
+        hostPort: 6791
+        protocol: TCP

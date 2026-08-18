@@ -1,104 +1,153 @@
 import React, { useState, useEffect } from 'react';
+import { Cpu, ShieldCheck, Zap, Sparkles, CheckCircle2 } from 'lucide-react';
+import { detectHardwareProfile, type HardwareProfile } from '../lib/hardwareDetection';
 
-const MESSAGES = [
-  '⚡ Initializing AI parsing engine...',
-  '📄 Scanning uploaded resume history & documents...',
-  '🎯 Extracting technical skills, tools & achievements...',
-  '📊 Calculating ATS Technical Clarity score...',
-  '🔗 Analyzing target job description & keyword alignment...',
-  '✨ Generating high-impact engineering bullet points...',
-  '📐 Compiling executive LaTeX PDF document structure...',
-  '🚀 Finalizing your master career profile...'
+const PIPELINE_STEPS = [
+  { id: 'extract', label: 'Ingesting documents & parsing text', weight: 0.25 },
+  { id: 'needle', label: 'Extracting structured profile with Needle 2', weight: 0.35 },
+  { id: 'ste100', label: 'Applying ASD-STE100 technical grammar linting', weight: 0.20 },
+  { id: 'latex', label: 'Compiling single-column LaTeX & PDF', weight: 0.20 },
 ];
 
 export const LoadingSplashScreen: React.FC = () => {
-  const [messageIndex, setMessageIndex] = useState(0);
-  const [progress, setProgress] = useState(0);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [progress, setProgress] = useState(5);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [estimatedMs, setEstimatedMs] = useState(10000);
-  const [networkSpeed, setNetworkSpeed] = useState('4G');
+  const [hardware, setHardware] = useState<HardwareProfile | null>(null);
 
   useEffect(() => {
-    // Estimate based on navigator.connection
-    // @ts-ignore - NetworkInformation API might not be fully typed in standard lib
-    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-    let baseTime = 10000;
-    
-    if (connection) {
-      const type = connection.effectiveType || '4g';
-      setNetworkSpeed(type.toUpperCase());
-      if (type === '4g') {
-        baseTime = 8000;
-      } else if (type === '3g') {
-        baseTime = 15000;
-      } else if (type === '2g' || type === 'slow-2g') {
-        baseTime = 30000;
+    let isMounted = true;
+
+    detectHardwareProfile().then((profile) => {
+      if (isMounted) {
+        setHardware(profile);
       }
-    }
-    setEstimatedMs(baseTime);
+    });
 
     const timeTimer = setInterval(() => {
       setElapsedSeconds((prev) => prev + 1);
     }, 1000);
-    
-    // Cycle messages every 2500ms
-    const messageInterval = setInterval(() => {
-      setMessageIndex((prev) => (prev + 1) % MESSAGES.length);
-    }, 2500);
-
-    // Progress simulation
-    const updateInterval = 50; // ms
-    const increment = (updateInterval / baseTime) * 100;
-    
-    const progressInterval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(progressInterval);
-          return 100;
-        }
-        return Math.min(prev + increment, 100);
-      });
-    }, updateInterval);
 
     return () => {
-      clearInterval(messageInterval);
-      clearInterval(progressInterval);
+      isMounted = false;
       clearInterval(timeTimer);
     };
   }, []);
 
+  const totalEstimatedMs = hardware?.estimatedPipelineDurationMs || 5000;
+
+  useEffect(() => {
+    const updateIntervalMs = 50;
+    const progressPerInterval = (updateIntervalMs / totalEstimatedMs) * 92; // Reach 92% linearly, then wait for completion
+
+    const progressTimer = setInterval(() => {
+      setProgress((prev) => {
+        const next = Math.min(prev + progressPerInterval, 95);
+        // Update current step index based on progress percent
+        if (next < 25) setCurrentStepIndex(0);
+        else if (next < 60) setCurrentStepIndex(1);
+        else if (next < 80) setCurrentStepIndex(2);
+        else setCurrentStepIndex(3);
+        return next;
+      });
+    }, updateIntervalMs);
+
+    return () => clearInterval(progressTimer);
+  }, [totalEstimatedMs]);
+
+  const remainingSeconds = Math.max(
+    1,
+    Math.ceil(((100 - progress) / 100) * (totalEstimatedMs / 1000))
+  );
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-md" />
-      
-      <div className="relative z-10 flex w-full max-w-md flex-col items-center rounded-2xl border border-white/20 bg-white/10 p-8 shadow-2xl backdrop-blur-xl">
-        <div className="mb-6 h-12 w-12 animate-spin rounded-full border-4 border-white/20 border-t-blue-500" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative z-10 flex w-full max-w-lg flex-col rounded-2xl border border-border bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-200">
         
-        <div className="mb-8 h-6 text-center text-lg font-medium text-white drop-shadow-md transition-opacity duration-300">
-          {MESSAGES[messageIndex]}
+        {/* Header with Fluent Quad Badge & Hardware Status */}
+        <div className="flex items-center justify-between pb-4 border-b border-border/80">
+          <div className="flex items-center gap-2.5">
+            <div className="grid grid-cols-2 gap-0.5 size-4 p-0.5 rounded bg-muted/80">
+              <div className="size-1.5 rounded-[1px] bg-[#F25022]"></div>
+              <div className="size-1.5 rounded-[1px] bg-[#7FBA00]"></div>
+              <div className="size-1.5 rounded-[1px] bg-[#00A4EF]"></div>
+              <div className="size-1.5 rounded-[1px] bg-[#FFB900]"></div>
+            </div>
+            <span className="text-xs font-bold tracking-tight text-foreground">easyCV Processing Engine</span>
+          </div>
+
+          <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-primary/10 text-primary border border-primary/20">
+            <Zap className="size-3 text-primary animate-pulse" />
+            <span>{hardware?.hasWebGPU ? 'WebGPU Active' : 'Edge Optimized'}</span>
+          </div>
         </div>
 
-        <div className="h-2.5 w-full overflow-hidden rounded-full bg-black/30 p-0.5 shadow-inner border border-white/10">
-          <div 
-            className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 transition-all duration-75 ease-linear rounded-full"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-        
-        <div className="mt-3 flex w-full items-center justify-between text-xs font-mono font-medium text-white/80">
-          <span>{Math.round(progress)}% Complete</span>
-          <span>~{Math.max(0, Math.ceil((100 - progress) * (estimatedMs / 1000) / 100))}s remaining</span>
+        {/* Central Animation & Status */}
+        <div className="my-5 text-center flex flex-col items-center">
+          <div className="relative mb-3 flex size-14 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20 text-primary shadow-inner">
+            <Cpu className="size-7 animate-pulse text-primary" />
+            <Sparkles className="absolute -top-1 -right-1 size-4 text-amber-500 animate-bounce" />
+          </div>
+
+          <p className="text-sm font-semibold text-foreground tracking-tight">
+            {PIPELINE_STEPS[currentStepIndex].label}
+          </p>
+          <p className="text-xs font-mono text-muted-foreground mt-1">
+            Engine: {hardware?.engineName || 'Needle 2 CQ2-bit'}
+          </p>
         </div>
 
-        {/* Developer Debug & Pipeline Status Bar */}
-        <div className="mt-4 flex w-full items-center justify-between rounded-lg border border-white/10 bg-black/40 px-3 py-1.5 text-[11px] font-mono text-white/70 backdrop-blur-sm">
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block size-2 rounded-full bg-emerald-400 animate-ping" />
-            <span>Net: {networkSpeed}</span>
+        {/* Fluent Progress Bar */}
+        <div className="space-y-2">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-muted border border-border">
+            <div 
+              className="h-full bg-primary transition-all duration-150 ease-out rounded-full shadow-xs"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          
+          <div className="flex items-center justify-between text-xs font-mono text-muted-foreground">
+            <span className="font-semibold text-foreground">{Math.round(progress)}% Complete</span>
+            <span>~{remainingSeconds}s remaining</span>
+          </div>
+        </div>
+
+        {/* Step-by-Step Checklist */}
+        <div className="mt-5 space-y-1.5 rounded-xl border border-border bg-muted/30 p-3 text-xs">
+          {PIPELINE_STEPS.map((step, idx) => {
+            const isDone = idx < currentStepIndex;
+            const isCurrent = idx === currentStepIndex;
+            return (
+              <div 
+                key={step.id} 
+                className={`flex items-center gap-2 transition-all ${
+                  isCurrent ? 'text-foreground font-semibold' : isDone ? 'text-muted-foreground/70' : 'text-muted-foreground/40'
+                }`}
+              >
+                {isDone ? (
+                  <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" />
+                ) : isCurrent ? (
+                  <span className="size-2 rounded-full bg-primary animate-ping mx-0.5 shrink-0" />
+                ) : (
+                  <span className="size-2 rounded-full bg-muted-foreground/30 mx-0.5 shrink-0" />
+                )}
+                <span className="truncate">{step.label}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Live Hardware Telemetry Bar */}
+        <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-background px-3 py-1.5 text-[11px] font-mono text-muted-foreground">
+          <span className="flex items-center gap-1.5 truncate max-w-[240px]">
+            <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-foreground truncate">{hardware?.gpuRenderer || 'Detecting hardware...'}</span>
           </span>
-          <span>Elapsed: {elapsedSeconds}s</span>
+          <span>Cores: {hardware?.cpuCores || 4} &bull; {elapsedSeconds}s elapsed</span>
         </div>
+
       </div>
     </div>
   );
 };
+

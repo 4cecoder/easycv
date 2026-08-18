@@ -66,6 +66,11 @@ logger = logging.getLogger(__name__)
 from backend import latex
 from backend import ste100
 
+try:
+    from backend.needle_extractor import NeedleExtractor, NEEDLE_AVAILABLE
+except ImportError:
+    NEEDLE_AVAILABLE = False
+
 
 # ── Config ─────────────────────────────────────
 
@@ -1180,7 +1185,23 @@ def consolidate_files(paths: list[str], llm_client: LLMClient) -> dict:
             if text:
                 bundle.extracted_texts[filename] = text
 
-        data = llm_consolidate(llm_client, bundle) if bundle.extracted_texts else None
+        data = None
+        # 1. If an explicit LLM client was provided (CLI/mock/API), use it
+        if llm_client and bundle.extracted_texts:
+            data = llm_consolidate(llm_client, bundle)
+
+        # 2. Otherwise default to on-device zero-cost Needle 2 extractor
+        if not data and NEEDLE_AVAILABLE and bundle.extracted_texts:
+            try:
+                combined = "\n\n".join(bundle.extracted_texts.values())
+                needle_extractor = NeedleExtractor()
+                needle_res = needle_extractor.extract_full_profile(combined)
+                if needle_res.success and needle_res.profile and (needle_res.profile.get("experience") or needle_res.profile.get("skills")):
+                    data = needle_res.profile
+                    print(f"  [needle] extracted profile on-device in {needle_res.elapsed_ms:.1f}ms")
+            except Exception as e:
+                logger.debug(f"Needle extraction exception: {e}")
+
         profile = data if isinstance(data, dict) else {"_raw": "no extractable text or empty LLM response"}
 
         score = score_structured_data(profile)

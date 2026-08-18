@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: convex-backend
+  namespace: easycv
+  labels:
+    app: convex-backend
+    app.kubernetes.io/name: convex-backend
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: easycv
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: convex-backend
+  template:
+    metadata:
+      labels:
+        app: convex-backend
+        app.kubernetes.io/name: convex-backend
+    spec:
+      containers:
+        - name: convex-backend
+          image: ghcr.io/get-convex/convex-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: api
+              containerPort: 3210
+              protocol: TCP
+            - name: site
+              containerPort: 3211
+              protocol: TCP
+          env:
+            - name: DATA_DIR
+              value: "/convex/data"
+            - name: INSTANCE_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: easycv-config
+                  key: INSTANCE_NAME
+                  optional: true
+            - name: CONVEX_CLOUD_ORIGIN
+              valueFrom:
+                configMapKeyRef:
+                  name: easycv-config
+                  key: CONVEX_CLOUD_ORIGIN
+                  optional: true
+            - name: CONVEX_SITE_ORIGIN
+              valueFrom:
+                configMapKeyRef:
+                  name: easycv-config
+                  key: CONVEX_SITE_ORIGIN
+                  optional: true
+            - name: INSTANCE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: easycv-secrets
+                  key: INSTANCE_SECRET
+                  optional: true
+            - name: POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: easycv-secrets
+                  key: POSTGRES_URL
+                  optional: true
+          volumeMounts:
+            - name: convex-data
+              mountPath: /convex/data
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            tcpSocket:
+              port: 3210
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: 3210
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+      volumes:
+        - name: convex-data
+          persistentVolumeClaim:
+            claimName: convex-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: convex-backend
+  namespace: easycv
+  labels:
+    app: convex-backend
+    app.kubernetes.io/name: convex-backend
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: easycv
+spec:
+  type: ClusterIP
+  selector:
+    app: convex-backend
+  ports:
+    - name: api
+      port: 3210
+      targetPort: 3210
+      protocol: TCP
+    - name: site
+      port: 3211
+      targetPort: 3211
+      protocol: TCP

@@ -1,0 +1,80 @@
+# =============================================================================
+# easyCV Worker Deployment — Polling Daemon (LaTeX + LLM pipeline)
+# =============================================================================
+#
+# Single-replica deployment for the Python worker that polls Convex for
+# queued CV generation jobs. CPU-heavy due to LaTeX compilation.
+#
+# The worker has NO exposed ports — it is a pull-based daemon.
+#
+# Apply:
+#   kubectl apply -f k8s/worker-deployment.yaml -n easycv
+#
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: easycv-worker
+  namespace: easycv
+  labels:
+    app: easycv-worker
+    app.kubernetes.io/part-of: easycv
+    app.kubernetes.io/component: worker
+spec:
+  # Single replica — the worker polls Convex; a second replica would cause
+  # duplicate job processing. Use a leader-election mechanism if you need
+  # HA workers in the future.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: easycv-worker
+  strategy:
+    # Recreate ensures only one worker processes jobs at a time during deploys.
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: easycv-worker
+        app.kubernetes.io/part-of: easycv
+        app.kubernetes.io/component: worker
+    spec:
+      containers:
+        - name: worker
+          # Replace with your VCR registry path, e.g.:
+          # registry.vultrcr.com/your-registry/easycv-worker:latest
+          image: registry.vultrcr.com/your-registry/easycv-worker:latest
+          imagePullPolicy: Always
+          # ── No ports — this is a polling daemon, not a server ─────────────
+          # ── Resources ────────────────────────────────────────────────────
+          # LaTeX compilation is CPU and memory intensive. Size accordingly.
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          # ── Environment Variables ────────────────────────────────────────
+          envFrom:
+            - secretRef:
+                name: easycv-secrets
+            - configMapRef:
+                name: easycv-config
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          # ── Volume mounts (if worker needs temp space for LaTeX) ──────────
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      # ── Pod-level settings ──────────────────────────────────────────────
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 60
+      # Pull images from Vultr Container Registry
+      imagePullSecrets:
+        - name: vultr-registry-credentials
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 500Mi

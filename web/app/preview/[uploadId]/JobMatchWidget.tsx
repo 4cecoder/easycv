@@ -284,13 +284,22 @@ export function JobMatchWidget({
                     return (
                       <div
                         key={idx}
-                        className="rounded-md border border-border bg-background p-3 text-xs flex flex-col gap-1.5"
+                        className="rounded-md border border-border bg-background p-3 text-xs flex flex-col gap-1.5 group/bullet"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <p className="font-medium text-foreground leading-relaxed">
+                          <p className="font-medium text-foreground leading-relaxed flex-1">
                             &bull; {bullet}
                           </p>
-                          <div className="flex items-center gap-1 shrink-0">
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(bullet);
+                              }}
+                              className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                              title="Copy bullet"
+                            >
+                              <Sparkles className="size-3 text-primary" />
+                            </button>
                             <Badge
                               variant={ste.isCompliant ? "outline" : "warning"}
                               className={`text-[9px] ${
