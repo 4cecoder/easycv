@@ -37,6 +37,7 @@
       export TF_HTTP_LOCK_METHOD="POST"
       export TF_HTTP_UNLOCK_METHOD="DELETE"
       export TF_HTTP_RETRY_WAIT_MIN="5"
+      export TF_VAR_vultr_api_key="$VULTR_API_KEY"
       cd "$TF_ROOT"
       terraform init -input=false -reconfigure
 
@@ -57,6 +58,7 @@ cluster:apply:
     - |
       set -eu
       terraform apply -input=false -auto-approve
+      terraform output available_kubernetes_versions
       terraform output cluster_id
       terraform output endpoint
       terraform output kubernetes_version

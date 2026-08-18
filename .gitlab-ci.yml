@@ -90,7 +90,7 @@ build-frontend:
 
 deploy:
   stage: deploy
-  image: alpine/k8s:1.32.13
+  image: alpine/k8s:1.36.2
   resource_group: production
   environment:
     name: production

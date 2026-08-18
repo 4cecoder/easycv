@@ -11,9 +11,16 @@ variable "region" {
 }
 
 variable "kubernetes_version" {
-  description = "VKE Kubernetes version (vultr-cli kubernetes versions). Pin close to the GitLab kubectl image (1.32.x)."
+  description = "Exact VKE version string (vultr-cli kubernetes versions). Leave null to use the latest version Vultr currently offers — they reject stale patch versions."
   type        = string
-  default     = "v1.32.3+1"
+  default     = null
+  nullable    = true
+}
+
+variable "vultr_api_key" {
+  description = "Vultr API key used to list valid VKE versions. CI sets TF_VAR_vultr_api_key from VULTR_API_KEY."
+  type        = string
+  sensitive   = true
 }
 
 variable "ha_controlplanes" {

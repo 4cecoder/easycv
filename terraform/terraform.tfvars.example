@@ -1,14 +1,17 @@
 # Copy to terraform.tfvars for local runs (do not commit real overrides unless
 # they are non-secret). CI uses these defaults unless you set TF_VAR_*.
+#
+# kubernetes_version is omitted on purpose: Terraform asks Vultr for the
+# versions it currently offers and uses the latest. Pin only if you must:
+#   kubernetes_version = "v1.36.1+2"
 
-cluster_label      = "easycv"
-region             = "atl"
-kubernetes_version = "v1.32.3+1"
-ha_controlplanes   = false
-enable_firewall    = false
-node_label         = "easycv-workers"
-node_plan          = "vc2-2c-4gb"
-node_quantity      = 2
-auto_scaler        = false
-min_nodes          = 1
-max_nodes          = 3
+cluster_label    = "easycv"
+region           = "atl"
+ha_controlplanes = false
+enable_firewall  = false
+node_label       = "easycv-workers"
+node_plan        = "vc2-2c-4gb"
+node_quantity    = 2
+auto_scaler      = false
+min_nodes        = 1
+max_nodes        = 3
