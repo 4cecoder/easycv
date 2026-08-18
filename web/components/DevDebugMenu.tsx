@@ -83,7 +83,7 @@ export const DevDebugMenu: React.FC = () => {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 font-sans text-xs select-none">
+    <div className="fixed bottom-4 left-2/3 -translate-x-1/2 z-50 font-sans text-xs select-none">
       {/* Collapsed Badge Pill */}
       {!isOpen && (
         <button
