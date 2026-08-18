@@ -31,16 +31,34 @@ command -v docker &>/dev/null  || die "docker not found"
 echo -e "${CYAN}easyCV → Vultr Kubernetes${NC}"
 echo ""
 
-# ── Build images ────────────────────────────────────────────────────────────
-echo -e "${YELLOW}Building Docker images...${NC}"
-docker build \
-  --build-arg NEXT_PUBLIC_CONVEX_URL="$(get NEXT_PUBLIC_CONVEX_URL)" \
-  -t "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-frontend:latest" -f web/Dockerfile web/
-docker build -t "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-worker:latest" -f Dockerfile .
+# ── Build & Push multi-arch / amd64 images for Vultr ─────────────────────────
+# Vultr Kubernetes nodes run on x86_64 (linux/amd64). When building on macOS (Apple Silicon arm64),
+# we must explicitly target linux/amd64 so Vultr nodes do not throw "exec format error".
+TARGET_PLATFORM="${TARGET_PLATFORM:-linux/amd64}"
+echo -e "${YELLOW}Building Docker images for target platform: ${TARGET_PLATFORM}...${NC}"
 
-echo -e "${YELLOW}Pushing to Vultr Container Registry...${NC}"
-docker push "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-frontend:latest"
-docker push "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-worker:latest"
+# Enable buildx if available for high-performance cross-compilation
+if docker buildx version &>/dev/null; then
+  docker buildx build --platform "$TARGET_PLATFORM" \
+    --build-arg NEXT_PUBLIC_CONVEX_URL="$(get NEXT_PUBLIC_CONVEX_URL)" \
+    -t "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-frontend:latest" \
+    -f web/Dockerfile web/ --push
+
+  docker buildx build --platform "$TARGET_PLATFORM" \
+    -t "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-worker:latest" \
+    -f Dockerfile . --push
+else
+  docker build --platform "$TARGET_PLATFORM" \
+    --build-arg NEXT_PUBLIC_CONVEX_URL="$(get NEXT_PUBLIC_CONVEX_URL)" \
+    -t "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-frontend:latest" -f web/Dockerfile web/
+  docker build --platform "$TARGET_PLATFORM" \
+    -t "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-worker:latest" -f Dockerfile .
+
+  echo -e "${YELLOW}Pushing to Vultr Container Registry...${NC}"
+  docker push "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-frontend:latest"
+  docker push "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-worker:latest"
+fi
+ok "Images built and pushed for ${TARGET_PLATFORM}"
 
 # ── Helper: read .env.production ─────────────────────────────────────────────
 get() { grep -E "^$1=" "$ENV" | head -1 | cut -d'=' -f2-; }

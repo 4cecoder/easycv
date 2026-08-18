@@ -44,6 +44,10 @@ Vultr Kubernetes Engine (VKE)
   POSTGRES_URL=postgres://vultradmin:secretpassword@vultr-db-host.vultrdb.com:16751/easycv?sslmode=require
   ```
 
+### Multi-Architecture Support (macOS Apple Silicon ARM64 vs Vultr AMD64)
+- **Local Testing (macOS M1 / Apple Silicon)**: `test-local.sh` and `docker-compose.yml` build images natively for `linux/arm64` for zero-lag native execution.
+- **Production (Vultr VKE / x86_64)**: `deploy.sh` automatically targets `linux/amd64` via `docker buildx build --platform linux/amd64` when pushing to Vultr Container Registry (VCR), preventing `exec format error` issues on cloud nodes.
+
 ---
 
 ## Setup & Deployment Guide

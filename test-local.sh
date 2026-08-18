@@ -44,9 +44,14 @@ if [[ "$TEARDOWN" == true ]]; then
   exit 0
 fi
 
-# ── Check prereqs ────────────────────────────────────────# ── Step 1: Build Docker images locally ─────────────────────────────────────
+# ── Check prereqs ───────────────────────────────────────────────────────────
+command -v kind &>/dev/null    || die "kind not found. Install: brew install kind"
+command -v docker &>/dev/null  || die "docker not found"
+command -v kubectl &>/dev/null || die "kubectl not found"
+
+# ── Step 1: Build Docker images locally (native platform, e.g. arm64 on Mac M1) ──
 if [[ "$SKIP_BUILD" == false ]]; then
-  info "Building frontend image..."
+  info "Building frontend image (native local architecture)..."
   docker build \
     --build-arg NEXT_PUBLIC_CONVEX_URL="http://127.0.0.1:3210" \
     -t easycv-frontend:local -f web/Dockerfile web/ \
