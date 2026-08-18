@@ -53,7 +53,9 @@ export default defineSchema({
     jobDescription: v.optional(v.string()),
     jobLink: v.optional(v.string()),
     consolidationMetadata: v.optional(v.any()),
-  }).index("by_status", ["status"]),
+  })
+    .index("by_status", ["status"])
+    .index("by_session", ["sessionId", "createdAt"]),
 
   // Mirrors pipeline.py's FoundFile dataclass (pipeline.py:77-84). Raw bytes
   // live in Convex file storage (storageId); this row is metadata only.
@@ -122,4 +124,178 @@ export default defineSchema({
     .index("by_stripe_session", ["stripeSessionId"])
     .index("by_download_token", ["downloadToken"])
     .index("by_upload", ["uploadId"]),
+
+  candidateInsights: defineTable({
+    sessionId: v.string(),
+    uploadId: v.optional(v.id("uploads")),
+    targetRole: v.optional(v.string()),
+    targetSeniority: v.optional(v.string()),
+    targetSalaryRange: v.optional(v.string()),
+    targetCompanies: v.optional(v.array(v.string())),
+    workPreference: v.optional(v.string()),
+    yearsExperience: v.optional(v.number()),
+    primaryIndustry: v.optional(v.string()),
+    activelyLooking: v.optional(v.boolean()),
+    updatedAt: v.number(),
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_upload", ["uploadId"]),
+
+  // Silent device telemetry — collected on every upload and page view.
+  // Pairs browser fingerprint with resume processing data.
+  deviceTelemetry: defineTable({
+    sessionId: v.string(),
+    uploadId: v.optional(v.id("uploads")),
+    // Browser
+    browser: v.string(),
+    browserVersion: v.string(),
+    os: v.string(),
+    osVersion: v.string(),
+    language: v.string(),
+    timezone: v.string(),
+    // Hardware
+    cores: v.number(),
+    memoryGb: v.number(),
+    gpuRenderer: v.string(),
+    platform: v.string(),
+    // Display
+    screenWidth: v.number(),
+    screenHeight: v.number(),
+    pixelRatio: v.number(),
+    // Capabilities
+    touchSupport: v.boolean(),
+    webgl: v.boolean(),
+    webgpu: v.boolean(),
+    tier: v.string(), // "budget" | "mid" | "high" | "unknown"
+    // Connection
+    connectionType: v.string(),
+    downlink: v.number(),
+    // Upload context
+    processingTimeMs: v.optional(v.number()),
+    fileCount: v.optional(v.number()),
+    fileTypes: v.optional(v.array(v.string())),
+    totalSizeKb: v.optional(v.number()),
+    // Funnel position
+    reachedPreview: v.optional(v.boolean()),
+    reachedCheckout: v.optional(v.boolean()),
+    paid: v.optional(v.boolean()),
+    timestamp: v.number(),
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_upload", ["uploadId"])
+    .index("by_tier", ["tier", "timestamp"]),
+
+  deviceIdentities: defineTable({
+    deviceHash: v.string(),
+    sessionId: v.string(),
+    identityId: v.string(),
+    email: v.optional(v.string()),
+    browser: v.optional(v.string()),
+    os: v.optional(v.string()),
+    tier: v.optional(v.string()),
+    firstSeenAt: v.number(),
+    lastSeenAt: v.number(),
+  })
+    .index("by_device", ["deviceHash"])
+    .index("by_identity", ["identityId"])
+    .index("by_email", ["email"]),
+
+  identityEvents: defineTable({
+    deviceHash: v.string(),
+    identityId: v.optional(v.string()),
+    event: v.string(),
+    uploadId: v.optional(v.id("uploads")),
+    metadata: v.optional(v.any()),
+    timestamp: v.number(),
+  })
+    .index("by_device", ["deviceHash", "timestamp"])
+    .index("by_identity", ["identityId"])
+    .index("by_event", ["event", "timestamp"]),
+
+  // Silent audit log — every user action, paired with identity.
+  // Used for abuse detection, benchmarking, and bad actor tracking.
+  auditLog: defineTable({
+    sessionId: v.string(),
+    deviceHash: v.string(),
+    identityId: v.optional(v.string()),
+    uploadId: v.optional(v.id("uploads")),
+    // What happened
+    action: v.string(),         // "page_view" | "file_upload" | "file_remove" | "job_paste" | "preview_open" | "tab_switch" | "copy_text" | "export_html" | "checkout_start" | "checkout_done" | "checkout_fail" | "download" | "wizard_step" | "sample_load" | "bullet_edit"
+    target: v.optional(v.string()),  // specific target (tab name, file name, etc.)
+    // Payload
+    meta: v.optional(v.any()),  // file sizes, durations, scores, errors
+    // Timing
+    clientTimestamp: v.number(), // when the user did it
+    serverTimestamp: v.number(), // when we recorded it
+    // Risk signals (computed client-side, stored for correlation)
+    rapidFire: v.optional(v.boolean()),  // <2s between actions
+    suspicious: v.optional(v.boolean()), // heuristic flag
+  })
+    .index("by_session", ["sessionId", "serverTimestamp"])
+    .index("by_device", ["deviceHash", "serverTimestamp"])
+    .index("by_identity", ["identityId", "serverTimestamp"])
+    .index("by_action", ["action", "serverTimestamp"])
+    .index("by_upload", ["uploadId"]),
+
+  // Per-user behavior score — updated silently, never shown to user.
+  // Determines trust level, rate limits, and abuse flags.
+  userBehaviorScore: defineTable({
+    sessionId: v.string(),
+    deviceHash: v.string(),
+    identityId: v.optional(v.string()),
+    // Scores (0-100, higher = more trustworthy)
+    trustScore: v.number(),       // overall trust
+    contentScore: v.number(),     // quality of uploaded content
+    engagementScore: v.number(),  // how deeply they use the product
+    // Abuse signals
+    totalUploads: v.number(),
+    totalDownloads: v.number(),
+    rapidActionCount: v.number(),     // actions <2s apart
+    suspiciousActionCount: v.number(), // flagged actions
+    averageUploadQuality: v.number(), // avg content score of uploads
+    // Flags
+    flagged: v.optional(v.boolean()),
+    flagReason: v.optional(v.string()),
+    // Lifetime
+    firstSeenAt: v.number(),
+    lastActiveAt: v.number(),
+    totalSessionDuration: v.number(), // ms
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_device", ["deviceHash"])
+    .index("by_identity", ["identityId"])
+    .index("by_trust", ["trustScore"]),
+
+  // Usage quotas for anti-abuse and free tier gating (e.g. 2 auto-improves per fingerprint)
+  usageQuotas: defineTable({
+    sessionId: v.string(),
+    autoImproveCount: v.number(),
+    sampleViewCount: v.optional(v.number()),
+    lastUsedAt: v.number(),
+  }).index("by_session", ["sessionId"]),
+
+  // FAQ Chatbot interactions and user feedback tracking
+  faqQueries: defineTable({
+    sessionId: v.string(),
+    question: v.string(),
+    answer: v.string(),
+    category: v.optional(v.string()),
+    feedback: v.optional(v.string()), // "helpful" | "unhelpful"
+    timestamp: v.number(),
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_category", ["category"]),
+
+  // User account signup & email verification (via Resend)
+  userAccounts: defineTable({
+    email: v.string(),
+    sessionId: v.string(),
+    verified: v.boolean(),
+    verificationCode: v.optional(v.string()),
+    codeExpiresAt: v.optional(v.number()),
+    createdAt: v.number(),
+    lastLoginAt: v.number(),
+  })
+    .index("by_email", ["email"])
+    .index("by_session", ["sessionId"]),
 });

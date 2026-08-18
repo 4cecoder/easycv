@@ -14,6 +14,7 @@ import {
   Alert,
   AlertDescription,
 } from "@bytecats/ui-kit";
+import { CheckoutButton } from "./CheckoutButton";
 
 export function CareerVaultWidget({
   uploadId,
@@ -164,7 +165,7 @@ export function CareerVaultWidget({
 
         {/* LaTeX Template Customization */}
         <div className="flex flex-col gap-3">
-          <h3 className="text-sm font-semibold tracking-tight">LaTeX Output Customization</h3>
+          <h3 className="text-sm font-semibold tracking-tight text-foreground">LaTeX Output Configuration</h3>
           <div className="flex gap-2">
             {(["industry", "academic", "executive"] as const).map((t) => (
               <Button
@@ -172,21 +173,20 @@ export function CareerVaultWidget({
                 variant={latexTemplate === t ? "default" : "outline"}
                 size="sm"
                 onClick={() => setLatexTemplate(t)}
-                className="capitalize"
+                className="capitalize text-xs font-semibold"
               >
-                {t}
+                {t} Template
               </Button>
             ))}
           </div>
-          <Alert className="bg-primary/5 border-primary/20 mt-2">
-            <AlertDescription className="flex items-center justify-between">
-              <span className="text-sm">
-                Ready to generate the <strong>{latexTemplate}</strong> LaTeX template?
+          <Alert className="bg-primary/5 border-primary/20 mt-2 rounded-lg">
+            <AlertDescription className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <span className="text-xs text-foreground">
+                Compiled for <strong>{latexTemplate}</strong> single-column ATS LaTeX format.
               </span>
-              <Button size="sm" variant="outline" className="gap-2">
-                <Download className="size-4" />
-                Export .tex
-              </Button>
+              <div className="shrink-0">
+                <CheckoutButton uploadId={uploadId} label="Unlock .tex & PDF ($14)" size="sm" />
+              </div>
             </AlertDescription>
           </Alert>
         </div>

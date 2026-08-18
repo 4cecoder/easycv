@@ -1,0 +1,119 @@
+# =============================================================================
+# easyCV Ingress — NGINX Ingress Controller with TLS
+# =============================================================================
+#
+# Routes external traffic to the frontend Service. Vultr VKE ships with
+# the NGINX ingress controller by default.
+#
+# Prerequisites:
+#   1. cert-manager installed (see cert-manager-issuer.yaml)
+#   2. cert-manager ClusterIssuer created
+#   3. NGINX ingress controller running in the cluster
+#
+# Apply:
+#   kubectl apply -f k8s/ingress.yaml -n easycv
+#
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: easycv-ingress
+  namespace: easycv
+  labels:
+    app: easycv-frontend
+    app.kubernetes.io/part-of: easycv
+    app.kubernetes.io/component: ingress
+  annotations:
+    # ── TLS / cert-manager ──────────────────────────────────────────────────
+    # Automatically provision and renew TLS certificates via Let's Encrypt
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+    # ── NGINX Ingress Controller ────────────────────────────────────────────
+    # Force HTTPS redirect
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # HSTS header (1 year, include subdomains)
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains";
+    # Proxy body size (for file uploads — CV PDFs)
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    # Proxy timeout for long-running requests
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+
+    # ── Rate Limiting ───────────────────────────────────────────────────────
+    # Protect against abuse — 10 requests/second per client IP
+    nginx.ingress.kubernetes.io/limit-rps: "10"
+    # Burst allowance
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "5"
+
+    # ── CORS Headers (for Convex client-side calls) ─────────────────────────
+    # Convex runs on *.convex.cloud — allow cross-origin requests from the app
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://your-domain.com,https://*.convex.cloud"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization, Content-Type, Accept, X-Requested-With"
+    nginx.ingress.kubernetes.io/cors-max-age: "86400"
+
+    # ── NGINX server snippet ────────────────────────────────────────────────
+    # Additional security headers
+    nginx.ingress.kubernetes.io/server-snippet: |
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header X-Frame-Options "SAMEORIGIN" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - your-domain.com
+        - www.your-domain.com
+      secretName: easycv-tls
+    - hosts:
+        - convex.your-domain.com
+      secretName: convex-tls
+  rules:
+    - host: your-domain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: easycv-frontend
+                port:
+                  number: 80
+    - host: www.your-domain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: easycv-frontend
+                port:
+                  number: 80
+    - host: convex.your-domain.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: convex-backend
+                port:
+                  number: 3210
+          - path: /http
+            pathType: Prefix
+            backend:
+              service:
+                name: convex-backend
+                port:
+                  number: 3211
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: convex-dashboard
+                port:
+                  number: 6791

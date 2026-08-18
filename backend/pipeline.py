@@ -66,6 +66,11 @@ logger = logging.getLogger(__name__)
 from backend import latex
 from backend import ste100
 
+try:
+    from backend.needle_extractor import NeedleExtractor, NEEDLE_AVAILABLE
+except ImportError:
+    NEEDLE_AVAILABLE = False
+
 
 # ── Config ─────────────────────────────────────
 
@@ -348,39 +353,77 @@ def bundles_from_resources(output_dir: str, person_filter: Optional[str] = None)
 # ── Text Extraction ────────────────────────────
 
 
+def sanitize_text_for_llm(raw_text: str) -> str:
+    """Sanitize extracted text before sending to LLM.
+    
+    Strips invisible Unicode zero-width characters, bidi overrides,
+    and prompt-injection delimiters.
+    """
+    if not raw_text:
+        return ""
+    # Strip invisible zero-width and bidi override characters
+    cleaned = re.sub(r"[\u200B-\u200D\uFEFF\u202A-\u202E\u2066-\u2069]", "", raw_text)
+    # Neutralize prompt injection attempts
+    cleaned = re.sub(
+        r"(?i)\b(ignore\s+(all\s+)?(previous|prior)\s+instructions|disregard\s+(all\s+)?(previous|prior)\s+instructions|you\s+are\s+now\s+in\s+developer\s+mode|system\s+prompt\s*:|\[SYSTEM\s+PROMPT\])",
+        "[sanitized-instruction]",
+        cleaned,
+    )
+    # Strip script and iframe tags
+    cleaned = re.sub(r"(?i)<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>", "", cleaned)
+    cleaned = re.sub(r"(?i)<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>", "", cleaned)
+    return cleaned.strip()
+
+
 def extract_text(filepath: str) -> Optional[str]:
     ext = os.path.splitext(filepath)[1].lower()
     if ext in SUPPORTED_EXTRACT_EXT:
         if ext == ".pdf":
+            # Verify magic bytes
+            try:
+                with open(filepath, "rb") as f:
+                    header = f.read(1024)
+                    if b"%PDF-" not in header:
+                        logger.warning(f"File {filepath} does not have valid %PDF- magic bytes")
+                        return None
+            except OSError:
+                return None
+
+            raw_result = None
             try:
                 r = subprocess.run(["pdftotext", filepath, "-"], capture_output=True, text=True, timeout=PDF_TEXT_TIMEOUT)
-                if r.returncode == 0 and r.stdout.strip(): return r.stdout
+                if r.returncode == 0 and r.stdout.strip():
+                    raw_result = r.stdout
             except (FileNotFoundError, subprocess.TimeoutExpired): pass
-            try:
-                import fitz
-                doc = fitz.open(filepath)
-                pages_text = []
-                is_linkedin = "linkedin" in os.path.basename(filepath).lower()
-                for page in doc:
-                    if is_linkedin:
-                        w = page.rect.width
-                        h = page.rect.height
-                        split_x = w * 0.33
-                        main_rect = fitz.Rect(split_x, 0, w, h)
-                        side_rect = fitz.Rect(0, 0, split_x, h)
-                        main_t = page.get_text("text", clip=main_rect)
-                        side_t = page.get_text("text", clip=side_rect)
-                        pages_text.append(f"--- BODY ---\n{main_t}\n--- SIDEBAR ---\n{side_t}")
-                    else:
-                        pages_text.append(page.get_text())
-                doc.close()
-                text = "\n".join(pages_text)
-                if text.strip(): return text
-            # Broad catch is intentional: fitz may not be installed in all envs.
-            except Exception: pass
+            if not raw_result:
+                try:
+                    import fitz
+                    doc = fitz.open(filepath)
+                    pages_text = []
+                    is_linkedin = "linkedin" in os.path.basename(filepath).lower()
+                    for page in doc:
+                        if is_linkedin:
+                            w = page.rect.width
+                            h = page.rect.height
+                            split_x = w * 0.33
+                            main_rect = fitz.Rect(split_x, 0, w, h)
+                            side_rect = fitz.Rect(0, 0, split_x, h)
+                            main_t = page.get_text("text", clip=main_rect)
+                            side_t = page.get_text("text", clip=side_rect)
+                            pages_text.append(f"--- BODY ---\n{main_t}\n--- SIDEBAR ---\n{side_t}")
+                        else:
+                            pages_text.append(page.get_text())
+                    doc.close()
+                    text = "\n".join(pages_text)
+                    if text.strip(): raw_result = text
+                # Broad catch is intentional: fitz may not be installed in all envs.
+                except Exception: pass
+            if raw_result:
+                return sanitize_text_for_llm(raw_result)
         else:  # .txt, .md
             try:
-                with open(filepath, "r", errors="replace") as f: return f.read()
+                with open(filepath, "r", errors="replace") as f:
+                    return sanitize_text_for_llm(f.read())
             except OSError: pass
     return None
 
@@ -1180,7 +1223,23 @@ def consolidate_files(paths: list[str], llm_client: LLMClient) -> dict:
             if text:
                 bundle.extracted_texts[filename] = text
 
-        data = llm_consolidate(llm_client, bundle) if bundle.extracted_texts else None
+        data = None
+        # 1. If an explicit LLM client was provided (CLI/mock/API), use it
+        if llm_client and bundle.extracted_texts:
+            data = llm_consolidate(llm_client, bundle)
+
+        # 2. Otherwise default to on-device zero-cost Needle 2 extractor
+        if not data and NEEDLE_AVAILABLE and bundle.extracted_texts:
+            try:
+                combined = "\n\n".join(bundle.extracted_texts.values())
+                needle_extractor = NeedleExtractor()
+                needle_res = needle_extractor.extract_full_profile(combined)
+                if needle_res.success and needle_res.profile and (needle_res.profile.get("experience") or needle_res.profile.get("skills")):
+                    data = needle_res.profile
+                    print(f"  [needle] extracted profile on-device in {needle_res.elapsed_ms:.1f}ms")
+            except Exception as e:
+                logger.debug(f"Needle extraction exception: {e}")
+
         profile = data if isinstance(data, dict) else {"_raw": "no extractable text or empty LLM response"}
 
         score = score_structured_data(profile)

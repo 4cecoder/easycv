@@ -80,50 +80,153 @@
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-xl: calc(var(--radius) * 1.3);
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-3xl: calc(var(--radius) * 2.0);
+  --radius-4xl: calc(var(--radius) * 2.4);
 }
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 
-  /* body/page canvas vs. elevated card surface, per Astryx's own split */
-  --background: light-dark(#f1f1f1, #1b1b1b);
-  --foreground: light-dark(#171717, #fafafa);
-  --card: light-dark(#ffffff, #1b1b1b);
-  --card-foreground: light-dark(#171717, #fafafa);
-  --popover: light-dark(#ffffff, #262626);
-  --popover-foreground: light-dark(#171717, #fafafa);
-  /* borrowed from Astryx core's default-theme accent, see note above */
-  --primary: light-dark(#0064e0, #2694fe);
-  --primary-foreground: light-dark(#ffffff, #0a1420);
-  --secondary: light-dark(#f1f1f1, #262626);
-  --secondary-foreground: light-dark(#171717, #fafafa);
-  --muted: light-dark(#f1f1f1, #1b1b1b);
-  --muted-foreground: light-dark(#737373, #a3a3a3);
-  --accent: light-dark(#f1f1f1, #262626);
-  --accent-foreground: light-dark(#171717, #fafafa);
-  --destructive: light-dark(#a50c25, #ffc6c1);
-  --destructive-foreground: light-dark(#ffffff, #2a0a0a);
-  --warning: light-dark(#745b00, #fdcf4f);
-  --warning-muted: light-dark(#f8da9d, rgba(222, 180, 51, 0.24));
-  --warning-foreground: light-dark(#ffffff, #2a1a00);
-  --border: light-dark(#ebebeb, #ffffff1a);
-  --input: light-dark(#d4d4d4, #525252);
-  --ring: light-dark(#0064e0, #2694fe);
-  --radius: 0.625rem;
+  /* Crisp Modern Light Mode Tokens */
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  
+  /* Primary Accent */
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  
+  --accent: #e2e8f0;
+  --accent-foreground: #1e293b;
+  
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  
+  --warning: #f59e0b;
+  --warning-muted: rgba(245, 158, 11, 0.15);
+  --warning-foreground: #ffffff;
+  
+  /* Surface Borders */
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #2563eb;
+  --radius: 0.5rem;
+}
+
+.dark,
+html.dark {
+  color-scheme: dark;
+
+  /* Deep High-Contrast Dark Mode Tokens */
+  --background: #09090b;
+  --foreground: #f4f4f5;
+  --card: #131316;
+  --card-foreground: #f4f4f5;
+  --popover: #18181b;
+  --popover-foreground: #f4f4f5;
+  
+  /* Primary Accent */
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  
+  --secondary: #1c1c21;
+  --secondary-foreground: #f4f4f5;
+  
+  --muted: #1e1e24;
+  --muted-foreground: #9ca3af;
+  
+  --accent: #1e293b;
+  --accent-foreground: #60a5fa;
+  
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  
+  --warning: #f59e0b;
+  --warning-muted: rgba(245, 158, 11, 0.15);
+  --warning-foreground: #ffffff;
+  
+  /* Surface Borders */
+  --border: #26262b;
+  --input: #26262b;
+  --ring: #3b82f6;
+  --radius: 0.5rem;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    transition-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
   }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   html {
     @apply font-sans;
   }
+}
+
+/* Surface & Depth Classes */
+.fluent-mica {
+  background: light-dark(
+    rgba(255, 255, 255, 0.85),
+    rgba(30, 30, 30, 0.85)
+  );
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+.fluent-acrylic {
+  background: light-dark(
+    rgba(248, 249, 250, 0.75),
+    rgba(24, 24, 24, 0.75)
+  );
+  backdrop-filter: blur(30px) saturate(190%);
+  -webkit-backdrop-filter: blur(30px) saturate(190%);
+}
+
+.fluent-card {
+  @apply rounded-lg border border-border bg-card shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_2px_rgba(0,0,0,0.03)] transition-all duration-150;
+}
+
+.fluent-card:hover {
+  @apply shadow-[0_4px_12px_rgba(0,0,0,0.08),0_2px_4px_rgba(0,0,0,0.04)] border-border/80;
+}
+
+.fluent-subtle-grid {
+  background-image: radial-gradient(
+    light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.05)) 1px,
+    transparent 1px
+  );
+  background-size: 20px 20px;
+}
+
+/* Fast Fluent scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: light-dark(#d1d5db, #374151);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: light-dark(#9ca3af, #4b5563);
 }

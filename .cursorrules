@@ -25,5 +25,6 @@ The application is a Next.js App Router app using Convex DB backend, with a back
 4. **Telemetry**: Keep PostHog event logging up to date on user actions (upload, checkout click, conversion).
 
 ## ⚙️ Key Run Commands
-- **Frontend (Bun)**: `bun run dev`, `bun run test`, `bun run typecheck`, `bunx convex codegen`.
+- **Frontend (Always Bun — NEVER npx/npm)**: `bun run dev`, `bun run test`, `bun run typecheck`, `bunx convex dev`, `bunx convex codegen`, `bunx vitest run`.
 - **Backend (Python)**: `uv run pytest`, `uv run python pipeline.py`.
+

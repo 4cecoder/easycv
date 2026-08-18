@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     await fs.writeFile(profilePath, JSON.stringify(cleanProfile));
     await fs.writeFile(jdPath, jobDescription);
 
-    const provider = process.env.LLM_PROVIDER || "ollama";
+    const provider = process.env.LLM_PROVIDER || "openai";
     const model = process.env.LLM_MODEL || "";
     const modelArg = model ? ` --model "${model}"` : "";
 
