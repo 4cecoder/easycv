@@ -1,0 +1,96 @@
+# =============================================================================
+# easyCV — docker-compose.yml
+# =============================================================================
+#
+# Local multi-service development and testing.
+#
+# Usage:
+#   cp .env.compose.example .env.compose   # fill in real values
+#   docker compose up --build
+#   docker compose up -d                   # detached
+#   docker compose logs -f worker          # tail worker logs
+#   docker compose down
+#
+# Prerequisites:
+#   - Docker Engine 24+ and Compose v2
+#   - web/.env.local populated (both services read it)
+#   - For Ollama: Ollama reachable at OLLAMA_API_BASE from inside the container
+#     (use host.docker.internal on Docker Desktop, or --network=host on Linux)
+#
+# =============================================================================
+
+services:
+  # ── Frontend (Next.js 16) ────────────────────────────────────────────────
+  easycv-frontend:
+    container_name: easycv-frontend
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        # Next.js bakes NEXT_PUBLIC_* into the client bundle at build time.
+        # Pass it through so the build picks up whatever is in the env file.
+        NEXT_PUBLIC_CONVEX_URL: ${NEXT_PUBLIC_CONVEX_URL}
+    env_file:
+      - ./web/.env.local
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+    networks:
+      - easycv
+
+  # ── Worker (Python polling daemon) ───────────────────────────────────────
+  easycv-worker:
+    container_name: easycv-worker
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - ./web/.env.local
+    environment:
+      - PYTHONUNBUFFERED=1
+    # No exposed port — this is a polling daemon, not a server.
+    restart: unless-stopped
+    healthcheck:
+      # The worker prints "[worker] connected to ..." on startup and
+      # "[worker] processing ..." on each job.  A simple process-alive
+      # check (PID 1 is the python process) is the most reliable
+      # health signal for a long-lived daemon that may spend long
+      # stretches idle.
+      test: ["CMD-SHELL", "pgrep -f 'python -m backend.worker' || exit 1"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    depends_on:
+      easycv-frontend:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+    networks:
+      - easycv
+
+networks:
+  easycv:
+    driver: bridge

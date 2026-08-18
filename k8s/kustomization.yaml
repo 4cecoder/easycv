@@ -1,0 +1,43 @@
+# =============================================================================
+# Kustomize — easyCV Kubernetes Manifests
+# =============================================================================
+#
+# Usage:
+#   # Dry run (render to stdout):
+#   kubectl kustomize k8s/
+#
+#   # Apply everything:
+#   kubectl apply -k k8s/
+#
+#   # Or use the deploy.sh script which handles secrets + kustomize:
+#   ./deploy.sh
+#
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: easycv
+
+resources:
+  - namespace.yaml
+  - secrets.yaml
+  - configmap.yaml
+  - frontend-deployment.yaml
+  - frontend-service.yaml
+  - worker-deployment.yaml
+  - ingress.yaml
+  - cert-manager-issuer.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: easycv
+  managed-by: kustomize
+
+# Uncomment to patch image tags across all deployments:
+# images:
+#   - name: easycv-frontend
+#     newName: registry.vultrcr.com/your-registry/easycv-frontend
+#     newTag: v1.0.0
+#   - name: easycv-worker
+#     newName: registry.vultrcr.com/your-registry/easycv-worker
+#     newTag: v1.0.0

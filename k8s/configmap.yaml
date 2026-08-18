@@ -1,0 +1,37 @@
+# =============================================================================
+# easyCV ConfigMap — Non-sensitive environment variables
+# =============================================================================
+#
+# Apply:
+#   kubectl apply -f k8s/configmap.yaml -n easycv
+#
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: easycv-config
+  namespace: easycv
+  labels:
+    app.kubernetes.io/part-of: easycv
+    app.kubernetes.io/component: config
+data:
+  # ── Convex (public, client-safe) ──────────────────────────────────────────
+  NEXT_PUBLIC_CONVEX_URL: "https://your-deployment.convex.cloud"
+
+  # ── Analytics (public, client-safe) ───────────────────────────────────────
+  NEXT_PUBLIC_POSTHOG_KEY: "phc_YOUR_POSTHOG_KEY"
+
+  # ── Application ───────────────────────────────────────────────────────────
+  APP_URL: "https://easycv.yourdomain.com"
+
+  # ── LLM Configuration ────────────────────────────────────────────────────
+  # Options: ollama | openai | anthropic
+  LLM_PROVIDER: "ollama"
+
+  # Model name — must match what the provider supports
+  LLM_MODEL: "openbmb/minicpm5:latest"
+
+  # Ollama API base URL (only used when LLM_PROVIDER=ollama)
+  # In-cluster: use the Ollama service ClusterIP or external endpoint
+  OLLAMA_API_BASE: "http://ollama.ollama.svc.cluster.local:11434"
