@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: easycv-worker
+  namespace: easycv
+  labels:
+    app: easycv-worker
+    app.kubernetes.io/part-of: easycv
+    app.kubernetes.io/component: worker
+spec:
+  # Single replica: the worker polls Convex; a second replica would double-claim jobs.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: easycv-worker
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: easycv-worker
+        app.kubernetes.io/part-of: easycv
+        app.kubernetes.io/component: worker
+    spec:
+      imagePullSecrets:
+        - name: vultr-registry-credentials
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: atl.vultrcr.com/seridian/easycv-worker:latest
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 250m
+            limits:
+              memory: 1Gi
+              cpu: "1"
+          envFrom:
+            - secretRef:
+                name: easycv-secrets
+            - configMapRef:
+                name: easycv-config
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 500Mi

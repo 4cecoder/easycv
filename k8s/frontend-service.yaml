@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: easycv-frontend
+  namespace: easycv
+  labels:
+    app: easycv-frontend
+    app.kubernetes.io/part-of: easycv
+    app.kubernetes.io/component: frontend
+  annotations:
+    service.beta.kubernetes.io/vultr-loadbalancer-protocol: "tcp"
+spec:
+  type: LoadBalancer
+  selector:
+    app: easycv-frontend
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: http
