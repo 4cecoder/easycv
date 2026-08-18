@@ -1,73 +1,156 @@
-# =============================================================================
-# easyCV — GitLab CI/CD Pipeline
-# =============================================================================
-# Automated build, test, and deployment to Vultr Kubernetes (VKE).
-# Works seamlessly with GitHub repository mirroring.
-# =============================================================================
+# easyCV — GitLab CI/CD
+# Build images → push to Vultr Container Registry → deploy to VKE.
+#
+# Required CI/CD variables (Settings → CI/CD → Variables):
+#   VULTRCR_USERNAME   registry username          (Masked)
+#   VULTRCR_PASSWORD   registry API key           (Masked)
+#   KUBECONFIG         cluster kubeconfig         (Type: File)
+#   GITHUB_TOKEN       read access to 4cecoder/ui-kit (Masked)
+#
+# App variables (worker will crash-loop until these exist):
+#   NEXT_PUBLIC_CONVEX_URL
+#   WORKER_SECRET
+#
+# Optional: CONVEX_URL, APP_URL, STRIPE_*, LLM_*, OPENAI_API_KEY, ANTHROPIC_API_KEY
 
 stages:
-  - test
   - build
   - deploy
 
 variables:
-  DOCKER_DRIVER: overlay2
+  VULTRCR_HOST: atl.vultrcr.com
+  VULTRCR_NAME: seridian
+  K8S_NAMESPACE: easycv
   DOCKER_TLS_CERTDIR: ""
-  VCR_REGISTRY: "registry.vultrcr.com"
-  TARGET_PLATFORM: "linux/amd64"
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_DRIVER: overlay2
+  GIT_DEPTH: 20
 
-# ── Frontend Test & Typecheck ────────────────────────────────────────────────
-test:frontend:
-  stage: test
-  image: oven/bun:1
-  script:
-    - cd web
-    - bun install
-    - bun run test
-    - bun run build
-  variables:
-    NEXT_PUBLIC_CONVEX_URL: "http://127.0.0.1:3210"
-    NEXT_TELEMETRY_DISABLED: "1"
-
-# ── Backend Test ─────────────────────────────────────────────────────────────
-test:backend:
-  stage: test
-  image: python:3.13-slim
-  before_script:
-    - pip install uv
-    - uv sync
-  script:
-    - uv run pytest
-
-# ── Build & Push Docker Images to Vultr Container Registry ───────────────────
-build:docker:
-  stage: build
-  image: docker:24-git
+.docker:
+  image: docker:27
   services:
-    - docker:24-dind
-  only:
-    - master
-    - main
+    - name: docker:27-dind
+      alias: docker
+      command: ["--tls=false"]
   before_script:
-    - echo "$VCR_PASSWORD" | docker login "$VCR_REGISTRY" -u "$VCR_USERNAME" --password-stdin
-  script:
-    - docker build --platform linux/amd64 --build-arg NEXT_PUBLIC_CONVEX_URL="$NEXT_PUBLIC_CONVEX_URL" -t "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-frontend:latest" -t "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-frontend:${CI_COMMIT_SHA}" -f web/Dockerfile web/
-    - docker build --platform linux/amd64 -t "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-worker:latest" -t "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-worker:${CI_COMMIT_SHA}" -f Dockerfile .
-    - docker push "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-frontend:latest"
-    - docker push "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-frontend:${CI_COMMIT_SHA}"
-    - docker push "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-worker:latest"
-    - docker push "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-worker:${CI_COMMIT_SHA}"
+    - docker info
+    - echo "$VULTRCR_PASSWORD" | docker login "${VULTRCR_HOST}/${VULTRCR_NAME}" -u "$VULTRCR_USERNAME" --password-stdin
+  after_script:
+    - docker logout "${VULTRCR_HOST}/${VULTRCR_NAME}" || true
 
-# ── Autonomous Deploy to Vultr Kubernetes (VKE) ──────────────────────────────
-deploy:vultr:
-  stage: deploy
-  image: bitnami/kubectl:latest
-  only:
-    - master
-    - main
-  before_script:
-    - mkdir -p ~/.kube
-    - echo "$KUBECONFIG_DATA" | base64 -d > ~/.kube/config
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+build-worker:
+  extends: .docker
+  stage: build
+  timeout: 45m
   script:
-    - chmod +x deploy.sh
-    - ./deploy.sh
+    - |
+      IMAGE="${VULTRCR_HOST}/${VULTRCR_NAME}/easycv-worker"
+      docker build -t "${IMAGE}:${CI_COMMIT_SHORT_SHA}" -t "${IMAGE}:latest" -f Dockerfile .
+      docker push "${IMAGE}:${CI_COMMIT_SHORT_SHA}"
+      docker push "${IMAGE}:latest"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+build-frontend:
+  extends: .docker
+  stage: build
+  timeout: 45m
+  script:
+    - |
+      if [ -z "$GITHUB_TOKEN" ]; then
+        echo "GITHUB_TOKEN is required to install the private @bytecats/ui-kit package."
+        exit 1
+      fi
+      IMAGE="${VULTRCR_HOST}/${VULTRCR_NAME}/easycv-frontend"
+      docker build \
+        --build-arg "GITHUB_TOKEN=${GITHUB_TOKEN}" \
+        --build-arg "NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL}" \
+        -t "${IMAGE}:${CI_COMMIT_SHORT_SHA}" \
+        -t "${IMAGE}:latest" \
+        -f web/Dockerfile \
+        web
+      docker push "${IMAGE}:${CI_COMMIT_SHORT_SHA}"
+      docker push "${IMAGE}:latest"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+deploy:
+  stage: deploy
+  image: alpine/k8s:1.32.13
+  resource_group: production
+  environment:
+    name: production
+  needs:
+    - build-worker
+    - build-frontend
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+  script:
+    - |
+      set -eu
+      if [ -n "${KUBECONFIG:-}" ] && [ -f "${KUBECONFIG}" ]; then
+        echo "Using file-type KUBECONFIG"
+      elif [ -n "${KUBE_CONFIG:-}" ] && [ -f "${KUBE_CONFIG}" ]; then
+        export KUBECONFIG="$KUBE_CONFIG"
+      else
+        echo "Set KUBECONFIG as a GitLab CI/CD File variable (Vultr kubeconfig)."
+        exit 1
+      fi
+
+      kubectl cluster-info
+      kubectl apply -f k8s/namespace.yaml
+
+      kubectl create secret docker-registry vultr-registry-credentials \
+        --namespace "$K8S_NAMESPACE" \
+        --docker-server="${VULTRCR_HOST}/${VULTRCR_NAME}" \
+        --docker-username="$VULTRCR_USERNAME" \
+        --docker-password="$VULTRCR_PASSWORD" \
+        --dry-run=client -o yaml | kubectl apply -f -
+
+      CONVEX_VALUE="${CONVEX_URL:-${NEXT_PUBLIC_CONVEX_URL:-}}"
+
+      kubectl create secret generic easycv-secrets \
+        --namespace "$K8S_NAMESPACE" \
+        --from-literal="CONVEX_URL=${CONVEX_VALUE}" \
+        --from-literal="NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL:-}" \
+        --from-literal="APP_URL=${APP_URL:-}" \
+        --from-literal="WORKER_SECRET=${WORKER_SECRET:-}" \
+        --from-literal="STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}" \
+        --from-literal="STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}" \
+        --from-literal="STRIPE_PRICE_ID=${STRIPE_PRICE_ID:-}" \
+        --from-literal="STRIPE_PRO_PRICE_ID=${STRIPE_PRO_PRICE_ID:-}" \
+        --from-literal="OPENAI_API_KEY=${OPENAI_API_KEY:-}" \
+        --from-literal="ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}" \
+        --dry-run=client -o yaml | kubectl apply -f -
+
+      kubectl create configmap easycv-config \
+        --namespace "$K8S_NAMESPACE" \
+        --from-literal="NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL:-}" \
+        --from-literal="LLM_PROVIDER=${LLM_PROVIDER:-ollama}" \
+        --from-literal="LLM_MODEL=${LLM_MODEL:-}" \
+        --from-literal="OLLAMA_API_BASE=${OLLAMA_API_BASE:-}" \
+        --from-literal="APP_URL=${APP_URL:-}" \
+        --dry-run=client -o yaml | kubectl apply -f -
+
+      WORKER_IMAGE="${VULTRCR_HOST}/${VULTRCR_NAME}/easycv-worker:${CI_COMMIT_SHORT_SHA}"
+      FRONTEND_IMAGE="${VULTRCR_HOST}/${VULTRCR_NAME}/easycv-frontend:${CI_COMMIT_SHORT_SHA}"
+
+      sed "s|atl.vultrcr.com/seridian/easycv-worker:latest|${WORKER_IMAGE}|g" k8s/worker-deployment.yaml | kubectl apply -f -
+      sed "s|atl.vultrcr.com/seridian/easycv-frontend:latest|${FRONTEND_IMAGE}|g" k8s/frontend-deployment.yaml | kubectl apply -f -
+      kubectl apply -f k8s/frontend-service.yaml
+
+      kubectl rollout status deployment/easycv-frontend -n "$K8S_NAMESPACE" --timeout=300s
+      kubectl rollout status deployment/easycv-worker -n "$K8S_NAMESPACE" --timeout=300s
+
+      echo "Frontend LoadBalancer (may take a few minutes to get an IP):"
+      kubectl get svc easycv-frontend -n "$K8S_NAMESPACE"
+      kubectl get pods -n "$K8S_NAMESPACE"

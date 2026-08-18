@@ -1,0 +1,68 @@
+# Mirror this GitHub repo to GitLab so GitLab CI can run on new GitHub commits.
+# GitLab pull-mirroring cannot use a GitHub account password (GitHub blocked that).
+#
+# Required GitHub Actions secret:
+#   GITLAB_TOKEN  — GitLab personal or project access token with write_repository
+#
+# Create the token: GitLab → easycv → Settings → Access Tokens
+#   Role: Maintainer (needed to push to protected master)
+#   Scopes: write_repository, read_repository
+
+name: Mirror to GitLab
+
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "**"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Force-push this ref to GitLab if histories have diverged
+        type: boolean
+        default: false
+
+concurrency:
+  group: mirror-gitlab-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    name: Push ${{ github.ref_name }} to GitLab
+    runs-on: ubuntu-latest
+    if: ${{ vars.SKIP_GITLAB_MIRROR != 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Push ref to GitLab
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_URL: https://gitlab.com/therodfather/easycv.git
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force || false }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GITLAB_TOKEN:-}" ]; then
+            echo "Add a GitHub Actions secret named GITLAB_TOKEN (GitLab access token with write_repository)."
+            exit 1
+          fi
+
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git remote add gitlab "$GITLAB_URL"
+
+          extra=()
+          if [ "$FORCE" = "true" ]; then
+            extra+=(--force-with-lease)
+          fi
+
+          # Put the token only in the extraheader so it is less likely to appear in error URLs.
+          auth="$(printf 'oauth2:%s' "$GITLAB_TOKEN" | base64 -w0 2>/dev/null || printf 'oauth2:%s' "$GITLAB_TOKEN" | base64 | tr -d '\n')"
+          git -c "http.extraHeader=Authorization: Basic ${auth}" \
+            push "${extra[@]}" gitlab "HEAD:${GITHUB_REF}"

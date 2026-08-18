@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
+  // Required for the production image (web/Dockerfile copies .next/standalone).
+  output: "standalone",
 };
 
 export default nextConfig;

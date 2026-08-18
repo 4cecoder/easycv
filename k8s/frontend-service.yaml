@@ -1,15 +1,3 @@
-# =============================================================================
-# easyCV Frontend Service — LoadBalancer
-# =============================================================================
-#
-# Exposes the frontend via a Vultr-provisioned public Load Balancer.
-# VKE automatically provisions a Vultr load balancer when type is LoadBalancer.
-#
-# Apply:
-#   kubectl apply -f k8s/frontend-service.yaml -n easycv
-#
-# =============================================================================
-
 apiVersion: v1
 kind: Service
 metadata:
@@ -20,10 +8,7 @@ metadata:
     app.kubernetes.io/part-of: easycv
     app.kubernetes.io/component: frontend
   annotations:
-    # Vultr Cloud Controller Manager annotations
-    # See: https://docs.vultr.com/kubernetes/how-to-use-load-balancers
-    service.beta.kubernetes.io/vultr-loadbalancer-protocol: "http"
-    service.beta.kubernetes.io/vultr-loadbalancer-port: "80"
+    service.beta.kubernetes.io/vultr-loadbalancer-protocol: "tcp"
 spec:
   type: LoadBalancer
   selector:
@@ -33,5 +18,3 @@ spec:
       protocol: TCP
       port: 80
       targetPort: http
-  # Preserve client source IPs (needed for rate limiting / logging)
-  # externalTrafficPolicy: Local  # Uncomment if you need source IP preservation

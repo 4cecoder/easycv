@@ -4,4 +4,4 @@ metadata:
   name: easycv
   labels:
     app.kubernetes.io/part-of: easycv
-    app.kubernetes.io/managed-by: kubectl
+    app.kubernetes.io/managed-by: gitlab-ci

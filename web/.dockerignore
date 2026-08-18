@@ -3,3 +3,10 @@ node_modules
 .git
 .env*
 !.env.example
+e2e
+playwright-report
+test-results
+coverage
+*.md
+.agents
+.claude
