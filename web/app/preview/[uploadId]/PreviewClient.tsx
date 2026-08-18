@@ -313,7 +313,7 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
             <div className="flex items-center gap-2">
               <FileText className="size-4 text-primary" />
               <span className="text-xs font-bold text-foreground truncate max-w-[180px] sm:max-w-none">
-                {profile.name ? `${profile.name} — ATS Master` : "ATS Master Resume"}
+                {profile.name ?? "Resume"}
               </span>
                 <span className="rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 px-1.5 py-0.2 text-[10px] font-semibold">
                 Ready
