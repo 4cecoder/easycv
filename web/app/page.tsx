@@ -170,16 +170,23 @@ export default function UploadPage() {
     const file = new File([sample.content], `${sample.person.toLowerCase().replace(/\s+/g, "_")}_resume.md`, {
       type: "text/markdown",
     });
+    setFiles([file]);
     syncInputFiles([file]);
     setTimeout(() => {
       formRef.current?.requestSubmit();
-    }, 50);
+    }, 100);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setPending(true);
+
+    const formData = new FormData(event.currentTarget);
+    if (files.length > 0 && formData.getAll("files").filter((f: any) => f && typeof f === "object" && "size" in f && f.size > 0).length === 0) {
+      formData.delete("files");
+      files.forEach((f) => formData.append("files", f));
+    }
 
     const device = await collectDeviceProfile();
     const fileTypes = files.map((f) => f.name.split(".").pop() || "");
@@ -194,7 +201,6 @@ export default function UploadPage() {
       device,
     });
 
-    const formData = new FormData(event.currentTarget);
     const t0 = Date.now();
     try {
       const res = await fetch("/api/upload", { method: "POST", body: formData });
