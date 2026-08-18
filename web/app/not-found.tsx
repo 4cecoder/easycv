@@ -10,12 +10,9 @@ export default function NotFound() {
     <div className="relative min-h-[calc(100vh-3rem)] w-full fluent-subtle-grid flex items-center justify-center p-4">
       <div className="w-full max-w-md rounded-xl border border-border bg-card p-8 shadow-lg flex flex-col items-center text-center">
         
-        {/* Microsoft 4-Color Quad Glyph Accent */}
-        <div className="mb-4 grid grid-cols-2 gap-1 size-8 p-1 rounded-md bg-muted border border-border">
-          <div className="size-2.5 rounded-[1px] bg-[#F25022]" />
-          <div className="size-2.5 rounded-[1px] bg-[#7FBA00]" />
-          <div className="size-2.5 rounded-[1px] bg-[#00A4EF]" />
-          <div className="size-2.5 rounded-[1px] bg-[#FFB900]" />
+        {/* Clean Brand Glyph Accent */}
+        <div className="mb-4 flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-xs">
+          <FileText className="size-5" />
         </div>
 
         <span className="text-xs font-mono font-bold uppercase tracking-widest text-primary">

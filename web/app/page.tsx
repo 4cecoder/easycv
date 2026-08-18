@@ -200,7 +200,7 @@ export default function UploadPage() {
     <div className="relative min-h-[calc(100vh-3rem)] w-full fluent-subtle-grid pb-16">
       <main className="mx-auto flex w-full max-w-4xl flex-col items-center gap-6 px-4 pt-8 sm:px-6">
         
-        {/* Microsoft 365 Copilot Style Pro Tier Banner */}
+        {/* Pro Tier Plan Banner */}
         <div className="w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-lg border border-primary/25 bg-primary/[0.04] p-4 shadow-xs">
           <div className="flex items-center gap-3">
             <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-xs">
