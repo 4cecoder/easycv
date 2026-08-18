@@ -33,47 +33,68 @@ interface ChatMessage {
 
 const FAQ_KNOWLEDGE_BASE = [
   {
+    category: "get_started",
+    keywords: ["start", "upload", "how to use", "begin", "create", "make", "help"],
+    question: "How do I create my resume with easyCV?",
+    answer:
+      "Simply drag and drop your existing resume or CV files into the box on the home page. You can also paste a target job description to match your skills. easyCV instantly structures your information into a clean, professional workspace.",
+  },
+  {
     category: "download",
     keywords: ["download", "pdf", "get", "file", "save", "export", "print"],
-    question: "How do I download my resume?",
+    question: "How do I download my finished resume?",
     answer:
-      "Once your resume is generated, click the 'Download PDF' button in the top action bar of your preview workspace. You'll get a clean, high-resolution document ready to send directly to employers.",
+      "In your preview workspace, click the 'Download PDF' button in the top action bar. Your file will download instantly as a high-resolution, recruiter-ready PDF document ready for job applications.",
   },
   {
     category: "pricing",
     keywords: ["cost", "price", "pro", "pay", "upgrade", "14", "dollar", "buy", "subscription", "fee"],
     question: "What comes with easyCV Pro ($14)?",
     answer:
-      "easyCV Pro is a simple $14 one-time purchase (no recurring subscriptions). It gives you unlimited resume auto-improvements, unwatermarked PDF downloads, and complete document source files.",
+      "easyCV Pro is a $14 one-time purchase (never a recurring subscription). It gives you unlimited AI auto-improvements, unwatermarked PDF downloads, complete editable document files, and instant job match scoring.",
     hasUpgradeCta: true,
   },
   {
-    category: "formatting",
-    keywords: ["ats", "format", "compatible", "layout", "scanner", "read", "style"],
-    question: "How does easyCV format my resume?",
+    category: "auto_improve",
+    keywords: ["improve", "auto-improve", "fix", "bullets", "missing", "gaps", "score", "enhance"],
+    question: "How does the Auto-Improve feature work?",
     answer:
-      "easyCV formats your resume to match standard company hiring guidelines so hiring managers and recruiting systems can easily read your skills, titles, and career history without layout errors.",
+      "Click 'Auto-Improve' in your workspace header. easyCV checks for missing contact details, sparse job roles, and wordy phrasing, then lets you add quantified bullet achievements and fix sentence flow in 1 click.",
   },
   {
     category: "multiple_files",
-    keywords: ["multiple", "files", "merge", "combine", "old", "history", "past", "vault"],
+    keywords: ["multiple", "files", "merge", "combine", "old", "history", "past", "vault", "two", "several"],
     question: "Can I upload multiple previous resumes?",
     answer:
-      "Yes! You can drop all your past resumes, profiles, and project notes at once. Our system automatically combines your experiences into a single, polished master resume.",
+      "Yes! Drop all your past resumes, cover letters, and career notes together. easyCV automatically organizes your entire career chronology into a single polished master resume.",
   },
   {
-    category: "clarity",
-    keywords: ["grammar", "score", "clarity", "bullets", "words", "improve", "fix"],
-    question: "How does resume clarity scoring work?",
+    category: "job_match",
+    keywords: ["job", "match", "tailor", "description", "target", "keywords", "requisition", "posting"],
+    question: "How do I tailor my resume for a specific job?",
     answer:
-      "We check your resume bullet points for concise phrasing, strong active accomplishments, and clear metrics so recruiters can quickly see your biggest achievements.",
+      "Paste the job posting text or URL into the Job Requisition field before building your resume. The workspace will highlight key matching skills, recommend relevant keywords, and show your match readiness.",
+  },
+  {
+    category: "formatting",
+    keywords: ["ats", "format", "compatible", "layout", "scanner", "read", "style", "template", "color", "font"],
+    question: "Can I change templates and styling?",
+    answer:
+      "Yes! In your preview workspace, use the style toolbar to switch between Modern, Classic, and Minimal layouts, adjust font sizing, or choose your accent color theme.",
   },
   {
     category: "account",
-    keywords: ["account", "sign in", "login", "email", "save", "sync", "device", "phone"],
-    question: "How do I access my saved resumes on another device?",
+    keywords: ["account", "sign in", "login", "email", "save", "sync", "device", "phone", "access"],
+    question: "How do I access my saved resumes on another computer or phone?",
     answer:
-      "Enter your email in the 'Sign In' button in the top menu. We will send you a fast 6-digit login code so you can access your saved resumes on any computer or phone.",
+      "Click 'Sign In / Sync' in the top navigation and enter your email address. We will send you a 6-digit code so you can instantly access your saved documents on any device.",
+  },
+  {
+    category: "privacy",
+    keywords: ["private", "privacy", "secure", "security", "data", "safe", "delete"],
+    question: "Is my personal career information private and secure?",
+    answer:
+      "Yes. Your documents and contact information are processed securely with enterprise-grade encryption. We never sell your personal data or share your documents with third parties.",
   },
 ];
 
@@ -84,7 +105,7 @@ export function FAQAssistantChat() {
     {
       id: "welcome",
       sender: "bot",
-      text: "Hello! I am your easyCV Assistant. Ask me any question about formatting your resume, downloading files, or upgrading your account.",
+      text: "Hello! I am your easyCV Assistant. Ask me how to upload files, tailor your resume for a job, use Auto-Improve, or download your PDF.",
     },
   ]);
   const [isTyping, setIsTyping] = useState(false);
@@ -129,7 +150,7 @@ export function FAQAssistantChat() {
     }
 
     return {
-      text: "easyCV helps you build clean, recruiter-ready resumes in seconds. You can upload past files, auto-improve your bullet points, and download your final PDF with Pro ($14).",
+      text: "easyCV helps you build clean, professional resumes tailored for modern hiring. You can upload past files, auto-improve your bullet points, match specific jobs, and download your final PDF with Pro ($14).",
       category: "general",
       hasUpgradeCta: false,
     };
@@ -234,7 +255,7 @@ export function FAQAssistantChat() {
                     Online
                   </Badge>
                 </div>
-                <p className="text-[10px] text-muted-foreground">Instant help with formatting & downloads</p>
+                <p className="text-[10px] text-muted-foreground">Instant help with creating & downloading</p>
               </div>
             </div>
             <button
@@ -250,8 +271,9 @@ export function FAQAssistantChat() {
             {[
               "How to download?",
               "What is Pro ($14)?",
+              "How to auto-improve?",
+              "Tailor to a job",
               "Multiple resumes",
-              "Resume formatting",
             ].map((chip) => (
               <button
                 key={chip}
