@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
+import { getBrowserSessionId } from "../lib/fingerprint";
 import {
   Sparkles,
   Plus,
@@ -19,7 +20,13 @@ import {
   Layers,
   Award,
   Zap,
-  Loader2
+  Loader2,
+  DollarSign,
+  TrendingUp,
+  Building,
+  Lock,
+  Compass,
+  ArrowRight
 } from "lucide-react";
 import {
   Card,
@@ -31,6 +38,7 @@ import {
   AlertDescription,
 } from "@bytecats/ui-kit";
 import { validateBulletSTE100 } from "../lib/ste100";
+import { CheckoutButton } from "../app/preview/[uploadId]/CheckoutButton";
 
 interface SmartCareerProfileWizardProps {
   uploadId: string;
@@ -46,8 +54,9 @@ export function SmartCareerProfileWizard({
   onClose,
 }: SmartCareerProfileWizardProps) {
   const saveProfile = useMutation(api.profiles.saveStructuredProfile);
+  const saveInsights = useMutation(api.insights.saveCandidateInsights);
 
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [isSaving, setIsSaving] = useState(false);
   const [aiExpandingIdx, setAiExpandingIdx] = useState<number | null>(null);
 
@@ -96,6 +105,14 @@ export function SmartCareerProfileWizard({
   const [certifications, setCertifications] = useState<string[]>(
     initialProfile?.certifications || ["AWS Certified Solutions Architect"]
   );
+
+  // Step 5: Candidate Insights & Compensation Market Data
+  const [targetSeniority, setTargetSeniority] = useState("Staff");
+  const [targetSalaryRange, setTargetSalaryRange] = useState("$160k - $220k");
+  const [primaryIndustry, setPrimaryIndustry] = useState("Cloud & Enterprise Infrastructure");
+  const [workPreference, setWorkPreference] = useState("Remote First");
+  const [targetCompaniesInput, setTargetCompaniesInput] = useState("Google, Stripe, Datadog");
+  const [activelyLooking, setActivelyLooking] = useState(true);
 
   const [newSkillInput, setNewSkillInput] = useState("");
   const [selectedSkillCategory, setSelectedSkillCategory] = useState<keyof typeof skills>("languages");
@@ -160,6 +177,9 @@ export function SmartCareerProfileWizard({
   const handleSaveAll = async () => {
     setIsSaving(true);
     try {
+      const sessionId = getBrowserSessionId();
+
+      // 1. Save main structured resume profile
       await saveProfile({
         uploadId: uploadId as Id<"uploads">,
         name: name.trim() || "Candidate",
@@ -183,6 +203,22 @@ export function SmartCareerProfileWizard({
         qualityWarnings: initialProfile?.qualityWarnings || [],
         qualityCritical: false,
       });
+
+      // 2. Persist candidate career insights & market preferences
+      if (sessionId) {
+        await saveInsights({
+          sessionId,
+          uploadId: uploadId as Id<"uploads">,
+          targetRole: title.trim(),
+          targetSeniority,
+          targetSalaryRange,
+          targetCompanies: targetCompaniesInput.split(",").map((c) => c.trim()).filter(Boolean),
+          workPreference,
+          primaryIndustry,
+          activelyLooking,
+        });
+      }
+
       onClose();
     } catch (err) {
       console.error("Save profile error", err);
@@ -192,8 +228,9 @@ export function SmartCareerProfileWizard({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative z-10 flex w-full max-w-3xl flex-col max-h-[90vh] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative z-10 flex w-full max-w-3xl flex-col max-h-[92vh] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+        
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border bg-muted/20">
           <div className="flex items-center gap-2.5">
@@ -202,7 +239,7 @@ export function SmartCareerProfileWizard({
             </div>
             <div>
               <h2 className="text-sm font-bold text-foreground">AI Career Profile Sorter & Form Builder</h2>
-              <p className="text-[11px] text-muted-foreground">Consolidate past CV history & enrich new milestones</p>
+              <p className="text-[11px] text-muted-foreground">Enrich multi-year career history & personalize market benchmarks</p>
             </div>
           </div>
           <button
@@ -214,12 +251,13 @@ export function SmartCareerProfileWizard({
         </div>
 
         {/* Step Indicator */}
-        <div className="grid grid-cols-4 border-b border-border text-center text-xs font-semibold select-none">
+        <div className="grid grid-cols-5 border-b border-border text-center text-xs font-semibold select-none">
           {[
-            { num: 1, label: "Identity & Target" },
-            { num: 2, label: "Experience (5+ Yrs)" },
-            { num: 3, label: "Skill Taxonomy" },
-            { num: 4, label: "Education & Certs" },
+            { num: 1, label: "Identity" },
+            { num: 2, label: "Timeline" },
+            { num: 3, label: "Taxonomy" },
+            { num: 4, label: "Education" },
+            { num: 5, label: "Market & Salary" },
           ].map((s) => (
             <button
               key={s.num}
@@ -571,6 +609,115 @@ export function SmartCareerProfileWizard({
               </div>
             </div>
           )}
+
+          {/* STEP 5: Market Preferences, Salary & Pro Upsells */}
+          {step === 5 && (
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-foreground mb-1 block">Target Seniority</label>
+                  <select
+                    value={targetSeniority}
+                    onChange={(e) => setTargetSeniority(e.target.value)}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                  >
+                    <option value="Mid-Level">Mid-Level Engineer (3-5 Yrs)</option>
+                    <option value="Senior">Senior Engineer (5-8 Yrs)</option>
+                    <option value="Staff">Staff / Principal (8+ Yrs)</option>
+                    <option value="Engineering Manager">Engineering Manager / Director</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-foreground mb-1 block">Target Compensation Band</label>
+                  <select
+                    value={targetSalaryRange}
+                    onChange={(e) => setTargetSalaryRange(e.target.value)}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                  >
+                    <option value="$120k - $160k">$120,000 - $160,000</option>
+                    <option value="$160k - $220k">$160,000 - $220,000</option>
+                    <option value="$220k - $300k">$220,000 - $300,000</option>
+                    <option value="$300k+">$300,000+ (Executive Band)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-foreground mb-1 block">Work Mode</label>
+                  <select
+                    value={workPreference}
+                    onChange={(e) => setWorkPreference(e.target.value)}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                  >
+                    <option value="Remote First">Remote First</option>
+                    <option value="Hybrid (1-2 days)">Hybrid (1-2 days)</option>
+                    <option value="On-site">On-site</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-foreground mb-1 block">Primary Domain</label>
+                  <input
+                    type="text"
+                    value={primaryIndustry}
+                    onChange={(e) => setPrimaryIndustry(e.target.value)}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                    placeholder="AI Systems / Cloud Infrastructure"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-foreground mb-1 block">Dream Companies / Targets</label>
+                <input
+                  type="text"
+                  value={targetCompaniesInput}
+                  onChange={(e) => setTargetCompaniesInput(e.target.value)}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                  placeholder="Stripe, Google, OpenAI, Snowflake (comma separated)"
+                />
+              </div>
+
+              {/* High-Converting Pro Package Upsell Banner */}
+              <div className="rounded-xl border border-primary/30 bg-primary/[0.05] p-4 shadow-sm space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-primary uppercase tracking-wider">
+                      <Sparkles className="size-3.5" />
+                      <span>Executive Compensation & ATS Package</span>
+                    </div>
+                    <h3 className="text-sm font-bold text-foreground">
+                      Unlock Recruiter Benchmarking & Vector PDF Downloads
+                    </h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Upgrade to easyCV Pro to unlock unwatermarked Vector PDF, LaTeX source code, and priority keyword formatting tailored to your target {targetSalaryRange} band.
+                    </p>
+                  </div>
+                  <div className="shrink-0 flex flex-col items-end">
+                    <span className="text-lg font-extrabold text-foreground">$14</span>
+                    <span className="text-[10px] text-muted-foreground">one-time</span>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-primary/20 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 text-[11px] text-muted-foreground font-mono">
+                    <span className="flex items-center gap-1 text-emerald-400 font-semibold">
+                      <CheckCircle2 className="size-3" /> Vector PDF
+                    </span>
+                    <span>&bull;</span>
+                    <span className="flex items-center gap-1 text-emerald-400 font-semibold">
+                      <CheckCircle2 className="size-3" /> LaTeX (.tex)
+                    </span>
+                    <span>&bull;</span>
+                    <span className="flex items-center gap-1 text-emerald-400 font-semibold">
+                      <CheckCircle2 className="size-3" /> HTML Bundle
+                    </span>
+                  </div>
+                  <CheckoutButton uploadId={uploadId} label="Unlock Pro Package ($14)" size="sm" />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer Navigation */}
@@ -590,7 +737,7 @@ export function SmartCareerProfileWizard({
           </div>
 
           <div className="flex items-center gap-2">
-            {step < 4 ? (
+            {step < 5 ? (
               <Button
                 type="button"
                 size="sm"
