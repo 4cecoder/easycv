@@ -4,7 +4,7 @@
 # Required CI/CD variables (Settings → CI/CD → Variables):
 #   VULTRCR_USERNAME   registry username          (Masked)
 #   VULTRCR_PASSWORD   registry API key           (Masked)
-#   KUBECONFIG         cluster kubeconfig         (Type: File)
+#   KUBECONFIG         optional fallback; deploy prefers Terraform state kubeconfig
 #   GITHUB_TOKEN       read access to 4cecoder/ui-kit (Masked)
 #   VULTR_API_KEY      Vultr account API key for cluster:apply / cluster:destroy (Masked)
 #
@@ -103,15 +103,57 @@ deploy:
   script:
     - |
       set -eu
-      if [ -n "${KUBECONFIG:-}" ] && [ -f "${KUBECONFIG}" ]; then
-        echo "Using file-type KUBECONFIG"
+      apk add --no-cache curl jq >/dev/null
+
+      STATE_URL="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/vke"
+      if curl --fail --silent --show-error --user "gitlab-ci-token:${CI_JOB_TOKEN}" "$STATE_URL" -o /tmp/tfstate.json; then
+        echo "Using kubeconfig from Terraform state (current VKE cluster)"
+        jq -r '.outputs.kube_config.value // empty' /tmp/tfstate.json > /tmp/easycv.kubeconfig
+        if ! grep -q "apiVersion" /tmp/easycv.kubeconfig 2>/dev/null; then
+          if base64 -d /tmp/easycv.kubeconfig > /tmp/easycv.kubeconfig.decoded 2>/dev/null && grep -q "apiVersion" /tmp/easycv.kubeconfig.decoded; then
+            mv /tmp/easycv.kubeconfig.decoded /tmp/easycv.kubeconfig
+          fi
+        fi
+        if ! grep -q "apiVersion" /tmp/easycv.kubeconfig 2>/dev/null; then
+          echo "Terraform state did not contain a usable kube_config output. Re-run cluster:apply."
+          exit 1
+        fi
+        export KUBECONFIG=/tmp/easycv.kubeconfig
+        CLUSTER_IP="$(jq -r '.outputs.cluster_ip.value // empty' /tmp/tfstate.json)"
+        if [ -z "$CLUSTER_IP" ] || [ "$CLUSTER_IP" = "null" ]; then
+          CLUSTER_IP="$(jq -r '[.resources[] | select(.type=="vultr_kubernetes") | .instances[].attributes.ip] | first // empty' /tmp/tfstate.json)"
+        fi
+        rm -f /tmp/tfstate.json
+      elif [ -n "${KUBECONFIG:-}" ] && [ -f "${KUBECONFIG}" ]; then
+        echo "WARNING: Terraform state not found; falling back to GitLab KUBECONFIG (often stale after cluster:destroy)."
       elif [ -n "${KUBE_CONFIG:-}" ] && [ -f "${KUBE_CONFIG}" ]; then
+        echo "WARNING: Terraform state not found; falling back to GitLab KUBE_CONFIG."
         export KUBECONFIG="$KUBE_CONFIG"
       else
-        echo "Set KUBECONFIG as a GitLab CI/CD File variable (Vultr kubeconfig)."
+        echo "No Terraform state and no KUBECONFIG file variable. Run cluster:apply first."
         exit 1
       fi
 
+      SERVER="$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')"
+      echo "API server in kubeconfig: $SERVER"
+      HOST="$(printf '%s' "$SERVER" | sed -e 's#^https://##' -e 's#^http://##' -e 's#:.*$##')"
+      CLUSTER_NAME="$(kubectl config view --minify -o jsonpath='{.clusters[0].name}')"
+      if [ -n "${CLUSTER_IP:-}" ] && [ "$CLUSTER_IP" != "null" ]; then
+        echo "Pinning API server to cluster IP ${CLUSTER_IP} (tls-server-name ${HOST})"
+        kubectl config set-cluster "$CLUSTER_NAME" --server="https://${CLUSTER_IP}:6443" --tls-server-name="$HOST" >/dev/null
+      fi
+
+      echo "Waiting for Kubernetes API..."
+      n=0
+      until kubectl cluster-info >/dev/null 2>&1; do
+        n=$((n + 1))
+        if [ "$n" -ge 36 ]; then
+          echo "Kubernetes API did not become reachable. Re-run cluster:apply and check the kubeconfig is for the live cluster."
+          kubectl cluster-info || true
+          exit 1
+        fi
+        sleep 5
+      done
       kubectl cluster-info
       kubectl apply -f k8s/namespace.yaml
 

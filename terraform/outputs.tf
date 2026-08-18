@@ -16,6 +16,11 @@ output "endpoint" {
   value       = vultr_kubernetes.easycv.endpoint
 }
 
+output "cluster_ip" {
+  description = "Kubernetes API IPv4 address. Deploy uses this when DNS for the VKE hostname fails."
+  value       = vultr_kubernetes.easycv.ip
+}
+
 output "status" {
   value = vultr_kubernetes.easycv.status
 }
