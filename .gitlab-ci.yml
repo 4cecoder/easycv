@@ -84,9 +84,7 @@ build-frontend:
 
 deploy:
   stage: deploy
-  image:
-    name: bitnami/kubectl:1.32.0
-    entrypoint: [""]
+  image: alpine/k8s:1.32.13
   resource_group: production
   environment:
     name: production
