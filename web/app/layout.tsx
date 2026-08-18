@@ -10,6 +10,7 @@ import { PostHogProvider } from "./PostHogProvider";
 // visual-identity token, loaded normally via next/font (no astryx package).
 import { AppHeader } from "@/components/AppHeader";
 import { DevDebugMenu } from "@/components/DevDebugMenu";
+import { FAQAssistantChat } from "@/components/FAQAssistantChat";
 
 const figtree = Figtree({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                   · <a href="/terms" className="underline hover:text-foreground transition-colors">Terms</a>
                 </p>
               </footer>
+              <FAQAssistantChat />
               <DevDebugMenu />
             </div>
           </ConvexClientProvider>
