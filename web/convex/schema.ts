@@ -100,10 +100,7 @@ export default defineSchema({
     pdfStorageId: v.optional(v.id("_storage")),
   }).index("by_upload", ["uploadId"]),
 
-  // Resume-to-job-description tailoring results (one per upload).
-  // Renamed from "jobMatches" to avoid collision with the external job
-  // discovery table of the same name added for Indeed/LinkedIn integration.
-  resumeMatches: defineTable({
+  jobMatches: defineTable({
     uploadId: v.id("uploads"),
     matchScore: v.number(),
     matchedKeywords: v.array(v.string()),
@@ -127,59 +124,6 @@ export default defineSchema({
     .index("by_stripe_session", ["stripeSessionId"])
     .index("by_download_token", ["downloadToken"])
     .index("by_upload", ["uploadId"]),
-
-  // Job postings that can be matched against user profiles.
-  // Stores structured job data extracted from descriptions pasted by users
-  // or scraped from external sources.
-  jobPostings: defineTable({
-    title: v.string(),
-    company: v.optional(v.string()),
-    location: v.optional(v.string()),
-    description: v.string(),
-    // Structured keywords extracted from the job description
-    keywords: v.array(v.string()),
-    // Salary info (parsed from description if available)
-    salaryMin: v.optional(v.number()),
-    salaryMax: v.optional(v.number()),
-    salaryCurrency: v.optional(v.string()),
-    // Work arrangement: "remote" | "hybrid" | "on-site" | "unknown"
-    workArrangement: v.optional(v.string()),
-    // Seniority level: "entry" | "mid" | "senior" | "lead" | "executive"
-    seniorityLevel: v.optional(v.string()),
-    // Source URL if scraped
-    sourceUrl: v.optional(v.string()),
-    // Whether this posting is still active
-    active: v.boolean(),
-    // When this posting was created or last refreshed
-    createdAt: v.number(),
-    updatedAt: v.number(),
-  })
-    .index("by_active", ["active", "updatedAt"])
-    .index("by_company", ["company"])
-    .index("by_keywords", ["keywords"]),
-
-  // Job matching results — links a user's profile to a job posting with a
-  // computed match score and detailed analysis.  Separate from the existing
-  // `jobMatches` table (which is per-upload and LLM-based) to support the
-  // automated keyword-matching engine that runs on a cron schedule.
-  jobMatchResults: defineTable({
-    uploadId: v.id("uploads"),
-    jobPostingId: v.id("jobPostings"),
-    matchScore: v.number(),
-    matchedKeywords: v.array(v.string()),
-    missingKeywords: v.array(v.string()),
-    // Weighted components for transparency
-    keywordScore: v.number(),
-    recencyScore: v.number(),
-    salaryScore: v.number(),
-    locationScore: v.number(),
-    // Whether the user has been notified about this match
-    notified: v.boolean(),
-    createdAt: v.number(),
-  })
-    .index("by_upload", ["uploadId", "matchScore"])
-    .index("by_job", ["jobPostingId", "matchScore"])
-    .index("by_notified", ["notified", "createdAt"]),
 
   candidateInsights: defineTable({
     sessionId: v.string(),
@@ -355,60 +299,27 @@ export default defineSchema({
     .index("by_email", ["email"])
     .index("by_session", ["sessionId"]),
 
-  // ──────────────────────────────────────────────────────────────────────
-  // Indeed / external job discovery
-  // ──────────────────────────────────────────────────────────────────────
-
-  // Job postings scraped from Indeed, LinkedIn, or added manually.
+  // Indeed job postings — scraped listings tracked for matching and cleanup.
+  // status: "active" | "expired" | "removed"
   jobPostings: defineTable({
-    source: v.string(), // "indeed" | "linkedin" | "manual"
-    sourceId: v.string(), // Indeed job key, LinkedIn post ID, etc.
-    url: v.string(), // Original job URL
-    title: v.string(), // Job title
-    company: v.string(), // Company name
-    location: v.string(), // Job location
-    description: v.string(), // Full job description text
-    salaryMin: v.optional(v.number()),
-    salaryMax: v.optional(v.number()),
-    salaryCurrency: v.optional(v.string()),
-    jobType: v.optional(v.string()), // "full-time" | "part-time" | "contract"
-    postedAt: v.optional(v.number()), // When posted (if known)
-    expiresAt: v.optional(v.number()), // When to auto-remove
-    fetchedAt: v.number(), // When we scraped it
-    // Matching metadata
-    matchedUsers: v.optional(v.array(v.string())), // sessionIds of matched users
-    matchCount: v.number(), // How many users matched
-    status: v.string(), // "active" | "expired" | "removed"
+    title: v.string(),
+    company: v.string(),
+    location: v.optional(v.string()),
+    url: v.string(),
+    description: v.optional(v.string()),
+    // Keywords extracted from the posting for matching against profiles
+    keywords: v.array(v.string()),
+    // "active" — still live on Indeed
+    // "expired" — older than 30 days or confirmed gone
+    // "removed" — confirmed removed from Indeed before expiry
+    status: v.string(),
+    scrapedAt: v.number(),
+    lastRefreshedAt: v.optional(v.number()),
+    // Expiry and deletion thresholds (timestamps)
+    expiresAt: v.number(),
+    deletedAt: v.optional(v.number()),
   })
-    .index("by_source", ["source", "sourceId"])
-    .index("by_status", ["status", "fetchedAt"])
-    .index("by_company", ["company"])
-    .index("by_location", ["location"]),
-
-  // User job preferences (what they're looking for).
-  jobPreferences: defineTable({
-    sessionId: v.string(),
-    targetTitles: v.array(v.string()), // ["Senior Engineer", "Staff Engineer"]
-    targetCompanies: v.optional(v.array(v.string())),
-    targetLocations: v.optional(v.array(v.string())),
-    minSalary: v.optional(v.number()),
-    jobTypes: v.optional(v.array(v.string())), // ["full-time", "contract"]
-    keywords: v.array(v.string()), // ["python", "kubernetes", "aws"]
-    updatedAt: v.number(),
-  }).index("by_session", ["sessionId"]),
-
-  // Per-user per-external-job match results.
-  externalJobMatches: defineTable({
-    sessionId: v.string(),
-    jobPostingId: v.id("jobPostings"),
-    matchScore: v.number(), // 0–100
-    matchedKeywords: v.array(v.string()),
-    missingKeywords: v.array(v.string()),
-    gapAnalysis: v.string(),
-    notified: v.boolean(), // Whether user was notified
-    createdAt: v.number(),
-  })
-    .index("by_session", ["sessionId"])
-    .index("by_job", ["jobPostingId"])
-    .index("by_score", ["matchScore"]),
+    .index("by_status", ["status"])
+    .index("by_status_and_expiresAt", ["status", "expiresAt"])
+    .index("by_url", ["url"]),
 });
