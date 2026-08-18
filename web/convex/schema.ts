@@ -100,7 +100,10 @@ export default defineSchema({
     pdfStorageId: v.optional(v.id("_storage")),
   }).index("by_upload", ["uploadId"]),
 
-  jobMatches: defineTable({
+  // Resume-to-job-description tailoring results (one per upload).
+  // Renamed from "jobMatches" to avoid collision with the external job
+  // discovery table of the same name added for Indeed/LinkedIn integration.
+  resumeMatches: defineTable({
     uploadId: v.id("uploads"),
     matchScore: v.number(),
     matchedKeywords: v.array(v.string()),
@@ -298,4 +301,61 @@ export default defineSchema({
   })
     .index("by_email", ["email"])
     .index("by_session", ["sessionId"]),
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Indeed / external job discovery
+  // ──────────────────────────────────────────────────────────────────────
+
+  // Job postings scraped from Indeed, LinkedIn, or added manually.
+  jobPostings: defineTable({
+    source: v.string(), // "indeed" | "linkedin" | "manual"
+    sourceId: v.string(), // Indeed job key, LinkedIn post ID, etc.
+    url: v.string(), // Original job URL
+    title: v.string(), // Job title
+    company: v.string(), // Company name
+    location: v.string(), // Job location
+    description: v.string(), // Full job description text
+    salaryMin: v.optional(v.number()),
+    salaryMax: v.optional(v.number()),
+    salaryCurrency: v.optional(v.string()),
+    jobType: v.optional(v.string()), // "full-time" | "part-time" | "contract"
+    postedAt: v.optional(v.number()), // When posted (if known)
+    expiresAt: v.optional(v.number()), // When to auto-remove
+    fetchedAt: v.number(), // When we scraped it
+    // Matching metadata
+    matchedUsers: v.optional(v.array(v.string())), // sessionIds of matched users
+    matchCount: v.number(), // How many users matched
+    status: v.string(), // "active" | "expired" | "removed"
+  })
+    .index("by_source", ["source", "sourceId"])
+    .index("by_status", ["status", "fetchedAt"])
+    .index("by_company", ["company"])
+    .index("by_location", ["location"]),
+
+  // User job preferences (what they're looking for).
+  jobPreferences: defineTable({
+    sessionId: v.string(),
+    targetTitles: v.array(v.string()), // ["Senior Engineer", "Staff Engineer"]
+    targetCompanies: v.optional(v.array(v.string())),
+    targetLocations: v.optional(v.array(v.string())),
+    minSalary: v.optional(v.number()),
+    jobTypes: v.optional(v.array(v.string())), // ["full-time", "contract"]
+    keywords: v.array(v.string()), // ["python", "kubernetes", "aws"]
+    updatedAt: v.number(),
+  }).index("by_session", ["sessionId"]),
+
+  // Per-user per-external-job match results.
+  externalJobMatches: defineTable({
+    sessionId: v.string(),
+    jobPostingId: v.id("jobPostings"),
+    matchScore: v.number(), // 0–100
+    matchedKeywords: v.array(v.string()),
+    missingKeywords: v.array(v.string()),
+    gapAnalysis: v.string(),
+    notified: v.boolean(), // Whether user was notified
+    createdAt: v.number(),
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_job", ["jobPostingId"])
+    .index("by_score", ["matchScore"]),
 });
