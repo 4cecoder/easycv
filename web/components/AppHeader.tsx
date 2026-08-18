@@ -16,6 +16,7 @@ import {
   Lock 
 } from "lucide-react";
 import { AccountSignupModal } from "./AccountSignupModal";
+import { ThemeToggle } from "./ThemeToggle";
 
 export function AppHeader() {
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -100,6 +101,9 @@ export function AppHeader() {
                 ⌘K
               </kbd>
             </button>
+
+            {/* Light / Dark Mode Toggle */}
+            <ThemeToggle />
 
             {/* Quick Upload CTA */}
             <Link
