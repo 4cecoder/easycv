@@ -59,9 +59,9 @@ export function AppHeader() {
           {/* Center / Right: Engine Status & Fast Command Bar */}
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Engine Status Badge */}
-            <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+            <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-400">
               <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Needle 2 Edge Engine</span>
+              <span>AI Engine Active</span>
             </div>
 
             {/* Quick Command Palette Button */}
@@ -91,12 +91,12 @@ export function AppHeader() {
 
       {/* Keyboard Shortcuts Modal */}
       {showShortcuts && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in duration-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-100">
           <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-2xl animate-in zoom-in-95 duration-100">
             <div className="flex items-center justify-between pb-3 border-b border-border">
               <div className="flex items-center gap-2 font-semibold text-sm">
                 <Command className="size-4 text-primary" />
-                <span>Command Shortcuts & Power Controls</span>
+                <span>Command Shortcuts & Controls</span>
               </div>
               <button 
                 onClick={() => setShowShortcuts(false)}
@@ -120,12 +120,12 @@ export function AppHeader() {
                 <kbd className="rounded bg-muted px-2 py-0.5 font-mono text-[11px] border border-border">1, 2, 3, 4, 5</kbd>
               </div>
               <div className="flex items-center justify-between py-1 border-b border-border/40">
-                <span className="text-muted-foreground">Export Clean HTML</span>
-                <kbd className="rounded bg-muted px-2 py-0.5 font-mono text-[11px] border border-border">Instant (Free)</kbd>
+                <span className="text-muted-foreground">Vector PDF & LaTeX Export</span>
+                <kbd className="rounded bg-muted px-2 py-0.5 font-mono text-[11px] border border-border">Pro Package</kbd>
               </div>
               <div className="flex items-center justify-between py-1">
-                <span className="text-muted-foreground">AI-Powered</span>
-                <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">ASD-STE100 Validated</span>
+                <span className="text-muted-foreground">Quality Check</span>
+                <span className="font-mono text-emerald-400 font-semibold">ASD-STE100 Validated</span>
               </div>
             </div>
 

@@ -246,8 +246,9 @@ export default function UploadPage() {
         {/* Quick-Start Template Gallery */}
         <div className="w-full flex flex-col gap-2">
           <div className="flex items-center justify-between px-1">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              ⚡ Instant 1-Click Samples
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Zap className="size-3.5 text-primary" />
+              <span>1-Click Sample Resumes</span>
             </span>
             <span className="text-[11px] text-muted-foreground">Pre-compiled for instant testing</span>
           </div>

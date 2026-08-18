@@ -21,8 +21,8 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={cn("font-sans", figtree.variable)}>
-      <body className="min-h-screen bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">
+    <html lang="en" className={cn("dark font-sans", figtree.variable)} style={{ colorScheme: "dark" }}>
+      <body className="min-h-screen bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary dark">
         <PostHogProvider>
           <ConvexClientProvider>
             <div className="flex min-h-screen flex-col">

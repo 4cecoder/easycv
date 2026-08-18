@@ -126,7 +126,7 @@ export const DevDebugMenu: React.FC = () => {
               <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-2 text-[11px]">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <Zap className="size-3 text-muted-foreground shrink-0" />
-                  <span className="truncate">Needle 2 RPC</span>
+                  <span className="truncate">Edge Engine RPC</span>
                 </div>
                 {rpcStatus === "online" ? (
                   <span className="flex items-center gap-1 text-emerald-600 font-semibold text-[10px]">
@@ -134,7 +134,7 @@ export const DevDebugMenu: React.FC = () => {
                   </span>
                 ) : (
                   <span className="flex items-center gap-1 text-muted-foreground text-[10px]">
-                    WASM/CPU
+                    CPU Mode
                   </span>
                 )}
               </div>
@@ -150,9 +150,9 @@ export const DevDebugMenu: React.FC = () => {
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">WebGPU Hardware Accel:</span>
-              <span className={hardware?.hasWebGPU ? "text-emerald-500 font-bold" : "text-amber-500 font-bold"}>
-                {hardware?.hasWebGPU ? "ENABLED ⚡" : "CPU FALLBACK"}
+              <span className="text-muted-foreground">Hardware Acceleration:</span>
+              <span className={hardware?.hasWebGPU ? "text-emerald-400 font-bold" : "text-amber-400 font-bold"}>
+                {hardware?.hasWebGPU ? "ACTIVE" : "CPU FALLBACK"}
               </span>
             </div>
             <div className="flex items-center justify-between">
@@ -198,7 +198,7 @@ export const DevDebugMenu: React.FC = () => {
           {/* Footer note */}
           <div className="mt-3 text-center">
             <span className="text-[9px] font-mono text-muted-foreground">
-              ⚡ Local Dev Mode Only &bull; Zero Production Footprint
+              Local Dev Mode Only &bull; Zero Production Footprint
             </span>
           </div>
         </div>

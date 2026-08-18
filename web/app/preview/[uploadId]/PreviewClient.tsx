@@ -24,7 +24,8 @@ import {
   ChevronRight,
   Award,
   Crown,
-  CheckCircle2
+  CheckCircle2,
+  Lock
 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -344,8 +345,9 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
               </>
             ) : (
               <div className="flex items-center gap-2.5">
-                <span className="hidden md:inline text-xs text-muted-foreground font-medium">
-                  🔒 ATS-Optimized Vector PDF
+                <span className="hidden md:flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+                  <Lock className="size-3 text-muted-foreground" />
+                  <span>ATS-Optimized Vector PDF</span>
                 </span>
                 <CheckoutButton uploadId={uploadId} label="Unlock Official PDF ($14)" size="sm" />
               </div>
@@ -400,8 +402,9 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
               </span>
               {jobMatch && <span className="text-xs text-muted-foreground font-mono">match</span>}
             </div>
-            <span className="text-[11px] font-semibold text-primary cursor-pointer hover:underline" onClick={() => setActiveTab("match")}>
-              {jobMatch ? "View Keyword Analysis →" : "Run Requisition Match →"}
+            <span className="text-[11px] font-semibold text-primary cursor-pointer hover:underline flex items-center gap-0.5" onClick={() => setActiveTab("match")}>
+              <span>{jobMatch ? "View Keyword Analysis" : "Run Requisition Match"}</span>
+              <ChevronRight className="size-3" />
             </span>
           </div>
 
@@ -783,7 +786,7 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="p-6 grid sm:grid-cols-2 gap-4">
+                <CardContent className="p-6 grid sm:grid-cols-3 gap-4">
                   <div className="flex flex-col justify-between rounded-xl border border-border bg-muted/30 p-5 gap-4">
                     <div>
                       <div className="flex items-center gap-2 text-primary font-bold text-sm">
@@ -816,6 +819,25 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
                     >
                       <Copy className="size-3.5 mr-1.5" />
                       Copy LaTeX Source
+                    </Button>
+                  </div>
+
+                  <div className="flex flex-col justify-between rounded-xl border border-border bg-muted/30 p-5 gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 text-foreground font-bold text-sm">
+                        <Share2 className="size-4" />
+                        <span>HTML Web Bundle</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Self-contained responsive web resume file.</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => exportHtmlResume(profile, template, fontSize, primaryColor)}
+                      className="w-full font-semibold"
+                    >
+                      <Download className="size-3.5 mr-1.5" />
+                      Export HTML
                     </Button>
                   </div>
                 </CardContent>
