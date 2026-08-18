@@ -6,14 +6,20 @@
 #   VULTRCR_PASSWORD   registry API key           (Masked)
 #   KUBECONFIG         cluster kubeconfig         (Type: File)
 #   GITHUB_TOKEN       read access to 4cecoder/ui-kit (Masked)
+#   VULTR_API_KEY      Vultr account API key for cluster:apply / cluster:destroy (Masked)
 #
 # App variables (worker will crash-loop until these exist):
 #   NEXT_PUBLIC_CONVEX_URL
 #   WORKER_SECRET
 #
 # Optional: CONVEX_URL, APP_URL, STRIPE_*, LLM_*, OPENAI_API_KEY, ANTHROPIC_API_KEY
+# Optional: GITLAB_API_TOKEN (api scope) so cluster:apply can write KUBECONFIG
+
+include:
+  - local: terraform/.gitlab-ci.yml
 
 stages:
+  - cluster
   - build
   - deploy
 

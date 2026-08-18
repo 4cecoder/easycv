@@ -1,0 +1,14 @@
+# Copy to terraform.tfvars for local runs (do not commit real overrides unless
+# they are non-secret). CI uses these defaults unless you set TF_VAR_*.
+
+cluster_label      = "easycv"
+region             = "atl"
+kubernetes_version = "v1.32.3+1"
+ha_controlplanes   = false
+enable_firewall    = false
+node_label         = "easycv-workers"
+node_plan          = "vc2-2c-4gb"
+node_quantity      = 2
+auto_scaler        = false
+min_nodes          = 1
+max_nodes          = 3

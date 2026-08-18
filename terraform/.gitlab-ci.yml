@@ -1,0 +1,103 @@
+# Manual VKE create/destroy. Play these jobs from a master pipeline.
+# They do not block image build/deploy (allow_failure + needs: []).
+#
+# Required GitLab CI/CD variable:
+#   VULTR_API_KEY   Vultr account API key (Masked)
+#
+# Optional:
+#   GITLAB_API_TOKEN   Project/personal token with api scope — after apply,
+#                      updates the KUBECONFIG file variable so deploy works.
+#   TF_VAR_node_quantity, TF_VAR_node_plan, TF_VAR_kubernetes_version, ...
+
+.terraform:
+  image:
+    name: hashicorp/terraform:1.11.3
+    entrypoint: [""]
+  resource_group: vke
+  timeout: 45m
+  interruptible: false
+  needs: []
+  variables:
+    TF_IN_AUTOMATION: "true"
+    TF_INPUT: "0"
+    TF_ROOT: terraform
+    TF_STATE_NAME: vke
+  before_script:
+    - |
+      set -eu
+      if [ -z "${VULTR_API_KEY:-}" ]; then
+        echo "Set VULTR_API_KEY as a masked GitLab CI/CD variable (Vultr account API key)."
+        exit 1
+      fi
+      export TF_HTTP_ADDRESS="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}"
+      export TF_HTTP_LOCK_ADDRESS="${TF_HTTP_ADDRESS}/lock"
+      export TF_HTTP_UNLOCK_ADDRESS="${TF_HTTP_ADDRESS}/lock"
+      export TF_HTTP_USERNAME="gitlab-ci-token"
+      export TF_HTTP_PASSWORD="${CI_JOB_TOKEN}"
+      export TF_HTTP_LOCK_METHOD="POST"
+      export TF_HTTP_UNLOCK_METHOD="DELETE"
+      export TF_HTTP_RETRY_WAIT_MIN="5"
+      cd "$TF_ROOT"
+      terraform init -input=false -reconfigure
+
+cluster:apply:
+  extends: .terraform
+  stage: cluster
+  environment:
+    name: vke
+    action: start
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+      allow_failure: true
+    - if: $CI_COMMIT_TAG
+      when: manual
+      allow_failure: true
+  script:
+    - |
+      set -eu
+      terraform apply -input=false -auto-approve
+      terraform output cluster_id
+      terraform output endpoint
+      terraform output kubernetes_version
+      terraform output -raw kube_config > /tmp/kubeconfig.yaml
+      if [ -n "${GITLAB_API_TOKEN:-}" ]; then
+        apk add --no-cache curl >/dev/null
+        curl --fail --silent --show-error --request PUT \
+          --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+          --form "variable_type=file" \
+          --form "value=</tmp/kubeconfig.yaml" \
+          "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/variables/KUBECONFIG" \
+          >/dev/null \
+        || curl --fail --silent --show-error --request POST \
+          --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+          --form "key=KUBECONFIG" \
+          --form "variable_type=file" \
+          --form "value=</tmp/kubeconfig.yaml" \
+          "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/variables" \
+          >/dev/null
+        echo "Updated GitLab CI/CD file variable KUBECONFIG."
+      else
+        echo "Cluster is up. Set GitLab KUBECONFIG (Type: File) from Vultr → Kubernetes → Download Configuration,"
+        echo "or add GITLAB_API_TOKEN (api scope) so this job updates KUBECONFIG automatically."
+      fi
+      rm -f /tmp/kubeconfig.yaml
+
+cluster:destroy:
+  extends: .terraform
+  stage: cluster
+  environment:
+    name: vke
+    action: stop
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+      allow_failure: true
+    - if: $CI_COMMIT_TAG
+      when: manual
+      allow_failure: true
+  script:
+    - |
+      set -eu
+      terraform destroy -input=false -auto-approve
+      echo "VKE cluster destroyed. App LoadBalancer and nodes are gone; recreate with cluster:apply."
