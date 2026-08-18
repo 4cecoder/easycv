@@ -67,7 +67,7 @@ export function MicrosoftSuiteHeader() {
             {/* Ultra-Fast Engine Status Badge */}
             <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
               <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Zero-Lag Client AI</span>
+              <span>AI-Powered Engine</span>
             </div>
 
             {/* Quick Command Palette Button */}

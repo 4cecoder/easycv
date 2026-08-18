@@ -60,7 +60,7 @@ const ENGAGEMENT_TIPS = [
   "✨ STE-100 ATS Tip: Avoid multi-column layouts and tables for flawless ATS parsing.",
   "🔗 Career Fact: Tailoring bullet points to match target job keywords increases callback rates by 50%.",
   "📐 STE-100 ATS Tip: Start every bullet with strong action verbs ('Spearheaded', 'Architected', 'Optimized').",
-  "🚀 Private Local AI: 100% private inference with zero third-party data tracking."
+  "🚀 AI Pipeline: Your files are processed server-side by GPT-4o and never stored after processing."
 ];
 
 const STAGE_MESSAGES = [
@@ -117,7 +117,7 @@ function LoadingEngagementWidget({ status }: { status: "queued" | "processing" }
             <p className="text-xs text-muted-foreground max-w-sm">
               {status === "queued"
                 ? "Waiting to start... This page updates on its own — no need to refresh."
-                : "Consolidating your resume with private local AI..."}
+                : "Consolidating your resume with AI..."}
             </p>
           </div>
         </div>
@@ -809,7 +809,7 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
             </div>
             <div className="flex flex-col">
               <span className="text-xs font-bold text-foreground">Master Profile Ready</span>
-              <span className="text-[10px] text-muted-foreground font-mono">100% Client-Side Safe • Single Column</span>
+              <span className="text-[10px] text-muted-foreground font-mono">ATS-Optimized • Single Column • LaTeX</span>
             </div>
           </div>
 

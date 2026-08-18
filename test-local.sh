@@ -51,15 +51,20 @@ command -v kubectl &>/dev/null || die "kubectl not found"
 
 # ── Step 1: Build Docker images locally (native platform, e.g. arm64 on Mac M1) ──
 if [[ "$SKIP_BUILD" == false ]]; then
+  # Ensure ssh agent has identity for git ssh dependencies if available
+  ssh-add ~/.ssh/id_ed25519 2>/dev/null || true
+  ssh-add ~/.ssh/id_rsa 2>/dev/null || true
+
   info "Building frontend image (native local architecture)..."
-  docker build \
+  DOCKER_BUILDKIT=1 docker build \
+    --ssh default \
     --build-arg NEXT_PUBLIC_CONVEX_URL="http://127.0.0.1:3210" \
     -t easycv-frontend:local -f web/Dockerfile web/ \
     2>&1 | tail -5
   ok "Frontend image built"
 
   info "Building worker image..."
-  docker build -t easycv-worker:local -f Dockerfile . \
+  DOCKER_BUILDKIT=1 docker build -t easycv-worker:local -f Dockerfile . \
     2>&1 | tail -5
   ok "Worker image built"
 else
@@ -70,6 +75,18 @@ else
 fi
 
 # ── Step 2: Create kind cluster ─────────────────────────────────────────────
+# Ensure host ports are free for kind port mappings
+for PORT_CHECK in 3210 3211 6791 8080; do
+  PID_CHECK=$(lsof -ti :"$PORT_CHECK" 2>/dev/null || true)
+  if [[ -n "$PID_CHECK" ]]; then
+    PNAME=$(ps -p "$PID_CHECK" -o comm= 2>/dev/null || echo "process")
+    if [[ "$PNAME" == *"convex"* ]]; then
+      info "Freeing stale $PNAME on port $PORT_CHECK (PID $PID_CHECK)..."
+      kill -9 "$PID_CHECK" 2>/dev/null || true
+    fi
+  fi
+done
+
 if kind get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
   warn "Cluster '${CLUSTER_NAME}' already exists, reusing"
 else
@@ -293,10 +310,23 @@ info "Waiting for Convex backend to be ready..."
 kubectl rollout status deployment/convex-backend -n "$NS" --timeout=60s
 ok "Convex backend is live"
 
-# Push schema to self-hosted Convex backend
+# Fetch derived admin key from container
+ADMIN_KEY=$(kubectl exec deploy/convex-backend -n "$NS" -- ./generate_admin_key.sh | tail -n 1)
+
+# Push schema to self-hosted Convex backend using isolated env-file
 info "Pushing Convex schema & functions to self-hosted backend..."
-(cd web && CONVEX_SELF_HOSTED_URL="http://127.0.0.1:3210" CONVEX_SELF_HOSTED_ADMIN_KEY="easycv-local|${LOCAL_INSTANCE_SECRET}" bunx convex dev --once 2>&1 | tail -4) || warn "Schema push completed with warnings"
+TMP_ENV=$(mktemp)
+echo "CONVEX_SELF_HOSTED_URL=http://127.0.0.1:3210" > "$TMP_ENV"
+echo "CONVEX_SELF_HOSTED_ADMIN_KEY=${ADMIN_KEY}" >> "$TMP_ENV"
+
+(cd web && bunx convex dev --once --env-file "$TMP_ENV" 2>&1 | tail -4) || warn "Schema push completed with warnings"
 ok "Convex schema & functions initialized"
+
+# Auto-configure WORKER_SECRET in local Convex
+info "Configuring WORKER_SECRET in local Convex..."
+(cd web && bunx convex env set WORKER_SECRET "$LOCAL_WORKER_SECRET" --env-file "$TMP_ENV" 2>&1 | tail -3) || true
+rm -f "$TMP_ENV"
+ok "Worker secret configured in Convex"
 
 # Frontend deployment (patched for local images)
 cat <<EOF | kubectl apply -f -
@@ -406,7 +436,7 @@ spec:
       restartPolicy: Always
 EOF
 
-# NodePort service (maps cluster port 30000 → host 8080 via kind config)
+# NodePort service (maps cluster port 30000 → host 3000 via kind config)
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: Service
@@ -441,7 +471,31 @@ kubectl wait --for=condition=ready pod -l app=easycv-frontend -n "$NS" --timeout
 kubectl wait --for=condition=ready pod -l app=easycv-worker -n "$NS" --timeout=60s 2>/dev/null \
   && ok "Worker pod ready"
 
-# ── Step 6: Print status ───────────────────────────────────────────────────
+# ── Step 6: Automated Smoke Verification ───────────────────────────────────
+info "Running automated connectivity smoke checks..."
+FRONTEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/ || echo "000")
+DASHBOARD_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:6791/ || echo "000")
+BACKEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3210/version || echo "000")
+
+if [[ "$FRONTEND_STATUS" =~ ^(200|304)$ ]]; then
+  ok "Frontend health: HTTP $FRONTEND_STATUS (OK)"
+else
+  warn "Frontend health: HTTP $FRONTEND_STATUS"
+fi
+
+if [[ "$DASHBOARD_STATUS" =~ ^(200|304)$ ]]; then
+  ok "Convex Dashboard health: HTTP $DASHBOARD_STATUS (OK)"
+else
+  warn "Convex Dashboard health: HTTP $DASHBOARD_STATUS"
+fi
+
+if [[ "$BACKEND_STATUS" =~ ^(200|304)$ ]]; then
+  ok "Convex Backend health: HTTP $BACKEND_STATUS (OK)"
+else
+  warn "Convex Backend health: HTTP $BACKEND_STATUS"
+fi
+
+# ── Step 7: Print status ───────────────────────────────────────────────────
 echo ""
 echo -e "${CYAN}════════════════════════════════════════════════════${NC}"
 echo -e "${CYAN}  easyCV self-hosted local k8s test running${NC}"
@@ -449,7 +503,7 @@ echo -e "${CYAN}═════════════════════�
 echo ""
 kubectl get pods -n "$NS" -o wide
 echo ""
-echo -e "  ${GREEN}Frontend UI:${NC}        http://localhost:8080"
+echo -e "  ${GREEN}Frontend UI:${NC}        http://localhost:3000"
 echo -e "  ${GREEN}Convex Dashboard:${NC}   http://localhost:6791"
 echo -e "  ${GREEN}Convex Backend API:${NC} http://localhost:3210"
 echo ""

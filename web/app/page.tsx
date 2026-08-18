@@ -239,7 +239,7 @@ export default function UploadPage() {
             Professional ATS Resume Intelligence
           </h1>
           <p className="max-w-2xl text-balance text-sm text-muted-foreground font-normal">
-            Consolidate your multi-source CVs, resumes, and LinkedIn exports into an executive, ATS-compliant master profile with instantaneous local AI validation.
+            Consolidate your multi-source CVs, resumes, and LinkedIn exports into an executive, ATS-compliant master profile with AI-powered validation.
           </p>
         </div>
 
@@ -443,10 +443,10 @@ export default function UploadPage() {
           <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3 shadow-2xs">
             <div className="flex items-center gap-2 text-primary font-semibold text-xs">
               <Shield className="size-3.5" />
-              <span>100% Private Sandbox</span>
+              <span>No Data Stored</span>
             </div>
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Client-side local parsing with zero cloud data retention.
+              Files are processed then discarded. No accounts, no tracking, no retention.
             </p>
           </div>
 

@@ -15,7 +15,7 @@ const figtree = Figtree({ subsets: ["latin"], variable: "--font-sans" });
 export const metadata = {
   title: "easyCV 365 | Professional Resume Intelligence & ATS Engine",
   description:
-    "Instant, private, local AI resume consolidation and ASD-STE100 ATS optimization. Free preview with executive LaTeX single-column exports.",
+    "Instant AI resume consolidation and ASD-STE100 ATS optimization. Upload your CVs, get a clean single-column LaTeX resume. Free preview, pay to download.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

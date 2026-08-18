@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Cpu, ShieldCheck, Zap } from 'lucide-react';
 
 const MESSAGES = [
-  '⚡ Initializing local AI parsing engine...',
+  '⚡ Initializing AI parsing engine...',
   '📄 Ingesting resume history & document metadata...',
   '🎯 Extracting technical competencies, tools & frameworks...',
   '📊 Evaluating ASD-STE100 Technical Clarity score...',
@@ -98,7 +98,7 @@ export const LoadingSplashScreen: React.FC = () => {
         <div className="mt-5 flex w-full items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-1.5 text-[11px] font-mono text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <span className="inline-block size-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-foreground font-medium">Local Sandbox Engine</span>
+            <span className="text-foreground font-medium">AI Pipeline</span>
           </span>
           <span>Runtime: {elapsedSeconds}s</span>
         </div>
