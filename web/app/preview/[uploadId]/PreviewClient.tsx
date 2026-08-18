@@ -26,7 +26,8 @@ import {
   Crown,
   CheckCircle2,
   Lock,
-  Wand2
+  Wand2,
+  Zap
 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -35,6 +36,7 @@ import { JobMatchWidget } from "./JobMatchWidget";
 import { STE100BulletWidget } from "./STE100BulletWidget";
 import { CareerVaultWidget } from "./CareerVaultWidget";
 import { SmartCareerProfileWizard } from "../../../components/SmartCareerProfileWizard";
+import { DynamicAutoImproveWizard } from "../../../components/DynamicAutoImproveWizard";
 import { exportHtmlResume } from "./exportHtml";
 import { analyzeProfileBulletsSTE100, validateBulletSTE100 } from "../../../lib/ste100";
 import {
@@ -181,6 +183,7 @@ export function PreviewClient({
   const [primaryColor, setPrimaryColor] = useState<"blue" | "emerald" | "slate" | "violet">("blue");
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [isAutoImproveOpen, setIsAutoImproveOpen] = useState(false);
 
   // Keyboard shortcut for switching tabs (1-5)
   useEffect(() => {
@@ -328,6 +331,16 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
 
           {/* Right: Rapid Action Buttons */}
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsAutoImproveOpen(true)}
+              className="h-8 text-xs font-bold gap-1.5 border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 shadow-2xs"
+            >
+              <Zap className="size-3.5 text-primary" />
+              <span>Auto-Improve (Pro)</span>
+            </Button>
+
             {paymentStatus?.paid && paymentStatus.downloadToken ? (
               <>
                 <Button asChild size="sm" className="h-8 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs">
@@ -950,6 +963,15 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
         initialProfile={profile}
         isOpen={isWizardOpen}
         onClose={() => setIsWizardOpen(false)}
+      />
+
+      {/* Dynamic Auto-Improvement Wizard */}
+      <DynamicAutoImproveWizard
+        uploadId={uploadId}
+        profile={profile}
+        isPaid={Boolean(paymentStatus?.paid)}
+        isOpen={isAutoImproveOpen}
+        onClose={() => setIsAutoImproveOpen(false)}
       />
     </div>
   );

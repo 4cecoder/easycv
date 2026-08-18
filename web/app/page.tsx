@@ -183,6 +183,7 @@ export default function UploadPage() {
       if (!res.ok) {
         throw new Error(body.error ?? `Upload failed (${res.status})`);
       }
+
       posthog.capture("cv_uploaded", {
         file_count: files.length,
         upload_id: body.uploadId,

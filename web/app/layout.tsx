@@ -28,6 +28,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <div className="flex min-h-screen flex-col">
               <AppHeader />
               <div className="flex-1">{children}</div>
+              <footer className="border-t border-border py-4 px-6 text-center">
+                <p className="text-[11px] text-muted-foreground">
+                  easyCV uses analytics to improve our service.{" "}
+                  <a href="/privacy" className="underline hover:text-foreground transition-colors">Privacy</a>{" "}
+                  · <a href="/terms" className="underline hover:text-foreground transition-colors">Terms</a>
+                </p>
+              </footer>
               <DevDebugMenu />
             </div>
           </ConvexClientProvider>

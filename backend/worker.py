@@ -51,6 +51,9 @@ import traceback
 from pathlib import Path
 from typing import Optional
 
+# Ensure repo root is on sys.path
+sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
+
 import requests
 from convex import ConvexClient
 from dotenv import load_dotenv
