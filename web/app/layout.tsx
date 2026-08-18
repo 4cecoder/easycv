@@ -9,6 +9,7 @@ import { PostHogProvider } from "./PostHogProvider";
 // --font-family-heading in @astryxdesign/core) -- used here as the same
 // visual-identity token, loaded normally via next/font (no astryx package).
 import { MicrosoftSuiteHeader } from "@/components/MicrosoftSuiteHeader";
+import { DevDebugMenu } from "@/components/DevDebugMenu";
 
 const figtree = Figtree({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <div className="flex min-h-screen flex-col">
               <MicrosoftSuiteHeader />
               <div className="flex-1">{children}</div>
+              <DevDebugMenu />
             </div>
           </ConvexClientProvider>
         </PostHogProvider>
