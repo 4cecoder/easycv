@@ -184,4 +184,28 @@ export default defineSchema({
     .index("by_session", ["sessionId"])
     .index("by_upload", ["uploadId"])
     .index("by_tier", ["tier", "timestamp"]),
+
+  deviceIdentities: defineTable({
+    deviceHash: v.string(),
+    sessionId: v.string(),
+    identityId: v.string(),
+    email: v.optional(v.string()),
+    browser: v.optional(v.string()),
+    os: v.optional(v.string()),
+    tier: v.optional(v.string()),
+    firstSeenAt: v.number(),
+    lastSeenAt: v.number(),
+  })
+    .index("by_device", ["deviceHash"])
+    .index("by_identity", ["identityId"])
+    .index("by_email", ["email"]),
+
+  identityEvents: defineTable({
+    deviceHash: v.string(),
+    event: v.string(),
+    uploadId: v.optional(v.id("uploads")),
+    metadata: v.optional(v.any()),
+    timestamp: v.number(),
+  })
+    .index("by_device", ["deviceHash", "timestamp"]),
 });
