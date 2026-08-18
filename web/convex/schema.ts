@@ -125,6 +125,59 @@ export default defineSchema({
     .index("by_download_token", ["downloadToken"])
     .index("by_upload", ["uploadId"]),
 
+  // Job postings that can be matched against user profiles.
+  // Stores structured job data extracted from descriptions pasted by users
+  // or scraped from external sources.
+  jobPostings: defineTable({
+    title: v.string(),
+    company: v.optional(v.string()),
+    location: v.optional(v.string()),
+    description: v.string(),
+    // Structured keywords extracted from the job description
+    keywords: v.array(v.string()),
+    // Salary info (parsed from description if available)
+    salaryMin: v.optional(v.number()),
+    salaryMax: v.optional(v.number()),
+    salaryCurrency: v.optional(v.string()),
+    // Work arrangement: "remote" | "hybrid" | "on-site" | "unknown"
+    workArrangement: v.optional(v.string()),
+    // Seniority level: "entry" | "mid" | "senior" | "lead" | "executive"
+    seniorityLevel: v.optional(v.string()),
+    // Source URL if scraped
+    sourceUrl: v.optional(v.string()),
+    // Whether this posting is still active
+    active: v.boolean(),
+    // When this posting was created or last refreshed
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_active", ["active", "updatedAt"])
+    .index("by_company", ["company"])
+    .index("by_keywords", ["keywords"]),
+
+  // Job matching results — links a user's profile to a job posting with a
+  // computed match score and detailed analysis.  Separate from the existing
+  // `jobMatches` table (which is per-upload and LLM-based) to support the
+  // automated keyword-matching engine that runs on a cron schedule.
+  jobMatchResults: defineTable({
+    uploadId: v.id("uploads"),
+    jobPostingId: v.id("jobPostings"),
+    matchScore: v.number(),
+    matchedKeywords: v.array(v.string()),
+    missingKeywords: v.array(v.string()),
+    // Weighted components for transparency
+    keywordScore: v.number(),
+    recencyScore: v.number(),
+    salaryScore: v.number(),
+    locationScore: v.number(),
+    // Whether the user has been notified about this match
+    notified: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_upload", ["uploadId", "matchScore"])
+    .index("by_job", ["jobPostingId", "matchScore"])
+    .index("by_notified", ["notified", "createdAt"]),
+
   candidateInsights: defineTable({
     sessionId: v.string(),
     uploadId: v.optional(v.id("uploads")),
