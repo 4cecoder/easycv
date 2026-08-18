@@ -25,7 +25,8 @@ import {
   Award,
   Crown,
   CheckCircle2,
-  Lock
+  Lock,
+  Wand2
 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -33,6 +34,7 @@ import { CheckoutButton } from "./CheckoutButton";
 import { JobMatchWidget } from "./JobMatchWidget";
 import { STE100BulletWidget } from "./STE100BulletWidget";
 import { CareerVaultWidget } from "./CareerVaultWidget";
+import { SmartCareerProfileWizard } from "../../../components/SmartCareerProfileWizard";
 import { exportHtmlResume } from "./exportHtml";
 import { analyzeProfileBulletsSTE100, validateBulletSTE100 } from "../../../lib/ste100";
 import {
@@ -178,6 +180,7 @@ export function PreviewClient({
   const [fontSize, setFontSize] = useState<"sm" | "base" | "lg">("base");
   const [primaryColor, setPrimaryColor] = useState<"blue" | "emerald" | "slate" | "violet">("blue");
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
 
   // Keyboard shortcut for switching tabs (1-5)
   useEffect(() => {
@@ -487,9 +490,20 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
             
             {/* Style Customizer Ribbon */}
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-card p-3 shadow-2xs">
-              <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                <Settings2 className="size-4 text-primary" />
-                <span>Live Document Customization</span>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                  <Settings2 className="size-4 text-primary" />
+                  <span>Document Controls</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsWizardOpen(true)}
+                  className="h-7 text-xs font-semibold gap-1.5 border-primary/30 text-primary hover:bg-primary/10 transition-all shadow-2xs"
+                >
+                  <Wand2 className="size-3.5" />
+                  <span>AI Profile Form Sorter</span>
+                </Button>
               </div>
               
               <div className="flex flex-wrap items-center gap-4">
@@ -929,6 +943,14 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
         </div>
 
       </main>
+
+      {/* AI Smart Career Profile Wizard */}
+      <SmartCareerProfileWizard
+        uploadId={uploadId}
+        initialProfile={profile}
+        isOpen={isWizardOpen}
+        onClose={() => setIsWizardOpen(false)}
+      />
     </div>
   );
 }
