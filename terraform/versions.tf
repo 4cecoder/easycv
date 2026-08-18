@@ -6,6 +6,10 @@ terraform {
       source  = "vultr/vultr"
       version = "~> 2.27"
     }
+    http = {
+      source  = "hashicorp/http"
+      version = "~> 3.5"
+    }
   }
 
   # GitLab-managed HTTP state. Address and credentials are injected in CI

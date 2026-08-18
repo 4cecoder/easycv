@@ -24,6 +24,11 @@ output "kubernetes_version" {
   value = vultr_kubernetes.easycv.version
 }
 
+output "available_kubernetes_versions" {
+  description = "Versions Vultr currently allows for new clusters."
+  value       = local.vke_versions
+}
+
 output "kube_config" {
   description = "Decoded kubeconfig YAML for kubectl. Sensitive — do not print in CI logs."
   value       = local.kube_config_yaml
