@@ -124,4 +124,20 @@ export default defineSchema({
     .index("by_stripe_session", ["stripeSessionId"])
     .index("by_download_token", ["downloadToken"])
     .index("by_upload", ["uploadId"]),
+
+  candidateInsights: defineTable({
+    sessionId: v.string(),
+    uploadId: v.optional(v.id("uploads")),
+    targetRole: v.optional(v.string()),
+    targetSeniority: v.optional(v.string()),
+    targetSalaryRange: v.optional(v.string()),
+    targetCompanies: v.optional(v.array(v.string())),
+    workPreference: v.optional(v.string()),
+    yearsExperience: v.optional(v.number()),
+    primaryIndustry: v.optional(v.string()),
+    activelyLooking: v.optional(v.boolean()),
+    updatedAt: v.number(),
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_upload", ["uploadId"]),
 });
