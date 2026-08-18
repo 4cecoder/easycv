@@ -54,24 +54,17 @@ const SKILL_LABELS: [string, string][] = [
 ];
 
 const ENGAGEMENT_TIPS = [
-  "⚡ Instant AI Consolidation: Processing experience history into single-column LaTeX ATS format.",
-  "📊 STE-100 ATS Tip: Quantify achievements with concrete engineering metrics (%, scale, latency, ROI).",
-  "🎯 Career Fact: Recruiters spend an average of 7.4 seconds on their initial resume scan.",
-  "✨ STE-100 ATS Tip: Avoid multi-column layouts and tables for flawless ATS parsing.",
-  "🔗 Career Fact: Tailoring bullet points to match target job keywords increases callback rates by 50%.",
-  "📐 STE-100 ATS Tip: Start every bullet with strong action verbs ('Spearheaded', 'Architected', 'Optimized').",
-  "🚀 Instant Consolidation: Experience history merged into ATS-optimized single-column format."
+  "Quantify achievements with metrics (%",
+  "Start bullets with action verbs.",
+  "Tailor keywords to the job posting.",
+  "Single-column beats multi-column for ATS.",
 ];
 
 const STAGE_MESSAGES = [
-  "⚡ Initializing AI processing engine & reading documents...",
-  "📄 Scanning uploaded resume history & extracting career milestones...",
-  "🎯 Extracting technical skills, frameworks & tools...",
-  "📊 Calculating ATS Technical Optimization score...",
-  "🔗 Analyzing target job description & keyword alignment...",
-  "✨ Generating high-impact engineering bullet points...",
-  "📐 Compiling executive LaTeX PDF document structure...",
-  "🚀 Finalizing your master career profile..."
+  "Reading documents...",
+  "Extracting skills...",
+  "Scoring resume...",
+  "Building PDF...",
 ];
 
 function LoadingEngagementWidget({ status }: { status: "queued" | "processing" }) {
@@ -474,11 +467,11 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
         {/* Microsoft Fluent Pivot Navigation Tab Strip */}
         <div className="flex items-center gap-1 border-b border-border overflow-x-auto pb-px">
           {[
-            { id: "document", label: "Master Resume Canvas", icon: FileText, num: "1" },
-            { id: "match", label: "ATS Keyword & Job Match", icon: Target, num: "2" },
-            { id: "linter", label: "ASD-STE100 Linter", icon: FileCheck, num: "3" },
-            { id: "vault", label: "Career Vault & Hierarchy", icon: Layers, num: "4" },
-            { id: "raw", label: "Raw LaTeX & JSON", icon: Code, num: "5" },
+            { id: "document", label: "Resume", icon: FileText },
+            { id: "match", label: "Job Match", icon: Target },
+            { id: "linter", label: "Linter", icon: FileCheck },
+            { id: "vault", label: "Vault", icon: Layers },
+            { id: "raw", label: "JSON", icon: Code },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -486,7 +479,7 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-all ${
                   isActive
                     ? "border-primary text-primary bg-primary/[0.03]"
                     : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40"
@@ -494,9 +487,6 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
               >
                 <Icon className="size-3.5" />
                 <span>{tab.label}</span>
-                <span className="hidden md:inline rounded bg-muted px-1.5 py-0.2 font-mono text-[9px] text-muted-foreground">
-                  {tab.num}
-                </span>
               </button>
             );
           })}
@@ -808,8 +798,8 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
               <Check className="size-4" />
             </div>
             <div className="flex flex-col">
-              <span className="text-xs font-bold text-foreground">Master Profile Ready</span>
-              <span className="text-[10px] text-muted-foreground font-mono">ATS-Optimized • Single Column • LaTeX</span>
+              <span className="text-xs font-bold text-foreground">Resume Ready</span>
+              <span className="text-[10px] text-muted-foreground font-mono">ATS-Optimized • LaTeX</span>
             </div>
           </div>
 

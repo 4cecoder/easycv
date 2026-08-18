@@ -4,9 +4,9 @@ apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
   - role: control-plane
     extraPortMappings:
-      # Frontend: host 8080 → cluster NodePort 30000
+      # Frontend: host 3000 → cluster NodePort 30000
       - containerPort: 30000
-        hostPort: 8080
+        hostPort: 3000
         protocol: TCP
       # Convex Backend API: host 3210 → cluster NodePort 32100
       - containerPort: 32100

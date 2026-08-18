@@ -208,11 +208,11 @@ export default function UploadPage() {
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold tracking-tight text-foreground">easyCV Pro 365 Enterprise</span>
-                <span className="rounded bg-primary/15 px-1.5 py-0.2 text-[10px] font-bold text-primary">$14/mo</span>
+                  <span className="text-sm font-semibold tracking-tight text-foreground">easyCV Pro</span>
+                  <span className="rounded bg-primary/15 px-1.5 py-0.2 text-[10px] font-bold text-primary">$14/mo</span>
               </div>
               <span className="text-xs text-muted-foreground">
-                Unlimited single-column LaTeX PDF exports, automated ASD-STE100 linter, and real-time job matching.
+                Unlimited LaTeX exports, ATS scoring, and job matching.
               </span>
             </div>
           </div>
@@ -231,15 +231,15 @@ export default function UploadPage() {
 
         {/* Hero Header Section */}
         <div className="flex w-full flex-col items-center gap-2 text-center mt-2">
-          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground shadow-xs">
+          <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground shadow-xs">
             <span className="flex size-2 rounded-full bg-emerald-500" />
-            <span>ASD-STE100 Standardized • LaTeX Single-Column Format</span>
+            <span>LaTeX • ATS-Optimized</span>
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl text-foreground">
-            Professional ATS Resume Intelligence
+            Build your resume
           </h1>
           <p className="max-w-2xl text-balance text-sm text-muted-foreground font-normal">
-            Consolidate your multi-source CVs, resumes, and LinkedIn exports into an executive, ATS-compliant master profile with AI-powered validation.
+            Upload your CVs. Get a clean, ATS-optimized resume in seconds.
           </p>
         </div>
 
@@ -443,40 +443,40 @@ export default function UploadPage() {
           <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3 shadow-2xs">
             <div className="flex items-center gap-2 text-primary font-semibold text-xs">
               <Shield className="size-3.5" />
-              <span>Zero-Retention Processing</span>
+              <span>No Storage</span>
             </div>
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Your documents are processed instantly and never stored. No accounts, no logs.
+              Processed and deleted instantly.
             </p>
           </div>
 
           <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3 shadow-2xs">
             <div className="flex items-center gap-2 text-primary font-semibold text-xs">
               <FileCheck className="size-3.5" />
-              <span>ASD-STE100 Standard</span>
+              <span>ATS-Safe</span>
             </div>
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Engineered for maximum ATS parsing accuracy and readability.
+              Single-column, parser-friendly.
             </p>
           </div>
 
           <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3 shadow-2xs">
             <div className="flex items-center gap-2 text-primary font-semibold text-xs">
               <Clock className="size-3.5" />
-              <span>Sub-50ms Reactivity</span>
+              <span>Instant</span>
             </div>
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Zero page bloat or lag. Instant live document updates.
+              Results in under a minute.
             </p>
           </div>
 
           <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3 shadow-2xs">
             <div className="flex items-center gap-2 text-primary font-semibold text-xs">
               <Layers className="size-3.5" />
-              <span>Single-Column LaTeX</span>
+              <span>LaTeX Output</span>
             </div>
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Clean typographical layout compatible with all recruiters.
+              Professional PDF format.
             </p>
           </div>
         </div>
