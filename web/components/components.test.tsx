@@ -83,6 +83,7 @@ vi.mock("lucide-react", () => {
     Send: icon("send"), Bot: icon("bot"), ThumbsUp: icon("thumbs-up"),
     ThumbsDown: icon("thumbs-down"), HelpCircle: icon("help-circle"),
     Sun: icon("sun"), Moon: icon("moon"), AlertCircle: icon("alert-circle"), Loader2: icon("loader2"),
+    Crown: icon("crown"),
   };
 });
 
