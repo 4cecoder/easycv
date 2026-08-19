@@ -1,0 +1,78 @@
+#!/bin/sh
+# Installed via `git config core.hooksPath .githooks` (auto-wired by
+# `bun install` in web/, see web/package.json's postinstall).
+#
+# Mirrors the CI gate locally so a broken push never reaches GitHub:
+# typecheck, unit tests, and build for web/; ruff + pytest for backend/.
+# Lint and doc checks are scoped to files changed in the push range, so
+# this doesn't require a repo-wide cleanup to turn on (168 pre-existing
+# ruff violations exist repo-wide as of 2026-08-19 -- none of them block
+# a push unless the push itself touches that file).
+set -e
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+remote="$1"
+
+# --- Enforce bun-only tooling anywhere in the tree, not just staged ---
+bad_lockfiles=$(git ls-files | grep -E '(^|/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$' || true)
+if [ -n "$bad_lockfiles" ]; then
+  echo "error: this repo is bun-only (see CLAUDE.md). Tracked npm/yarn lockfiles found:" >&2
+  echo "$bad_lockfiles" >&2
+  exit 1
+fi
+
+base=""
+head=""
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "0000000000000000000000000000000000000000" ] && continue
+  head="$local_sha"
+  if [ "$remote_sha" != "0000000000000000000000000000000000000000" ]; then
+    base="$remote_sha"
+  else
+    base=$(git merge-base "$local_sha" origin/master 2>/dev/null || echo "")
+  fi
+done
+
+if [ -z "$head" ]; then
+  exit 0 # deleting a ref, nothing to check
+fi
+
+range="${base:-$head}..$head"
+changed=$(git diff --name-only "$range" 2>/dev/null || git show --name-only --pretty="" "$head")
+
+echo "pre-push: running full gate for $range ..."
+
+if echo "$changed" | grep -q '^web/'; then
+  echo "pre-push: web/ typecheck + unit tests + build ..."
+  (
+    cd web
+    bun run typecheck
+    bun run test:unit
+    NEXT_PUBLIC_CONVEX_URL="http://127.0.0.1:3210" NEXT_TELEMETRY_DISABLED=1 bun run build
+  )
+fi
+
+py_changed=$(echo "$changed" | grep -E '\.py$' || true)
+if [ -n "$py_changed" ]; then
+  # ruff check only -- no `ruff format --check`. Format-check is file-level,
+  # not line-level: touching two lines of an unformatted legacy file would
+  # fail the whole file and demand reformatting everything around your
+  # change, turning a 2-line fix into a 50-line diff. ruff check's findings
+  # (unused imports, undefined names, ...) are genuine correctness signals
+  # worth blocking on; formatting is cosmetic and belongs in a separate,
+  # deliberate repo-wide pass, not smuggled in via unrelated touches.
+  echo "pre-push: ruff check on changed backend files ..."
+  echo "$py_changed" | xargs -r uv run ruff check
+fi
+if echo "$changed" | grep -qE '^(backend|tests|automation)/'; then
+  echo "pre-push: backend pytest suite ..."
+  uv run pytest -m "not local" --tb=short
+fi
+
+echo "pre-push: doc check on new public declarations in $range ..."
+bun automation/hooks/check-docs.mjs --range "$range"
+
+echo "pre-push: all checks passed."
+exit 0
