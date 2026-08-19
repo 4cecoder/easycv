@@ -63,18 +63,25 @@ jobs:
 
       - name: Run Autonomous Deployment Script
         env:
+          # ── Required (no defaults — you must set these) ──────────────────────
+          VCR_USERNAME: ${{ secrets.VCR_USERNAME }}
+          VCR_PASSWORD: ${{ secrets.VCR_PASSWORD }}
           VCR_PROJECT: ${{ secrets.VCR_PROJECT }}
           DOMAIN: ${{ secrets.DOMAIN }}
           EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
-          CONVEX_MODE: ${{ secrets.CONVEX_MODE || 'self-hosted' }}
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ── Optional (have defaults — leave blank to use defaults) ───────────
+          CONVEX_MODE: ${{ secrets.CONVEX_MODE }}
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
           POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
-          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           STRIPE_PRICE_ID: ${{ secrets.STRIPE_PRICE_ID }}
           STRIPE_PRO_PRICE_ID: ${{ secrets.STRIPE_PRO_PRICE_ID }}
           WORKER_SECRET: ${{ secrets.WORKER_SECRET }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           chmod +x deploy.sh
