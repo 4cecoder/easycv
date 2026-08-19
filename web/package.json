@@ -5,7 +5,7 @@
   "description": "Web/Convex backend for easyCV (root for eventual Next.js frontend).",
   "type": "module",
   "scripts": {
-    "postinstall": "cd .. && ./automation/install-hooks.sh",
+    "postinstall": "cd .. && ([ -f automation/install-hooks.sh ] && ./automation/install-hooks.sh || true)",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
