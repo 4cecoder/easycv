@@ -20,6 +20,7 @@ import type * as files from "../files.js";
 import type * as http from "../http.js";
 import type * as identity from "../identity.js";
 import type * as insights from "../insights.js";
+import type * as integrations from "../integrations.js";
 import type * as jobMatching from "../jobMatching.js";
 import type * as jobPostings from "../jobPostings.js";
 import type * as payments from "../payments.js";
@@ -50,6 +51,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   identity: typeof identity;
   insights: typeof insights;
+  integrations: typeof integrations;
   jobMatching: typeof jobMatching;
   jobPostings: typeof jobPostings;
   payments: typeof payments;

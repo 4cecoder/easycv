@@ -1,0 +1,49 @@
+#!/bin/sh
+# Installed via `git config core.hooksPath .githooks` (auto-wired by
+# `bun install` in web/, see web/package.json's postinstall). Do not edit
+# .git/hooks/pre-commit directly -- it isn't tracked and won't apply to
+# other clones.
+set -e
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+# --- Block direct commits to master/main (merge commits excepted) ---
+branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+if [ "$branch" = "master" ] || [ "$branch" = "main" ]; then
+  if [ -z "$(git rev-parse -q --verify MERGE_HEAD 2>/dev/null)" ]; then
+    echo "error: direct commit to '$branch' is blocked. Create a branch and open a PR instead." >&2
+    exit 1
+  fi
+fi
+
+# --- Enforce bun-only tooling: no npm/yarn/pnpm lockfiles ---
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+bad_lockfiles=$(echo "$staged" | grep -E '(^|/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$' || true)
+if [ -n "$bad_lockfiles" ]; then
+  echo "error: this repo is bun-only (see CLAUDE.md). Remove these lockfiles and use 'bun install':" >&2
+  echo "$bad_lockfiles" >&2
+  exit 1
+fi
+
+# --- Typecheck web/ if any TS/TSX is staged ---
+if echo "$staged" | grep -qE '^web/.*\.(ts|tsx)$'; then
+  echo "pre-commit: typechecking web/ ..."
+  (cd web && bun run typecheck)
+fi
+
+# --- Validate Convex schema/functions if convex/ files are staged ---
+# Pushes to the dev deployment once (codegen + schema/function validation),
+# catching errors tsc can't see: index conflicts, validator misuse at the
+# Convex layer, etc. Skips convex's own typecheck since the step above
+# already covers it.
+if echo "$staged" | grep -qE '^web/convex/.*\.ts$'; then
+  echo "pre-commit: validating Convex schema/functions ..."
+  (cd web && bunx convex dev --once --typecheck disable)
+fi
+
+# --- Require doc comments on newly added exported/public code ---
+echo "pre-commit: checking docs on new public declarations ..."
+bun automation/hooks/check-docs.mjs --staged
+
+exit 0
