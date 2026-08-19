@@ -4,16 +4,19 @@
 # Required CI/CD variables (Settings → CI/CD → Variables):
 #   VULTRCR_USERNAME   registry username          (Masked)
 #   VULTRCR_PASSWORD   registry API key           (Masked)
-#   KUBECONFIG         optional fallback; deploy prefers Terraform state kubeconfig
+#   KUBECONFIG             optional fallback; deploy reads kubeconfig from Terraform state.
+#                          cluster:apply rewrites this file variable when GITLAB_API_TOKEN is set.
 #   GITHUB_TOKEN       read access to 4cecoder/ui-kit (Masked)
-#   VULTR_API_KEY      Vultr account API key for cluster:apply / cluster:destroy (Masked)
+#   VULTR_API_KEY          Vultr account API key for cluster:apply / cluster:destroy (Masked)
+#   VULTR_S3_ACCESS_KEY    Object Storage access key (Masked) — terraform state
+#   VULTR_S3_SECRET_KEY    Object Storage secret key (Masked) — terraform state
 #
 # App variables (worker will crash-loop until these exist):
 #   NEXT_PUBLIC_CONVEX_URL
 #   WORKER_SECRET
 #
 # Optional: CONVEX_URL, APP_URL, STRIPE_*, LLM_*, OPENAI_API_KEY, ANTHROPIC_API_KEY
-# Optional: GITLAB_API_TOKEN (api scope) so cluster:apply can write KUBECONFIG
+# Required for KUBECONFIG sync: GITLAB_API_TOKEN (Project Access Token, Maintainer, api)
 
 include:
   - local: terraform/.gitlab-ci.yml
@@ -32,6 +35,7 @@ variables:
   DOCKER_HOST: tcp://docker:2375
   DOCKER_DRIVER: overlay2
   GIT_DEPTH: 20
+  TF_STATE_NAME: vke
 
 .docker:
   image: docker:27
@@ -102,7 +106,8 @@ build-frontend:
 deploy:
   stage: deploy
   image: alpine/k8s:1.36.2
-  resource_group: production
+  # Same group as cluster:apply/destroy so jobs never race on the S3 state file.
+  resource_group: vke
   environment:
     name: production
   needs:
@@ -120,33 +125,11 @@ deploy:
       unzip -o /tmp/terraform.zip -d /usr/local/bin >/dev/null
       rm -f /tmp/terraform.zip
 
-      export TF_HTTP_ADDRESS="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/vke"
-      export TF_HTTP_LOCK_ADDRESS="${TF_HTTP_ADDRESS}/lock"
-      export TF_HTTP_UNLOCK_ADDRESS="${TF_HTTP_ADDRESS}/lock"
-      export TF_HTTP_USERNAME="gitlab-ci-token"
-      export TF_HTTP_PASSWORD="${CI_JOB_TOKEN}"
-      export TF_HTTP_LOCK_METHOD="POST"
-      export TF_HTTP_UNLOCK_METHOD="DELETE"
-      export TF_HTTP_RETRY_WAIT_MIN="5"
-      export TF_VAR_vultr_api_key="${VULTR_API_KEY:-}"
-
-      terraform -chdir=terraform init -input=false -reconfigure
+      . "$CI_PROJECT_DIR/terraform/scripts/gitlab-init.sh"
       terraform -chdir=terraform state pull > /tmp/tfstate.json
       echo "State outputs: $(jq -r '.outputs | keys | join(", ")' /tmp/tfstate.json)"
-      echo "kube_config output length: $(jq -r '.outputs.kube_config.value | tostring | length' /tmp/tfstate.json)"
 
-      terraform -chdir=terraform output -raw kube_config > /tmp/easycv.kubeconfig 2>/dev/null || true
-      if ! grep -q "apiVersion" /tmp/easycv.kubeconfig 2>/dev/null; then
-        jq -r '.resources[] | select(.type=="vultr_kubernetes") | .instances[].attributes.kube_config' /tmp/tfstate.json > /tmp/easycv.kubeconfig || true
-      fi
-      if grep -q "apiVersion" /tmp/easycv.kubeconfig 2>/dev/null; then
-        :
-      elif base64 -d /tmp/easycv.kubeconfig > /tmp/easycv.kubeconfig.decoded 2>/dev/null && grep -q "apiVersion" /tmp/easycv.kubeconfig.decoded; then
-        mv /tmp/easycv.kubeconfig.decoded /tmp/easycv.kubeconfig
-      else
-        echo "Could not read kubeconfig from Terraform state. Re-run cluster:apply after this pipeline is on master."
-        exit 1
-      fi
+      sh "$CI_PROJECT_DIR/terraform/scripts/export-kubeconfig.sh" /tmp/easycv.kubeconfig
       export KUBECONFIG=/tmp/easycv.kubeconfig
       echo "Using kubeconfig from Terraform state (current VKE cluster)"
 
