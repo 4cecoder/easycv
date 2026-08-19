@@ -117,20 +117,8 @@ deploy:
       . "$CI_PROJECT_DIR/terraform/scripts/gitlab-init.sh"
       terraform -chdir=terraform state pull > /tmp/tfstate.json
       echo "State outputs: $(jq -r '.outputs | keys | join(", ")' /tmp/tfstate.json)"
-      echo "kube_config output length: $(jq -r '.outputs.kube_config.value | tostring | length' /tmp/tfstate.json)"
 
-      terraform -chdir=terraform output -raw kube_config > /tmp/easycv.kubeconfig 2>/dev/null || true
-      if ! grep -q "apiVersion" /tmp/easycv.kubeconfig 2>/dev/null; then
-        jq -r '.resources[] | select(.type=="vultr_kubernetes") | .instances[].attributes.kube_config' /tmp/tfstate.json > /tmp/easycv.kubeconfig || true
-      fi
-      if grep -q "apiVersion" /tmp/easycv.kubeconfig 2>/dev/null; then
-        :
-      elif base64 -d /tmp/easycv.kubeconfig > /tmp/easycv.kubeconfig.decoded 2>/dev/null && grep -q "apiVersion" /tmp/easycv.kubeconfig.decoded; then
-        mv /tmp/easycv.kubeconfig.decoded /tmp/easycv.kubeconfig
-      else
-        echo "Could not read kubeconfig from Terraform state. Re-run cluster:apply after this pipeline is on master."
-        exit 1
-      fi
+      sh "$CI_PROJECT_DIR/terraform/scripts/export-kubeconfig.sh" /tmp/easycv.kubeconfig
       export KUBECONFIG=/tmp/easycv.kubeconfig
       echo "Using kubeconfig from Terraform state (current VKE cluster)"
 
