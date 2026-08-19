@@ -28,3 +28,9 @@ automation/logs/
 # Leftover gitlink; ui-kit is a private npm package, not a submodule
 /ui-kit/
 
+# Secrets & environment files — never commit
+.env
+.env.local
+.env.*.local
+k8s/secrets.yaml
+
