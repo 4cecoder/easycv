@@ -58,7 +58,7 @@ cluster:apply:
       terraform output cluster_id
       terraform output endpoint
       terraform output kubernetes_version
-      terraform output -raw kube_config > /tmp/kubeconfig.yaml
+      sh "$CI_PROJECT_DIR/terraform/scripts/export-kubeconfig.sh" /tmp/kubeconfig.yaml
       sh "$CI_PROJECT_DIR/terraform/scripts/update-gitlab-kubeconfig.sh" /tmp/kubeconfig.yaml
       rm -f /tmp/kubeconfig.yaml
 

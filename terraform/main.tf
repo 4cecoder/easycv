@@ -18,7 +18,11 @@ locals {
     try(reverse(sort(local.vke_versions))[0], ""),
   )
   kube_config_raw  = vultr_kubernetes.easycv.kube_config
-  kube_config_yaml = startswith(trimspace(local.kube_config_raw), "apiVersion") ? local.kube_config_raw : base64decode(local.kube_config_raw)
+  # Provider documents this as base64. Some versions already return YAML.
+  kube_config_yaml = try(
+    base64decode(replace(trimspace(local.kube_config_raw), "\n", "")),
+    trimspace(local.kube_config_raw),
+  )
 }
 
 resource "vultr_kubernetes" "easycv" {

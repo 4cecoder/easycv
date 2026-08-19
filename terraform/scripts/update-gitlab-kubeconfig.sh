@@ -21,8 +21,9 @@ if [ -z "$KUBECONFIG_FILE" ] || [ ! -s "$KUBECONFIG_FILE" ]; then
   exit 1
 fi
 
-if ! grep -q "apiVersion" "$KUBECONFIG_FILE"; then
-  echo "Refusing to upload: ${KUBECONFIG_FILE} does not look like a kubeconfig."
+if ! grep -aqE 'apiVersion:[[:space:]]*v1|kind:[[:space:]]*Config' "$KUBECONFIG_FILE"; then
+  echo "Refusing to upload: ${KUBECONFIG_FILE} does not look like a kubeconfig YAML."
+  echo "Run export-kubeconfig.sh first (Vultr stores this as base64)."
   exit 1
 fi
 
