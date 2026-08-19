@@ -9,7 +9,7 @@ export const setIntegration = mutation({
   args: {
     passcode: v.string(),
     provider: v.string(),
-    config: v.record(v.string()),
+    config: v.record(v.string(), v.string()),
   },
   handler: async (ctx, { passcode, provider, config }) => {
     const correct = process.env.ADMIN_PASSWORD || "admin123";

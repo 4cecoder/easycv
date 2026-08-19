@@ -339,7 +339,7 @@ export default defineSchema({
     // "stripe" | "openai" | "anthropic" etc.
     provider: v.string(),
     // Encrypted or opaque credentials stored as key-value pairs
-    config: v.record(v.string()),
+    config: v.record(v.string(), v.string()),
     // Who last updated this
     updatedBy: v.optional(v.string()),
     updatedAt: v.number(),

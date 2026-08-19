@@ -7,6 +7,7 @@
  */
 
 import { NextRequest } from "next/server";
+import type { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import crypto from "node:crypto";
 

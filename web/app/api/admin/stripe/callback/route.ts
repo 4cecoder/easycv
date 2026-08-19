@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { requireAdmin } from "../../../../lib/admin-session";
+import { requireAdmin } from "../../../../../lib/admin-session";
 
 export async function GET(request: NextRequest) {
   // Gate: only authenticated admins can connect Stripe
