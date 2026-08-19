@@ -6,7 +6,7 @@
  * All admin API routes MUST call requireAdmin() to verify.
  */
 
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import crypto from "node:crypto";
 
@@ -75,7 +75,6 @@ export function extractAdminSession(request: NextRequest): string | null {
  * Require a valid admin session. Returns null on success, or a NextResponse on failure.
  */
 export async function requireAdmin(request: NextRequest): Promise<NextResponse | null> {
-  const { NextResponse } = await import("next/server");
   const token = extractAdminSession(request);
   if (!verifyAdminSession(token)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
