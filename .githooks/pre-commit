@@ -32,6 +32,16 @@ if echo "$staged" | grep -qE '^web/.*\.(ts|tsx)$'; then
   (cd web && bun run typecheck)
 fi
 
+# --- Validate Convex schema/functions if convex/ files are staged ---
+# Pushes to the dev deployment once (codegen + schema/function validation),
+# catching errors tsc can't see: index conflicts, validator misuse at the
+# Convex layer, etc. Skips convex's own typecheck since the step above
+# already covers it.
+if echo "$staged" | grep -qE '^web/convex/.*\.ts$'; then
+  echo "pre-commit: validating Convex schema/functions ..."
+  (cd web && bunx convex dev --once --typecheck disable)
+fi
+
 # --- Require doc comments on newly added exported/public code ---
 echo "pre-commit: checking docs on new public declarations ..."
 bun automation/hooks/check-docs.mjs --staged
