@@ -10,4 +10,5 @@ override.tf.json
 *_override.tf.json
 .terraform.tfvars
 terraform.tfvars
+backend.hcl
 kubeconfig.yaml

@@ -6,7 +6,9 @@
 #   VULTRCR_PASSWORD   registry API key           (Masked)
 #   KUBECONFIG         optional fallback; deploy prefers Terraform state kubeconfig
 #   GITHUB_TOKEN       read access to 4cecoder/ui-kit (Masked)
-#   VULTR_API_KEY      Vultr account API key for cluster:apply / cluster:destroy (Masked)
+#   VULTR_API_KEY          Vultr account API key for cluster:apply / cluster:destroy (Masked)
+#   VULTR_S3_ACCESS_KEY    Object Storage access key (Masked) — terraform state
+#   VULTR_S3_SECRET_KEY    Object Storage secret key (Masked) — terraform state
 #
 # App variables (worker will crash-loop until these exist):
 #   NEXT_PUBLIC_CONVEX_URL
@@ -31,6 +33,7 @@ variables:
   DOCKER_HOST: tcp://docker:2375
   DOCKER_DRIVER: overlay2
   GIT_DEPTH: 20
+  TF_STATE_NAME: vke
 
 .docker:
   image: docker:27
@@ -91,7 +94,8 @@ build-frontend:
 deploy:
   stage: deploy
   image: alpine/k8s:1.36.2
-  resource_group: production
+  # Same group as cluster:apply/destroy so jobs never race on the S3 state file.
+  resource_group: vke
   environment:
     name: production
   needs:
@@ -109,17 +113,7 @@ deploy:
       unzip -o /tmp/terraform.zip -d /usr/local/bin >/dev/null
       rm -f /tmp/terraform.zip
 
-      export TF_HTTP_ADDRESS="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/vke"
-      export TF_HTTP_LOCK_ADDRESS="${TF_HTTP_ADDRESS}/lock"
-      export TF_HTTP_UNLOCK_ADDRESS="${TF_HTTP_ADDRESS}/lock"
-      export TF_HTTP_USERNAME="gitlab-ci-token"
-      export TF_HTTP_PASSWORD="${CI_JOB_TOKEN}"
-      export TF_HTTP_LOCK_METHOD="POST"
-      export TF_HTTP_UNLOCK_METHOD="DELETE"
-      export TF_HTTP_RETRY_WAIT_MIN="5"
-      export TF_VAR_vultr_api_key="${VULTR_API_KEY:-}"
-
-      terraform -chdir=terraform init -input=false -reconfigure
+      . "$CI_PROJECT_DIR/terraform/scripts/gitlab-init.sh"
       terraform -chdir=terraform state pull > /tmp/tfstate.json
       echo "State outputs: $(jq -r '.outputs | keys | join(", ")' /tmp/tfstate.json)"
       echo "kube_config output length: $(jq -r '.outputs.kube_config.value | tostring | length' /tmp/tfstate.json)"

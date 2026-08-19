@@ -1,8 +1,12 @@
 # Manual VKE create/destroy. Play these jobs from a master pipeline.
 # They do not block image build/deploy (allow_failure + needs: []).
 #
-# Required GitLab CI/CD variable:
-#   VULTR_API_KEY   Vultr account API key (Masked)
+# Required GitLab CI/CD variables:
+#   VULTR_API_KEY         Vultr account API key (Masked)
+#   VULTR_S3_ACCESS_KEY   Object Storage access key (Masked)
+#   VULTR_S3_SECRET_KEY   Object Storage secret key (Masked)
+#
+# Terraform state: s3://easycvtfstate/vke/terraform.tfstate on atl2.vultrobjects.com
 #
 # Optional:
 #   GITLAB_API_TOKEN   Project/personal token with api scope — after apply,
@@ -29,17 +33,8 @@
         echo "Set VULTR_API_KEY as a masked GitLab CI/CD variable (Vultr account API key)."
         exit 1
       fi
-      export TF_HTTP_ADDRESS="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}"
-      export TF_HTTP_LOCK_ADDRESS="${TF_HTTP_ADDRESS}/lock"
-      export TF_HTTP_UNLOCK_ADDRESS="${TF_HTTP_ADDRESS}/lock"
-      export TF_HTTP_USERNAME="gitlab-ci-token"
-      export TF_HTTP_PASSWORD="${CI_JOB_TOKEN}"
-      export TF_HTTP_LOCK_METHOD="POST"
-      export TF_HTTP_UNLOCK_METHOD="DELETE"
-      export TF_HTTP_RETRY_WAIT_MIN="5"
-      export TF_VAR_vultr_api_key="$VULTR_API_KEY"
+      . "$CI_PROJECT_DIR/terraform/scripts/gitlab-init.sh"
       cd "$TF_ROOT"
-      terraform init -input=false -reconfigure
 
 cluster:apply:
   extends: .terraform
