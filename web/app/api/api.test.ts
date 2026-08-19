@@ -1,3 +1,10 @@
+// @vitest-environment node
+//
+// These are server API route tests -- no DOM involved. jsdom's global
+// File/Blob live in a different realm than the runtime's native ones, so a
+// File built with jsdom's constructor silently loses its filename when
+// NextRequest.formData() re-parses it. Running this file in the native
+// Node environment avoids that cross-realm mismatch entirely.
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
