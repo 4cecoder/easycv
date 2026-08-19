@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-
-// Stripe instance is instantiated dynamically inside the GET request handler
-// to prevent the Next.js static build check from failing when STRIPE_SECRET_KEY
-// is not set in the build-time environment.
+import { requireAdmin } from "../../../../lib/admin-session";
 
 export async function GET(request: NextRequest) {
+  // Gate: only authenticated admins can connect Stripe
+  const deny = await requireAdmin(request);
+  if (deny) return deny;
+
   try {
     const { searchParams } = new URL(request.url);
     const code = searchParams.get("code");
@@ -14,11 +15,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Missing authorization code" }, { status: 400 });
     }
 
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "mock-key", {
+    const stripeKey = process.env.STRIPE_SECRET_KEY;
+    if (!stripeKey) {
+      return NextResponse.json({ error: "Stripe is not configured on this server" }, { status: 500 });
+    }
+
+    const stripe = new Stripe(stripeKey, {
       apiVersion: "2026-07-29.dahlia",
     });
 
-    // Exchange Connect OAuth code for connected account credentials
     const response = await stripe.oauth.token({
       grant_type: "authorization_code",
       code,
@@ -26,7 +31,6 @@ export async function GET(request: NextRequest) {
 
     const connectedAccountId = response.stripe_user_id;
 
-    // Direct redirection back to the admin dashboard with connected signal
     const origin = new URL(request.url).origin;
     return NextResponse.redirect(`${origin}/admin?connected=1&account=${connectedAccountId}`);
   } catch (err) {

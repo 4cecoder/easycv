@@ -1,22 +1,23 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { requireAdmin } from "../../../../lib/admin-session";
 
-function getStripe(): Stripe {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) throw new Error("Server is not configured with STRIPE_SECRET_KEY");
-  return new Stripe(key);
-}
+export async function GET(request: NextRequest) {
+  // Gate: only authenticated admins can view metrics
+  const deny = await requireAdmin(request);
+  if (deny) return deny;
 
-export async function GET() {
   try {
-    const stripe = getStripe();
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) {
+      return NextResponse.json({ error: "Stripe is not configured" }, { status: 503 });
+    }
+    const stripe = new Stripe(key);
 
-    // 1. Fetch balance (gross & pending payout volumes)
     const balance = await stripe.balance.retrieve();
     const grossVolume = balance.available.reduce((sum, item) => sum + item.amount, 0) +
                         balance.pending.reduce((sum, item) => sum + item.amount, 0);
 
-    // 2. Fetch recent successful checkout sessions / charges
     const sessions = await stripe.checkout.sessions.list({ limit: 10 });
     const sales = sessions.data.map((session) => ({
       id: session.id,
@@ -27,7 +28,6 @@ export async function GET() {
       uploadId: session.metadata?.uploadId ?? "",
     }));
 
-    // 3. Fetch payouts history (transfers to bank)
     const payoutsList = await stripe.payouts.list({ limit: 5 });
     const payouts = payoutsList.data.map((po) => ({
       id: po.id,
@@ -38,7 +38,7 @@ export async function GET() {
 
     return NextResponse.json({
       grossVolume,
-      netRevenue: Math.round(grossVolume * 0.971 - 30 * sales.length), // standard Stripe 2.9% + 30c fee estimation
+      netRevenue: Math.round(grossVolume * 0.971 - 30 * sales.length),
       activeCustomers: sales.filter(s => s.status === "paid").length,
       sales,
       payouts,
