@@ -4,7 +4,8 @@
 # Required CI/CD variables (Settings → CI/CD → Variables):
 #   VULTRCR_USERNAME   registry username          (Masked)
 #   VULTRCR_PASSWORD   registry API key           (Masked)
-#   KUBECONFIG         optional fallback; deploy prefers Terraform state kubeconfig
+#   KUBECONFIG             optional fallback; deploy reads kubeconfig from Terraform state.
+#                          cluster:apply rewrites this file variable when GITLAB_API_TOKEN is set.
 #   GITHUB_TOKEN       read access to 4cecoder/ui-kit (Masked)
 #   VULTR_API_KEY          Vultr account API key for cluster:apply / cluster:destroy (Masked)
 #   VULTR_S3_ACCESS_KEY    Object Storage access key (Masked) — terraform state
@@ -15,7 +16,7 @@
 #   WORKER_SECRET
 #
 # Optional: CONVEX_URL, APP_URL, STRIPE_*, LLM_*, OPENAI_API_KEY, ANTHROPIC_API_KEY
-# Optional: GITLAB_API_TOKEN (api scope) so cluster:apply can write KUBECONFIG
+# Required for KUBECONFIG sync: GITLAB_API_TOKEN (Project Access Token, Maintainer, api)
 
 include:
   - local: terraform/.gitlab-ci.yml
