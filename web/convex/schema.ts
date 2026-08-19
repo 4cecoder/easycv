@@ -100,7 +100,7 @@ export default defineSchema({
     pdfStorageId: v.optional(v.id("_storage")),
   }).index("by_upload", ["uploadId"]),
 
-  jobMatches: defineTable({
+  resumeMatches: defineTable({
     uploadId: v.id("uploads"),
     matchScore: v.number(),
     matchedKeywords: v.array(v.string()),
@@ -298,4 +298,57 @@ export default defineSchema({
   })
     .index("by_email", ["email"])
     .index("by_session", ["sessionId"]),
+
+  // Indeed job postings — scraped listings tracked for matching and cleanup.
+  // status: "active" | "expired" | "removed"
+  jobPostings: defineTable({
+    title: v.string(),
+    company: v.string(),
+    location: v.optional(v.string()),
+    url: v.string(),
+    description: v.optional(v.string()),
+    // Keywords extracted from the posting for matching against profiles
+    keywords: v.array(v.string()),
+    // Salary info (if available from posting)
+    salaryMin: v.optional(v.number()),
+    salaryMax: v.optional(v.number()),
+    salaryCurrency: v.optional(v.string()),
+    // Work arrangement
+    workArrangement: v.optional(v.string()), // "remote" | "hybrid" | "onsite"
+    // Matching metadata
+    matchCount: v.number(),
+    // "active" — still live on Indeed
+    // "expired" — older than 30 days or confirmed gone
+    // "removed" — confirmed removed from Indeed before expiry
+    status: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    scrapedAt: v.number(),
+    lastRefreshedAt: v.optional(v.number()),
+    // Expiry and deletion thresholds (timestamps)
+    expiresAt: v.number(),
+    deletedAt: v.optional(v.number()),
+  })
+    .index("by_status", ["status"])
+    .index("by_status_and_expiresAt", ["status", "expiresAt"])
+    .index("by_url", ["url"]),
+
+  // Job match results — per-user per-job matching scores
+  jobMatchResults: defineTable({
+    uploadId: v.id("uploads"),
+    jobPostingId: v.id("jobPostings"),
+    matchScore: v.number(),
+    keywordScore: v.number(),
+    recencyScore: v.number(),
+    salaryScore: v.number(),
+    locationScore: v.number(),
+    matchedKeywords: v.array(v.string()),
+    missingKeywords: v.array(v.string()),
+    gapAnalysis: v.string(),
+    notified: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_upload", ["uploadId", "matchScore"])
+    .index("by_job", ["jobPostingId"])
+    .index("by_notified", ["notified", "createdAt"]),
 });

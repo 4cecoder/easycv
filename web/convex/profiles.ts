@@ -138,7 +138,7 @@ export const saveJobMatch = mutation({
     }
 
     const existing = await ctx.db
-      .query("jobMatches")
+      .query("resumeMatches")
       .withIndex("by_upload", (q) => q.eq("uploadId", uploadId))
       .first();
 
@@ -147,7 +147,7 @@ export const saveJobMatch = mutation({
       return existing._id;
     }
 
-    return await ctx.db.insert("jobMatches", { uploadId, ...fields });
+    return await ctx.db.insert("resumeMatches", { uploadId, ...fields });
   },
 });
 
@@ -161,7 +161,7 @@ export const getJobMatch = query({
     if (!upload) return null;
 
     return await ctx.db
-      .query("jobMatches")
+      .query("resumeMatches")
       .withIndex("by_upload", (q) => q.eq("uploadId", uploadId))
       .first();
   },

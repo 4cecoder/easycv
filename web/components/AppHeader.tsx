@@ -5,15 +5,16 @@ import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { getBrowserSessionId } from "../lib/fingerprint";
-import { 
-  Command, 
-  FileText, 
-  Zap, 
-  Keyboard, 
-  X, 
-  User, 
-  CheckCircle2, 
-  Lock 
+import {
+  Command,
+  FileText,
+  Zap,
+  Keyboard,
+  X,
+  User,
+  CheckCircle2,
+  Lock,
+  Crown,
 } from "lucide-react";
 import { AccountSignupModal } from "./AccountSignupModal";
 import { ThemeToggle } from "./ThemeToggle";
@@ -28,6 +29,7 @@ export function AppHeader() {
   }, []);
 
   const account = useQuery(api.auth.getAccountBySession, sessionId ? { sessionId } : "skip");
+  const isPro = useQuery(api.billing.isSubscribed, sessionId ? { sessionId } : "skip");
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -72,7 +74,23 @@ export function AppHeader() {
 
           {/* Center / Right: Engine Status & Account Action */}
           <div className="flex items-center gap-2 sm:gap-3">
-            
+
+            {/* Pricing / Pro Status */}
+            {isPro ? (
+              <span className="flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+                <Crown className="size-3" />
+                Pro
+              </span>
+            ) : (
+              <Link
+                href="/pricing"
+                className="hidden sm:flex items-center gap-1.5 rounded-md border border-border bg-muted/40 hover:bg-muted px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-all"
+              >
+                <Crown className="size-3.5" />
+                <span className="text-[11px] font-medium">Pricing</span>
+              </Link>
+            )}
+
             {/* User Account / Sync Button */}
             {account?.verified ? (
               <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs text-emerald-400 font-medium">

@@ -46,8 +46,8 @@ class TestSTE100Validator(unittest.TestCase):
     def test_sentence_length_limits(self):
         long_sentence = "This is a very long descriptive sentence that exceeds the standard limit of twenty five words to see if our validator detects it correctly because it has more words than allowed by the standard."
         warns = validate_text_ste100(long_sentence, is_procedural=False)
-        self.assertTrue(any("too long" in w for w in warns))
+        self.assertTrue(any("Shorten this" in w for w in warns))
 
     def test_semicolon(self):
         warns = validate_text_ste100("Examine the removed parts; replace the damaged ones.")
-        self.assertTrue(any("Semicolon" in w for w in warns))
+        self.assertTrue(any("semicolon" in w for w in warns))

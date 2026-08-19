@@ -106,6 +106,7 @@ export const getAccountBySession = query({
       email: account.email,
       verified: account.verified,
       createdAt: account.createdAt,
+      lastLoginAt: account.lastLoginAt,
     };
   },
 });

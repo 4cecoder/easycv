@@ -222,7 +222,7 @@ export function validateBulletSTE100(
     violations.push({
       ruleId: "RULE_8_1_SEMICOLON",
       severity: "warning",
-      message: "Semicolon ';' is not permitted in STE-100",
+      message: "Split this into two shorter sentences instead of using a semicolon",
       suggestion: "Split into two distinct sentences or bullet points.",
     });
     improvementTips.push("Remove semicolon ';' and split complex clauses into separate concise points.");
@@ -234,7 +234,7 @@ export function validateBulletSTE100(
     violations.push({
       ruleId: "RULE_5_1_LENGTH",
       severity: "warning",
-      message: `Bullet is too long (${wordCount} words; max recommended is ${limit} words)`,
+      message: `Shorten this to ${limit} words or fewer (currently ${wordCount})`,
       suggestion: `Trim bullet to under ${limit} words for high ATS readability.`,
     });
     improvementTips.push(`Shorten bullet from ${wordCount} words to under ${limit} words for maximum ATS impact.`);
@@ -246,7 +246,7 @@ export function validateBulletSTE100(
       violations.push({
         ruleId: "RULE_1_14_SPELLING",
         severity: "warning",
-        message: `British spelling '${british}' detected`,
+        message: `Use the American spelling '${american}' instead of '${british}'`,
         suggestion: `Use American spelling '${american}'.`,
       });
       improvementTips.push(`Replace British spelling '${british}' with American '${american}'.`);
@@ -260,7 +260,7 @@ export function validateBulletSTE100(
       violations.push({
         ruleId: "RULE_4_2_CONTRACTIONS",
         severity: "warning",
-        message: `Contraction '${match[0]}' is not permitted`,
+        message: `Spell out '${match[0]}' instead of using a contraction`,
         suggestion: `Write in full as '${expansion}'.`,
       });
       improvementTips.push(`Expand contraction '${match[0]}' to '${expansion}'.`);
@@ -275,7 +275,7 @@ export function validateBulletSTE100(
     violations.push({
       ruleId: "RULE_3_6_PASSIVE",
       severity: "warning",
-      message: `Passive voice pattern detected: '${found}'`,
+      message: `Rewrite in active voice — replace '${found}' with a stronger action verb`,
       suggestion: "Rewrite using active voice starting with a strong action verb.",
     });
     improvementTips.push(`Convert passive construction ('${found}') to active voice starting with an action verb (e.g. 'Engineered', 'Architected').`);
@@ -289,7 +289,7 @@ export function validateBulletSTE100(
       violations.push({
         ruleId: "RULE_3_5_ING_FORMS",
         severity: "info",
-        message: `'-ing' form '${word}' is discouraged under STE-100 Rule 3.5`,
+        message: `Replace '${word}' with a strong past-tense verb (e.g. 'Managed' instead of 'Managing')`,
         suggestion: "Use past-tense action verb or concise noun form.",
       });
       improvementTips.push(`Swap '-ing' word '${word}' for a direct past-tense action verb.`);
@@ -304,7 +304,7 @@ export function validateBulletSTE100(
     violations.push({
       ruleId: "RULE_3_2_TENSES",
       severity: "warning",
-      message: `Complex tense '${found}' detected`,
+      message: `Use simple past tense instead of '${found}'`,
       suggestion: "Use simple past tense (e.g. 'Built', 'Led').",
     });
     improvementTips.push(`Replace complex tense '${found}' with simple past tense.`);
@@ -315,7 +315,7 @@ export function validateBulletSTE100(
     violations.push({
       ruleId: "ATS_METRICS",
       severity: "info",
-      message: "No quantifiable metric or number detected in bullet",
+      message: "Add a number to show impact (e.g. a percentage, dollar amount, or count)",
       suggestion: "Add metrics (%, $, time saved, scale) to demonstrate impact.",
     });
     improvementTips.push("Include measurable metrics (e.g. 'boosted performance by 35%', 'managed 10+ services') to quantify impact.");

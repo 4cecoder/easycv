@@ -63,19 +63,17 @@ jobs:
 
       - name: Run Autonomous Deployment Script
         env:
+          # ── Required (you must set these) ───────────────────────────────────
+          VCR_USERNAME: ${{ secrets.VCR_USERNAME }}
+          VCR_PASSWORD: ${{ secrets.VCR_PASSWORD }}
           VCR_PROJECT: ${{ secrets.VCR_PROJECT }}
           DOMAIN: ${{ secrets.DOMAIN }}
           EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
-          CONVEX_MODE: ${{ secrets.CONVEX_MODE || 'self-hosted' }}
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+          # ── Optional (auto-defaulted — only set if monetizing) ──────────────
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
-          STRIPE_PRICE_ID: ${{ secrets.STRIPE_PRICE_ID }}
-          STRIPE_PRO_PRICE_ID: ${{ secrets.STRIPE_PRO_PRICE_ID }}
           WORKER_SECRET: ${{ secrets.WORKER_SECRET }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
         run: |
           chmod +x deploy.sh
           ./deploy.sh

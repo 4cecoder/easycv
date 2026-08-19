@@ -1709,7 +1709,7 @@ class TestScoreStructuredData(unittest.TestCase):
 
     def test_complete_data_scores_full_with_no_warnings(self):
         result = score_structured_data(self._complete_data())
-        non_ste_warnings = [w for w in result["warnings"] if not w.startswith("STE-100")]
+        non_ste_warnings = [w for w in result["warnings"] if not w.startswith("In your ")]
         self.assertEqual(non_ste_warnings, [])
         self.assertFalse(result["critical"])
         self.assertEqual(result["score"], result["max_score"])
@@ -1727,11 +1727,11 @@ class TestScoreStructuredData(unittest.TestCase):
 
         self.assertFalse(result["critical"])
         self.assertLess(result["score"], result["max_score"])
-        self.assertIn("no contact email", result["warnings"])
-        self.assertIn("no professional summary", result["warnings"])
-        self.assertIn("skills.languages is empty", result["warnings"])
-        self.assertIn("no certifications listed", result["warnings"])
-        self.assertTrue(any("missing bullets" in w for w in result["warnings"]))
+        self.assertIn("Add your email to the contact section", result["warnings"])
+        self.assertIn("Add a short professional summary at the top of your resume", result["warnings"])
+        self.assertIn("Add at least one skill under 'languages'", result["warnings"])
+        self.assertIn("Consider adding certifications to strengthen your resume", result["warnings"])
+        self.assertTrue(any("Add at least one bullet point" in w for w in result["warnings"]))
 
     def test_missing_required_key_is_critical(self):
         data = self._complete_data()
@@ -1740,7 +1740,7 @@ class TestScoreStructuredData(unittest.TestCase):
         result = score_structured_data(data)
 
         self.assertTrue(result["critical"])
-        self.assertIn("missing required field: skills", result["warnings"])
+        self.assertIn("Add your skills — it's missing from the resume", result["warnings"])
 
     def test_empty_required_value_is_critical(self):
         """An empty list/dict for a required key counts as missing, not just an absent key."""
@@ -1750,12 +1750,12 @@ class TestScoreStructuredData(unittest.TestCase):
         result = score_structured_data(data)
 
         self.assertTrue(result["critical"])
-        self.assertIn("missing required field: experience", result["warnings"])
+        self.assertIn("Add your experience — it's missing from the resume", result["warnings"])
 
     def test_raw_fallback_data_is_critical(self):
         result = score_structured_data({"_raw": "not json, sorry"})
         self.assertTrue(result["critical"])
-        self.assertTrue(any("raw" in w.lower() for w in result["warnings"]))
+        self.assertTrue(any("process this resume" in w.lower() for w in result["warnings"]))
 
     def test_non_dict_input_is_critical(self):
         result = score_structured_data(["not", "a", "dict"])
@@ -1766,19 +1766,19 @@ class TestScoreStructuredData(unittest.TestCase):
         data = self._complete_data()
         data["skills"] = ["Python", "Go"]  # required key present (truthy) but malformed shape
         result = score_structured_data(data)
-        self.assertIn("skills is missing or not an object", result["warnings"])
+        self.assertIn("Add a Skills section to your resume", result["warnings"])
 
     def test_experience_entry_missing_title_and_company(self):
         data = self._complete_data()
         data["experience"] = [{"bullets": ["Did stuff"]}]
         result = score_structured_data(data)
-        self.assertTrue(any("missing title/company" in w for w in result["warnings"]))
+        self.assertTrue(any("Add a job title and company name" in w for w in result["warnings"]))
 
     def test_experience_non_dict_entry_does_not_crash(self):
         data = self._complete_data()
         data["experience"] = ["just a string, not an object"]
         result = score_structured_data(data)
-        self.assertTrue(any("not a valid object" in w for w in result["warnings"]))
+        self.assertTrue(any("looks corrupted" in w for w in result["warnings"]))
 
     def test_minimal_valid_data_not_critical(self):
         """Only REQUIRED_STRUCTURED_KEYS present: passes the gate, but many warnings."""

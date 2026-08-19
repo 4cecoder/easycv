@@ -11,22 +11,45 @@ NS="easycv"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 
-# ── Config (edit these) ─────────────────────────────────────────────────────
+# ── Config (override via env vars or edit these) ─────────────────────────────
 # Vultr Container Registry — get this from cloud.vultr.com/container-registry
 VCR_REGISTRY="registry.vultrcr.com"
-VCR_PROJECT="your-registry"    # <-- replace with your VCR project name
-DOMAIN="your-domain.com"        # <-- replace with your domain
-EMAIL="you@email.com"           # <-- for Let's Encrypt TLS certs
+VCR_PROJECT="${VCR_PROJECT:?Set VCR_PROJECT (Vultr Container Registry project name)}"
+DOMAIN="${DOMAIN:?Set DOMAIN (e.g. easycv.example.com)}"
+EMAIL="${EMAIL:?Set EMAIL (for Let's Encrypt TLS certs)}"
 DOMAIN_EMAILS=("${DOMAIN}" "www.${DOMAIN}")
+
+# ── Sensible defaults (no need to set these unless overriding) ────────────────
+CONVEX_MODE="${CONVEX_MODE:-self-hosted}"
+# On-device AI (Needle 2 + WebGPU) is the default — zero cloud cost
+# Cloud LLMs (openai/anthropic) are pro-tier only, gated by Stripe
+LLM_PROVIDER="${LLM_PROVIDER:-on-device}"
+LLM_MODEL="${LLM_MODEL:-}"
+OLLAMA_API_BASE="${OLLAMA_API_BASE:-}"
+APP_URL="${APP_URL:-https://${DOMAIN}}"
+# Auto-generate WORKER_SECRET if not provided
+if [[ -z "${WORKER_SECRET:-}" ]]; then
+  WORKER_SECRET="$(openssl rand -hex 32)"
+  echo -e "${CYAN}Auto-generated WORKER_SECRET${NC}"
+fi
 # ─────────────────────────────────────────────────────────────────────────────
 
 b64() { echo -n "$1" | base64; }
 die() { echo -e "${RED}ERROR:${NC} $*" >&2; exit 1; }
 
+# ── Helper: read value (env var first, then .env.production) ─────────────────
+get() { echo "${!1:-$(grep -E "^$1=" "$ENV" 2>/dev/null | head -1 | cut -d'=' -f2-)"; }
+
 # ── Preflight ───────────────────────────────────────────────────────────────
 command -v kubectl &>/dev/null || die "kubectl not found"
 command -v docker &>/dev/null  || die "docker not found"
-[[ -f "$ENV" ]] || die ".env.production not found. Run: cp .env.production.example .env.production"
+[[ -f "$ENV" ]] || echo -e "${YELLOW}Note: .env.production not found — using env vars only${NC}"
+
+# ── Docker login (for local execution — GitHub Actions handles this separately)
+if [[ -n "${VCR_USERNAME:-}" && -n "${VCR_PASSWORD:-}" ]]; then
+  echo -e "${YELLOW}Logging into Vultr Container Registry...${NC}"
+  echo "$VCR_PASSWORD" | docker login "${VCR_REGISTRY}" -u "$VCR_USERNAME" --password-stdin
+fi
 
 echo -e "${CYAN}easyCV → Vultr Kubernetes${NC}"
 echo ""
@@ -62,9 +85,6 @@ else
   docker push "${VCR_REGISTRY}/${VCR_PROJECT}/easycv-worker:latest"
 fi
 ok "Images built and pushed for ${TARGET_PLATFORM}"
-
-# ── Helper: read .env.production ─────────────────────────────────────────────
-get() { grep -E "^$1=" "$ENV" | head -1 | cut -d'=' -f2-; }
 
 # ── Create namespace ────────────────────────────────────────────────────────
 kubectl create namespace "$NS" --dry-run=client -o yaml | kubectl apply -f -

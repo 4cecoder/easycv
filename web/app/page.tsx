@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useRef, useState, type DragEvent, type FormEvent } from "react";
 import {
   AlertCircle,
@@ -245,17 +246,26 @@ export default function UploadPage() {
               </span>
             </div>
           </div>
-          <Button 
-            variant="default" 
-            size="sm" 
-            className="h-8 shrink-0 text-xs font-semibold px-4 rounded-md shadow-xs transition-all active:scale-95"
-            onClick={() => {
-              const element = document.getElementById("files");
-              element?.scrollIntoView({ behavior: "smooth" });
-            }}
-          >
-            Instant Free Preview
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              className="h-8 text-xs font-semibold px-4 rounded-md shadow-xs transition-all active:scale-95"
+              asChild
+            >
+              <Link href="/pricing">Go Pro Now</Link>
+            </Button>
+            <button
+              type="button"
+              className="text-xs font-medium text-muted-foreground hover:text-foreground underline underline-offset-2"
+              onClick={() => {
+                const element = document.getElementById("files");
+                element?.scrollIntoView({ behavior: "smooth" });
+              }}
+            >
+              or try it free
+            </button>
+          </div>
         </div>
 
         {/* Hero Header Section */}

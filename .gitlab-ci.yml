@@ -171,12 +171,15 @@ deploy:
 
       CONVEX_VALUE="${CONVEX_URL:-${NEXT_PUBLIC_CONVEX_URL:-}}"
 
+      WORKER_SECRET="${WORKER_SECRET:-$(openssl rand -hex 32)}"
+      echo "Using WORKER_SECRET (auto-generated if not set)"
+
       kubectl create secret generic easycv-secrets \
         --namespace "$K8S_NAMESPACE" \
         --from-literal="CONVEX_URL=${CONVEX_VALUE}" \
         --from-literal="NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL:-}" \
-        --from-literal="APP_URL=${APP_URL:-}" \
-        --from-literal="WORKER_SECRET=${WORKER_SECRET:-}" \
+        --from-literal="APP_URL=${APP_URL:-https://${DOMAIN:-easycv.example.com}}" \
+        --from-literal="WORKER_SECRET=${WORKER_SECRET}" \
         --from-literal="STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}" \
         --from-literal="STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}" \
         --from-literal="STRIPE_PRICE_ID=${STRIPE_PRICE_ID:-}" \
@@ -188,10 +191,10 @@ deploy:
       kubectl create configmap easycv-config \
         --namespace "$K8S_NAMESPACE" \
         --from-literal="NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL:-}" \
-        --from-literal="LLM_PROVIDER=${LLM_PROVIDER:-ollama}" \
-        --from-literal="LLM_MODEL=${LLM_MODEL:-}" \
+        --from-literal="LLM_PROVIDER=${LLM_PROVIDER:-openai}" \
+        --from-literal="LLM_MODEL=${LLM_MODEL:-gpt-4o}" \
         --from-literal="OLLAMA_API_BASE=${OLLAMA_API_BASE:-}" \
-        --from-literal="APP_URL=${APP_URL:-}" \
+        --from-literal="APP_URL=${APP_URL:-https://${DOMAIN:-easycv.example.com}}" \
         --dry-run=client -o yaml | kubectl apply -f -
 
       WORKER_IMAGE="${VULTRCR_HOST}/${VULTRCR_NAME}/easycv-worker:${CI_COMMIT_SHORT_SHA}"

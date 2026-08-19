@@ -58,9 +58,15 @@ describe("GET /api/download/[token] -- server-side payment gate", () => {
     });
 
     const fakePdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]); // "%PDF"
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(fakePdfBytes);
+        controller.close();
+      },
+    });
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response(new Blob([fakePdfBytes]), { status: 200 }));
+      .mockResolvedValue(new Response(stream, { status: 200 }));
 
     const res = await GET(new NextRequest("http://localhost/api/download/paid-token"), ctx("paid-token"));
 

@@ -84,7 +84,7 @@ export const seedSampleData = mutation({
     });
 
     // 3. Insert sample job match output
-    await ctx.db.insert("jobMatches", {
+    await ctx.db.insert("resumeMatches", {
       uploadId,
       matchScore: 92,
       matchedKeywords: ["TypeScript", "Python", "Next.js", "Convex", "Docker", "LLM"],

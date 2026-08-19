@@ -1,6 +1,9 @@
 import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { ownedUpload } from "./authz";
+import { components } from "./_generated/api";
+
+const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
 
 // uploadId is visible in the /preview/[uploadId] URL (see convex/authz.ts),
 // so -- like every other uploadId-scoped write/read in this codebase --
@@ -67,6 +70,57 @@ export const markPaymentPaid = internalMutation({
       status: "paid",
       paidAt: Date.now(),
       downloadToken,
+    });
+    return downloadToken;
+  },
+});
+
+// Lets an active Pro subscriber unlock any of their uploads without paying
+// the one-time $14 for that specific upload. Reuses the exact same
+// payments-row + downloadToken shape markPaymentPaid produces, so every
+// downstream consumer (getPaymentStatus, getByDownloadToken,
+// /api/download/[token]) keeps working unmodified -- Pro subscribers just
+// end up with a $0 "paid" row per upload instead of a real Stripe charge.
+export const grantProDownload = mutation({
+  args: {
+    uploadId: v.id("uploads"),
+    sessionId: v.string(),
+  },
+  handler: async (ctx, { uploadId, sessionId }) => {
+    const upload = await ownedUpload(ctx.db, uploadId, sessionId);
+    if (!upload) {
+      throw new Error("Upload not found or not owned by this session");
+    }
+
+    const subscriptions = await ctx.runQuery(
+      components.stripe.public.listSubscriptionsByUserId,
+      { userId: sessionId },
+    );
+    const isPro = subscriptions.some((s) => ACTIVE_SUBSCRIPTION_STATUSES.has(s.status));
+    if (!isPro) {
+      throw new Error("No active Pro subscription for this session");
+    }
+
+    const existing = await ctx.db
+      .query("payments")
+      .withIndex("by_upload", (q) => q.eq("uploadId", uploadId))
+      .collect();
+    const alreadyPaid = existing.find((p) => p.status === "paid");
+    if (alreadyPaid) {
+      return alreadyPaid.downloadToken ?? null;
+    }
+
+    const downloadToken = crypto.randomUUID();
+    await ctx.db.insert("payments", {
+      uploadId,
+      stripeSessionId: `pro:${sessionId}:${uploadId}`,
+      amountCents: 0,
+      currency: "usd",
+      status: "paid",
+      createdAt: Date.now(),
+      paidAt: Date.now(),
+      downloadToken,
+      downloadCount: 0,
     });
     return downloadToken;
   },
