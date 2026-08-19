@@ -21,8 +21,10 @@ DOMAIN_EMAILS=("${DOMAIN}" "www.${DOMAIN}")
 
 # ── Sensible defaults (no need to set these unless overriding) ────────────────
 CONVEX_MODE="${CONVEX_MODE:-self-hosted}"
-LLM_PROVIDER="${LLM_PROVIDER:-openai}"
-LLM_MODEL="${LLM_MODEL:-gpt-4o}"
+# On-device AI (Needle 2 + WebGPU) is the default — zero cloud cost
+# Cloud LLMs (openai/anthropic) are pro-tier only, gated by Stripe
+LLM_PROVIDER="${LLM_PROVIDER:-on-device}"
+LLM_MODEL="${LLM_MODEL:-}"
 OLLAMA_API_BASE="${OLLAMA_API_BASE:-}"
 APP_URL="${APP_URL:-https://${DOMAIN}}"
 # Auto-generate WORKER_SECRET if not provided
