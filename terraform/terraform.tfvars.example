@@ -1,6 +1,9 @@
 # Copy to terraform.tfvars for local runs (do not commit real overrides unless
 # they are non-secret). CI uses these defaults unless you set TF_VAR_*.
 #
+# Remote state lives on Vultr Object Storage (S3). See backend.hcl.example
+# and terraform/scripts/configure-s3-backend.sh.
+#
 # kubernetes_version is omitted on purpose: Terraform asks Vultr for the
 # versions it currently offers and uses the latest. Pin only if you must:
 #   kubernetes_version = "v1.36.1+2"
