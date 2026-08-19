@@ -62,7 +62,7 @@ Legend: ✅ Done | 🔧 In Progress | ⏳ Pending | ❌ Blocked
 - [x] `web/netlify.toml` — build config, env var docs, redirects, security headers
 - [x] `Dockerfile` — worker container with LaTeX deps
 - [x] `.dockerignore` — lean build context
-- [x] `web/README.deployment.md` — SSH deploy key setup for `@bytecats/ui-kit`
+- [x] `docs/DEPLOYMENT_WEB.md` — SSH deploy key setup for `@bytecats/ui-kit`
 - [ ] Deploy Convex to production — `npx convex deploy`
 - [ ] Set Convex production env vars (Stripe keys, WORKER_SECRET, ADMIN_PASSWORD)
 - [ ] Deploy Next.js to Netlify
