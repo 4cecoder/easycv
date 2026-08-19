@@ -20,6 +20,7 @@ include:
 
 stages:
   - cluster
+  - verify
   - build
   - deploy
 
@@ -45,6 +46,16 @@ variables:
     - docker logout "${VULTRCR_HOST}/${VULTRCR_NAME}" || true
 
 workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+verify-lockfile:
+  stage: verify
+  image: oven/bun:1
+  script:
+    - cd web && bun install --frozen-lockfile
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_COMMIT_TAG
