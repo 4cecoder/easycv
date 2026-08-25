@@ -42,15 +42,15 @@ variable "node_label" {
 }
 
 variable "node_plan" {
-  description = "Vultr plan ID for worker nodes. VKE requires at least 2 GB RAM. vc2-2c-4gb fits frontend + worker."
+  description = "Vultr plan ID for worker nodes. VKE requires at least 1 vCPU and 2 GB RAM; vc2-1c-2gb is the cheapest plan that qualifies."
   type        = string
-  default     = "vc2-2c-4gb"
+  default     = "vc2-1c-2gb"
 }
 
 variable "node_quantity" {
   description = "Worker count in the default node pool."
   type        = number
-  default     = 2
+  default     = 1
 }
 
 variable "auto_scaler" {
