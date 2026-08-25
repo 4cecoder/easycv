@@ -60,7 +60,7 @@ export const LoadingSplashScreen: React.FC = () => {
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-md animate-in fade-in duration-200">
       <div className="relative z-10 flex w-full max-w-lg flex-col rounded-2xl border border-border bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-200">
         
         {/* Header with Brand Badge & Status */}

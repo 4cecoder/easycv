@@ -180,7 +180,7 @@ export default function WebGLCanvasBackground() {
       time += 16;
       
       // Base dark background
-      ctx.fillStyle = '#05050a';
+      ctx.fillStyle = '#1b1c22';
       ctx.fillRect(0, 0, width, height);
 
       // Aurora Gradient Overlays
@@ -235,7 +235,7 @@ export default function WebGLCanvasBackground() {
       animate();
     } else {
       // Static fallback for reduced motion
-      ctx.fillStyle = '#05050a';
+      ctx.fillStyle = '#1b1c22';
       ctx.fillRect(0, 0, width, height);
       drawAuroraWaves(0);
       orbs.forEach(o => o.draw(ctx));
