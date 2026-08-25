@@ -56,7 +56,7 @@ flowchart LR
 
 | Cloud object | What it is | Why it exists |
 | --- | --- | --- |
-| **VKE cluster** `easycv` | Kubernetes in `atl`, 2× `vc2-2c-4gb` workers | Runs the app |
+| **VKE cluster** `easycv` | Kubernetes in `atl`, 1× `vc2-1c-2gb` worker | Runs the app |
 | **Container registry** `seridian` | `atl.vultrcr.com/seridian` | Holds Docker images |
 | **Object Storage** bucket `easycvtfstate` | S3-compatible, host `atl2.vultrobjects.com` | Holds **Terraform state** (the source of truth for the cluster) |
 | **GitLab project** | [gitlab.com/therodfather/easycv](https://gitlab.com/therodfather/easycv) | Builds, deploys, create/destroy cluster |
@@ -223,7 +223,7 @@ Set in `terraform/terraform.tfvars.example` / variable defaults. Override in Git
 | Kubernetes version | Latest that Vultr currently offers |
 | Control plane HA | off |
 | Firewall | off |
-| Workers | 2 × `vc2-2c-4gb`, label `easycv-workers` |
+| Workers | 1 × `vc2-1c-2gb` (cheapest VKE-eligible plan), label `easycv-workers` |
 | Autoscaler | off |
 
 ---
