@@ -128,26 +128,26 @@
 html.dark {
   color-scheme: dark;
 
-  /* Deep High-Contrast Dark Mode Tokens */
-  --background: #09090b;
+  /* Soft Charcoal Dark Mode Tokens */
+  --background: #1b1c22;
   --foreground: #f4f4f5;
-  --card: #131316;
+  --card: #232530;
   --card-foreground: #f4f4f5;
-  --popover: #18181b;
+  --popover: #272a33;
   --popover-foreground: #f4f4f5;
   
   /* Primary Accent */
   --primary: #2563eb;
   --primary-foreground: #ffffff;
   
-  --secondary: #1c1c21;
+  --secondary: #2a2d37;
   --secondary-foreground: #f4f4f5;
   
-  --muted: #1e1e24;
-  --muted-foreground: #9ca3af;
+  --muted: #2b2e38;
+  --muted-foreground: #a6adbb;
   
-  --accent: #1e293b;
-  --accent-foreground: #60a5fa;
+  --accent: #303545;
+  --accent-foreground: #7cb0fb;
   
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
@@ -157,8 +157,8 @@ html.dark {
   --warning-foreground: #ffffff;
   
   /* Surface Borders */
-  --border: #26262b;
-  --input: #26262b;
+  --border: #363a46;
+  --input: #363a46;
   --ring: #3b82f6;
   --radius: 0.5rem;
 }
@@ -184,7 +184,7 @@ html.dark {
 .fluent-mica {
   background: light-dark(
     rgba(255, 255, 255, 0.85),
-    rgba(30, 30, 30, 0.85)
+    rgba(35, 37, 48, 0.85)
   );
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
@@ -193,7 +193,7 @@ html.dark {
 .fluent-acrylic {
   background: light-dark(
     rgba(248, 249, 250, 0.75),
-    rgba(24, 24, 24, 0.75)
+    rgba(39, 42, 51, 0.75)
   );
   backdrop-filter: blur(30px) saturate(190%);
   -webkit-backdrop-filter: blur(30px) saturate(190%);
@@ -224,9 +224,9 @@ html.dark {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: light-dark(#d1d5db, #374151);
+  background: light-dark(#d1d5db, #4a4f5c);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: light-dark(#9ca3af, #4b5563);
+  background: light-dark(#9ca3af, #5a6070);
 }

@@ -35,8 +35,8 @@ export async function sendVerificationCodeEmail(
       <head>
         <meta charset="utf-8">
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #09090b; color: #f4f4f5; margin: 0; padding: 20px; }
-          .container { max-width: 500px; margin: 0 auto; background-color: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 32px; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #1b1c22; color: #f4f4f5; margin: 0; padding: 20px; }
+          .container { max-width: 500px; margin: 0 auto; background-color: #232530; border: 1px solid #363a46; border-radius: 16px; padding: 32px; }
           .logo { font-size: 18px; font-weight: 800; color: #f4f4f5; display: inline-flex; align-items: center; margin-bottom: 24px; }
           .logo-badge { background-color: #2563eb; color: white; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; margin-left: 6px; }
           h1 { font-size: 20px; font-weight: 700; margin: 0 0 12px 0; color: #ffffff; }
@@ -104,8 +104,8 @@ export async function sendProPurchaseEmail(
       <head>
         <meta charset="utf-8">
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #09090b; color: #f4f4f5; margin: 0; padding: 20px; }
-          .container { max-width: 500px; margin: 0 auto; background-color: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 32px; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #1b1c22; color: #f4f4f5; margin: 0; padding: 20px; }
+          .container { max-width: 500px; margin: 0 auto; background-color: #232530; border: 1px solid #363a46; border-radius: 16px; padding: 32px; }
           .logo { font-size: 18px; font-weight: 800; color: #f4f4f5; display: inline-flex; align-items: center; margin-bottom: 24px; }
           .logo-badge { background-color: #10b981; color: white; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; margin-left: 6px; }
           h1 { font-size: 20px; font-weight: 700; margin: 0 0 12px 0; color: #ffffff; }
