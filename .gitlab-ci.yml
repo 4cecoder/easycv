@@ -204,8 +204,20 @@ deploy:
       sed "s|atl.vultrcr.com/seridian/easycv-frontend:latest|${FRONTEND_IMAGE}|g" k8s/frontend-deployment.yaml | kubectl apply -f -
       kubectl apply -f k8s/frontend-service.yaml
 
-      kubectl rollout status deployment/easycv-frontend -n "$K8S_NAMESPACE" --timeout=300s
-      kubectl rollout status deployment/easycv-worker -n "$K8S_NAMESPACE" --timeout=300s
+      if ! kubectl rollout status deployment/easycv-frontend -n "$K8S_NAMESPACE" --timeout=300s; then
+        echo "Frontend rollout failed. Cluster snapshot:"
+        kubectl get pods -n "$K8S_NAMESPACE" -o wide || true
+        kubectl describe deployment/easycv-frontend -n "$K8S_NAMESPACE" || true
+        kubectl describe pods -n "$K8S_NAMESPACE" -l app=easycv-frontend || true
+        exit 1
+      fi
+      if ! kubectl rollout status deployment/easycv-worker -n "$K8S_NAMESPACE" --timeout=300s; then
+        echo "Worker rollout failed. Cluster snapshot:"
+        kubectl get pods -n "$K8S_NAMESPACE" -o wide || true
+        kubectl describe deployment/easycv-worker -n "$K8S_NAMESPACE" || true
+        kubectl describe pods -n "$K8S_NAMESPACE" -l app=easycv-worker || true
+        exit 1
+      fi
 
       echo "Frontend LoadBalancer (may take a few minutes to get an IP):"
       kubectl get svc easycv-frontend -n "$K8S_NAMESPACE"
