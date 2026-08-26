@@ -30,9 +30,10 @@ spec:
           image: atl.vultrcr.com/seridian/easycv-worker:latest
           imagePullPolicy: Always
           resources:
+            # 10m CPU request so this schedules on 1× vc2-1c-2gb next to kube-system.
             requests:
               memory: 256Mi
-              cpu: 100m
+              cpu: 10m
             limits:
               memory: 768Mi
               cpu: "500m"

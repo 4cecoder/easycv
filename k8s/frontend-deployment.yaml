@@ -35,9 +35,11 @@ spec:
               containerPort: 3000
               protocol: TCP
           resources:
+            # Tiny CPU requests: the node is 1 vCPU. kube-system already consumes
+            # most of it; 50m+100m left the worker Pending (Insufficient cpu).
             requests:
               memory: 128Mi
-              cpu: 50m
+              cpu: 10m
             limits:
               memory: 512Mi
               cpu: "500m"
