@@ -12,11 +12,10 @@ spec:
   selector:
     matchLabels:
       app: easycv-frontend
+  # Recreate: the cluster is one small node. RollingUpdate with maxUnavailable:0
+  # tries to run two frontend pods at once and the new replica never becomes Ready.
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
+    type: Recreate
   template:
     metadata:
       labels:
@@ -37,11 +36,11 @@ spec:
               protocol: TCP
           resources:
             requests:
-              memory: 256Mi
-              cpu: 100m
+              memory: 128Mi
+              cpu: 50m
             limits:
-              memory: 768Mi
-              cpu: "1"
+              memory: 512Mi
+              cpu: "500m"
           startupProbe:
             httpGet:
               path: /
