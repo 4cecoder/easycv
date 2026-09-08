@@ -32,7 +32,6 @@
     "convex": "^1.42.3",
     "lucide-react": "^1.25.0",
     "next": "^16.2.10",
-    "posthog-js": "^1.408.3",
     "radix-ui": "^1.6.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
