@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminSession, buildAdminCookie } from "../../../../lib/admin-session";
+import { withUserMonSpan } from "../../../../lib/usermon-server";
 
-export async function POST(request: Request) {
+export const POST = withUserMonSpan("/api/admin/auth", async (request: Request) => {
   try {
     const { password } = await request.json();
     const correctPassword = process.env.ADMIN_PASSWORD || "admin123";
@@ -17,4 +18,4 @@ export async function POST(request: Request) {
   } catch (err) {
     return NextResponse.json({ error: "Authentication error" }, { status: 500 });
   }
-}
+});

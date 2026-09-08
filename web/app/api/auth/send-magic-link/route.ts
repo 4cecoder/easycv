@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getConvexClient } from "@/lib/convexServer";
 import { api } from "@/convex/_generated/api";
 import { sendVerificationCodeEmail } from "@/lib/email";
+import { withUserMonSpan } from "@/lib/usermon-server";
 
-export async function POST(req: NextRequest) {
+export const POST = withUserMonSpan("/api/auth/send-magic-link", async (req: NextRequest) => {
   try {
     const { email, sessionId } = await req.json();
     if (!email || !email.includes("@")) {
@@ -31,4 +32,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

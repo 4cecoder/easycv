@@ -1,4 +1,5 @@
 import { type DeviceProfile, getBrowserSessionId } from "./fingerprint";
+import { usermon } from "./usermon";
 
 export interface UploadStartedPayload {
   fileCount: number;
@@ -28,6 +29,20 @@ export function trackUploadStarted(payload: UploadStartedPayload): void {
   };
 
   try {
+    usermon.trackRumEvent({
+      type: "action",
+      name: "upload_started",
+      value: payload.fileCount,
+      platform: "web",
+      timestamp: Date.now(),
+      metadata: {
+        totalSizeKb: payload.totalSizeKb,
+        fileTypes: payload.fileTypes,
+        hasJobDescription: payload.hasJobDescription,
+        hasJobUrl: payload.hasJobUrl,
+      },
+    });
+
     fetch("/api/dev/telemetry", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -50,6 +65,18 @@ export function trackUploadComplete(payload: UploadCompletePayload): void {
   };
 
   try {
+    usermon.trackRumEvent({
+      type: "action",
+      name: "upload_completed",
+      value: payload.processingTimeMs,
+      platform: "web",
+      timestamp: Date.now(),
+      metadata: {
+        uploadId: payload.uploadId,
+        fileCount: payload.fileCount,
+      },
+    });
+
     fetch("/api/dev/telemetry", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -65,6 +92,15 @@ export function trackEvent(name: string, properties?: Record<string, any>): void
   const sessionId = getBrowserSessionId();
 
   try {
+    usermon.trackRumEvent({
+      type: "event",
+      name,
+      value: 1,
+      platform: "web",
+      timestamp: Date.now(),
+      metadata: properties,
+    });
+
     fetch("/api/dev/telemetry", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

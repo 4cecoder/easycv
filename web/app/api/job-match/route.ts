@@ -9,10 +9,11 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { getConvexClient } from "../../../lib/convexServer";
 import { SESSION_COOKIE } from "../../../lib/session";
+import { withUserMonSpan } from "../../../lib/usermon-server";
 
 const execAsync = promisify(exec);
 
-export async function POST(request: NextRequest) {
+export const POST = withUserMonSpan("/api/job-match", async (request: NextRequest) => {
   try {
     const body = (await request.json().catch(() => ({}))) as {
       uploadId?: string;
@@ -109,4 +110,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

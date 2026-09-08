@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import os from "os";
+import { withUserMonSpan } from "@/lib/usermon-server";
 
-export async function GET() {
+export const GET = withUserMonSpan("/api/dev/lan-ip", async () => {
   if (process.env.NODE_ENV === "production") {
     return NextResponse.json({ error: "Disabled in production" }, { status: 403 });
   }
@@ -25,4 +26,4 @@ export async function GET() {
     addresses,
     networkUrl: `http://${lanIp}:${port}`,
   });
-}
+});
