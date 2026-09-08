@@ -21,7 +21,7 @@ import {
   ArrowRight,
   FileCheck
 } from "lucide-react";
-import { usePostHog } from "posthog-js/react";
+import { usermon } from "@/lib/usermon";
 
 import {
   Alert,
@@ -125,7 +125,6 @@ Strategic Product Leader with 10+ years driving 0-to-1 and growth-stage B2B SaaS
 
 export default function UploadPage() {
   const router = useRouter();
-  const posthog = usePostHog();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -212,12 +211,19 @@ export default function UploadPage() {
         device,
       });
 
-      posthog.capture("cv_uploaded", {
-        file_count: files.length,
-        upload_id: body.uploadId,
-        has_job_description: Boolean(jobDescription.trim()),
-        has_job_url: detectedJobInfo.hasUrl,
-        detected_platforms: detectedJobInfo.detectedPlatforms.map((p) => p.id),
+      usermon.trackRumEvent({
+        type: "action",
+        name: "cv_uploaded",
+        value: files.length,
+        platform: "web",
+        timestamp: Date.now(),
+        metadata: {
+          file_count: files.length,
+          upload_id: body.uploadId,
+          has_job_description: Boolean(jobDescription.trim()),
+          has_job_url: detectedJobInfo.hasUrl,
+          detected_platforms: detectedJobInfo.detectedPlatforms.map((p) => p.id),
+        },
       });
       router.push(`/preview/${body.uploadId}`);
     } catch (err) {

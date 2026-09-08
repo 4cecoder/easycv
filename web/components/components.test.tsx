@@ -11,11 +11,6 @@ vi.mock("convex/react", () => ({
   useMutation: vi.fn(() => vi.fn()),
 }));
 
-// Mock posthog-js/react
-vi.mock("posthog-js/react", () => ({
-  usePostHog: vi.fn(() => ({ capture: vi.fn() })),
-}));
-
 // Mock @bytecats/ui-kit
 vi.mock("@bytecats/ui-kit", () => ({
   Button: ({ children, onClick, disabled, size, className, ...props }: any) => (

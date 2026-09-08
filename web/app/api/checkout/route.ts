@@ -5,6 +5,7 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { getConvexClient } from "../../../lib/convexServer";
 import { SESSION_COOKIE } from "../../../lib/session";
+import { withUserMonSpan } from "../../../lib/usermon-server";
 
 function getStripe(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -24,7 +25,7 @@ function getAppOrigin(): string {
   return configured.replace(/\/+$/, "");
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withUserMonSpan("/api/checkout", async (request: NextRequest) => {
   try {
     let body;
     try {
@@ -132,4 +133,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

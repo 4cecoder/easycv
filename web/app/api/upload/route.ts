@@ -7,6 +7,7 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { getConvexClient } from "../../../lib/convexServer";
 import { SESSION_COOKIE } from "../../../lib/session";
+import { withUserMonSpan } from "../../../lib/usermon-server";
 
 // Mirrors pipeline.py's SUPPORTED_EXTRACT_EXT (pipeline.py:70) -- the actual
 // extractable subset of VALID_EXT. Deliberately NOT .docx/.doc/.pages:
@@ -73,7 +74,7 @@ import {
 // and the /preview/[uploadId] page shows live status (queued -> processing
 // -> ready | error) via a reactive Convex query -- see worker.py's own
 // module docstring for the full rationale.
-export async function POST(request: NextRequest) {
+export const POST = withUserMonSpan("/api/upload", async (request: NextRequest) => {
   try {
     const formData = await request.formData();
     const files = formData.getAll("files").filter((f): f is File => f instanceof File);
@@ -205,4 +206,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});

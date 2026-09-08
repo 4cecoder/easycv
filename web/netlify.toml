@@ -36,9 +36,9 @@
 #   # Worker (shared secret between Convex and worker.py)
 #   WORKER_SECRET                  = "<openssl rand -hex 32>"
 #
-#   # PostHog analytics (optional — app still works without it)
-#   NEXT_PUBLIC_POSTHOG_KEY        = "phc_..."
-#   NEXT_PUBLIC_POSTHOG_HOST       = "https://us.i.posthog.com"
+#   # UserMon Telemetry
+#   NEXT_PUBLIC_USERMON_ENDPOINT   = "https://quirky-seal-916.convex.site/v1/ingest"
+#   NEXT_PUBLIC_USERMON_KEY        = "um_15cd8c8aeb43eb64e8f5fc6ed301281ae4d2ec4cbae16f6827a97d8cb68e8456131067c8"
 #
 #   # LLM provider (job-match endpoint; defaults to "ollama" if unset)
 #   LLM_PROVIDER                   = "ollama"

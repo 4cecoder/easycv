@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { requireAdmin } from "@/lib/admin-session";
+import { withUserMonSpan } from "@/lib/usermon-server";
 
-export async function GET(request: NextRequest) {
+export const GET = withUserMonSpan("/api/admin/stripe/callback", async (request: NextRequest) => {
   // Gate: only authenticated admins can connect Stripe
   const deny = await requireAdmin(request);
   if (deny) return deny;
@@ -40,4 +41,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

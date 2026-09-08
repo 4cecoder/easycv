@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { api } from "../../../../convex/_generated/api";
 import { getConvexClient } from "../../../../lib/convexServer";
+import { withUserMonSpan } from "../../../../lib/usermon-server";
 
 type RouteContext = { params: Promise<{ token: string }> };
 
-export async function GET(_request: NextRequest, { params }: RouteContext) {
+export const GET = withUserMonSpan("/api/download/[token]", async (_request: NextRequest, { params }: RouteContext) => {
   const { token } = await params;
   const convex = getConvexClient();
 
@@ -41,4 +42,4 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       "Content-Disposition": 'attachment; filename="resume.pdf"',
     },
   });
-}
+});

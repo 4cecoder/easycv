@@ -3,10 +3,9 @@
 import { useState } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 
-import { usePostHog } from "posthog-js/react";
-
 import { Alert, AlertDescription, Button } from "@bytecats/ui-kit";
 import { trackCheckoutStart, trackCheckoutDone, trackCheckoutFail } from "@/lib/tracker";
+import { usermon } from "@/lib/usermon";
 
 // Its own small client component (PreviewClient, which renders this, is
 // also a client component now -- kept split out anyway since this is a
@@ -22,7 +21,6 @@ export function CheckoutButton({
   size?: "default" | "sm" | "lg";
   className?: string;
 }) {
-  const posthog = usePostHog();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,7 +28,14 @@ export function CheckoutButton({
     setPending(true);
     setError(null);
     trackCheckoutStart(uploadId, "payment");
-    posthog.capture("checkout_initiated", { upload_id: uploadId });
+    usermon.trackRumEvent({
+      type: "action",
+      name: "checkout_initiated",
+      value: 1,
+      platform: "web",
+      timestamp: Date.now(),
+      metadata: { uploadId },
+    });
     try {
       const res = await fetch("/api/checkout", {
         method: "POST",
@@ -40,11 +45,25 @@ export function CheckoutButton({
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         trackCheckoutFail(uploadId, body.error);
-        posthog.capture("checkout_failed", { upload_id: uploadId, error: body.error });
+        usermon.trackRumEvent({
+          type: "action",
+          name: "checkout_failed",
+          value: 1,
+          platform: "web",
+          timestamp: Date.now(),
+          metadata: { uploadId, error: body.error },
+        });
         throw new Error(body.error ?? `Checkout failed (${res.status})`);
       }
       trackCheckoutDone(uploadId, 1400);
-      posthog.capture("checkout_redirect", { upload_id: uploadId });
+      usermon.trackRumEvent({
+        type: "action",
+        name: "checkout_redirect",
+        value: 1400,
+        platform: "web",
+        timestamp: Date.now(),
+        metadata: { uploadId },
+      });
       window.location.href = body.url;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Checkout failed");
