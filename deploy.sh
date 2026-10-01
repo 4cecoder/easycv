@@ -238,7 +238,11 @@ else
 fi
 
 # ── Done ────────────────────────────────────────────────────────────────────
-IP=$(kubectl get svc easycv-frontend -n "$NS" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+# Traefik handles external traffic — get its LoadBalancer IP
+IP=$(kubectl get svc -n traefik traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null \
+  || kubectl get svc -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null \
+  || kubectl get svc easycv-frontend -n "$NS" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null \
+  || echo "pending")
 
 echo ""
 echo -e "${CYAN}════════════════════════════════════════════════${NC}"

@@ -1,13 +1,14 @@
 # =============================================================================
-# Let's Encrypt ClusterIssuer for cert-manager
+# Let's Encrypt ClusterIssuer for cert-manager + Traefik
 # =============================================================================
 #
 # Creates a ClusterIssuer that uses Let's Encrypt production CA to
-# automatically provision and renew TLS certificates.
+# automatically provision and renew TLS certificates via HTTP-01 challenge.
 #
 # Prerequisites:
-#   cert-manager must be installed in the cluster:
-#     kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.3/cert-manager.yaml
+#   1. cert-manager installed:
+#      kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.3/cert-manager.yaml
+#   2. Traefik ingress class named "traefik" (default on Vultr VKE)
 #
 # Apply:
 #   kubectl apply -f k8s/cert-manager-issuer.yaml
@@ -23,16 +24,14 @@ metadata:
   name: letsencrypt-prod
 spec:
   acme:
-    # Let's Encrypt production endpoint
     server: https://acme-v02.api.letsencrypt.org/directory
-    # Email for certificate expiry notifications
     email: your-email@example.com
     privateKeySecretRef:
       name: letsencrypt-prod-account-key
     solvers:
       - http01:
           ingress:
-            class: nginx
+            class: traefik
 
 ---
 # =============================================================================
@@ -53,4 +52,4 @@ spec:
 #     solvers:
 #       - http01:
 #           ingress:
-#             class: nginx
+#             class: traefik
