@@ -54,7 +54,7 @@ Move EasyCV sign-in and user ownership to Seridian Auth, while preserving existi
 
 | Repo | Location | Branch / remote | State |
 |---|---|---|---|
-| EasyCV | `~/bytecats/adventurers/easycv` | `feat/seridian-auth-cutover` | Current local HEAD `e4c6780`; branch is pushed and tracks origin, but these current working-tree changes are uncommitted and not deployed. Preserve unrelated dirty automation logs and `docs/OVERHAUL_PLAN.md`. |
+| EasyCV | `~/bytecats/adventurers/easycv` | `feat/seridian-auth-cutover` | Cutover code pushed at `1f50a78` and GitHub PR checks pass; unrelated dirty automation logs, generated files, and `docs/OVERHAUL_PLAN.md` remain outside that commit. Not deployed. |
 | Seridian Auth | `~/bytecats/seridian-auth` | `fix/account-switcher-light-contrast`, remote GitLab `4cecoder/seridian-auth` | CLI/admin-scope, proxy, project/org, and Auth security changes **uncommitted** |
 | Unified core | `~/bytecats/core-wt/easycv-project-api` | branch `feat/easycv-auth-project-api`, based on `origin/main` `11306a7` | Project/org API and platform-admin CLI user API **uncommitted**; shared mounts and AUTH-76 submodule pin preserved |
 
@@ -182,14 +182,14 @@ The CLI no longer fabricates credentials. Project and app operations are authent
 - The Convex auth provider now bootstraps `/api/auth/token` on mount. Forced refresh no longer toggles the provider's initial `isLoading` state, which previously caused Convex 1.43.0 to clear and recreate auth on refresh.
 - The Auth management API proxy exists locally, with focused tests (3), but is not live until the Auth web deploy is released.
 - Core project/org routes and protected `/v1/admin/users` CLI endpoints are ported into a clean worktree on current `origin/main` `11306a7`; project/user API tests and backend typecheck pass. The existing org-scoped `/v1/users` remains unchanged. Changes are uncommitted.
-- EasyCV's cutover branch is pushed at `e4c6780`; current working-tree changes remain uncommitted. Auth and core changes remain uncommitted. No production config changes, API key/org provisioning, or deployment occurred in this pass.
+- EasyCV's cutover branch is pushed at `1f50a78`; GitHub frontend/backend checks and GitLab mirror push pass. The cutover changes are committed; unrelated workspace changes remain uncommitted. Auth and core changes remain uncommitted. No production config changes, API key/org provisioning, or deployment occurred in this pass. The latest production probe found Auth discovery returns the branded issuer from Convex, but all checked paths on `auth.seridian.dev` still return 404.
 - The requested organization/project provisioning is authorized by the cutover task, but no authenticated management API credential is available in the local CLI session. Create or provide an owner-scoped key with only the scopes needed for the requested operations; do not use a platform-admin key for project provisioning. CLI provisioning cannot be exercised against a real organization until that credential is available and the management proxy is deployed.
 
 ## Cutover sequence
 
 1. **Backend recovery:** Restore shared Convex component mounts and indexes using the unified core source. Merge the Auth project/org API changes into that source and deploy only after reviewing the full shared config. Recheck component availability and unauthenticated 401 behavior for Auth management routes.
 2. **Auth:** Integrate project/org routes into current unified core `origin/main` and preserve shared mounts. Commit the project/org API and CLI on dedicated branches, review them, then deploy through the unified backend release process.
-3. **EasyCV tests:** Chromium is installed. The provider bootstrap and refresh lifecycle are fixed. Full local validation passes: 270 unit tests, TypeScript, and 69 browser tests; the hosted inference smoke is intentionally skipped. Rerun CI after pushing the current working-tree changes. Remote production browser E2E remains outstanding and must use hosted inference only.
+3. **EasyCV tests:** Chromium is installed. The provider bootstrap and refresh lifecycle are fixed. Full local validation passes: 270 unit tests, TypeScript, and 69 browser tests; the hosted inference smoke is intentionally skipped. GitHub PR checks pass for the pushed branch. Remote production browser E2E remains outstanding and must use hosted inference only.
 4. **Convex:** Netlify points both browser and server URLs at `reliable-firefly-73` production; its user/order/payment/upload tables are empty, and the owner has confirmed it is the intended fresh production database. Do not migrate historical data from inaccessible `lively-badger-123`. Obtain the matching deploy key before changing backend state.
 5. **Provision:** Revoke/rotate the screenshot-shared client secret. After the pending API-key and organization decisions are approved and the management API is deployed, create/select the EasyCV project and create a replacement web client through `seridian` CLI. Capture its one-time secret directly into the secret manager.
 6. **Configure production:**
