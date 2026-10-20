@@ -11,6 +11,7 @@ import { jobMatchSchema } from "./schemas";
 
 export type JobMatchResult = { success: boolean; result?: Record<string, unknown>; error?: string };
 
+/** Server action: match an owned upload against a job description using the hosted LLM. */
 export async function matchJob(input: { uploadId: string; jobDescription: string }): Promise<JobMatchResult> {
   const parsed = jobMatchSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };

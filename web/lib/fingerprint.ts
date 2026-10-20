@@ -113,6 +113,7 @@ function classifyTier(cores: number, memoryGb: number, gpu: string): DeviceProfi
   return "unknown";
 }
 
+/** Anonymous per-browser id used only for telemetry, never for data ownership. */
 export function getTelemetrySessionId(): string {
   if (typeof window === "undefined") return "";
 

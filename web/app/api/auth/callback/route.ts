@@ -9,6 +9,7 @@ function clearHandshake(response: NextResponse, secure: boolean) {
   });
 }
 
+/** OIDC callback: verify state/nonce, exchange the code with PKCE, and set the encrypted session cookie. */
 export async function GET(request: NextRequest) {
   let env;
   try { env = oidcEnv(); } catch { return NextResponse.redirect(new URL("/?auth_error=misconfigured", request.url)); }

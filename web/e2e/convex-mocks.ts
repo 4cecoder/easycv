@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 
 export const MOCK_E2E_TOKEN = "test-only.e2e.jwt";
 
+/** Stub /api/auth/token so E2E pages run as a signed-in test user. */
 export function mockTestAuth(page: Page) {
   page.route("**/api/auth/token", (route) =>
     route.fulfill({
@@ -13,6 +14,7 @@ export function mockTestAuth(page: Page) {
   );
 }
 
+/** Stub Convex HTTP API responses for E2E specs with optional upload/payment/job-match fixtures. */
 export function mockConvexApi(
   page: Page,
   values: { upload?: unknown; payment?: unknown; jobMatch?: unknown } = {}

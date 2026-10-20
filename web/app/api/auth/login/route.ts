@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { deriveCodeChallenge } from "@/lib/seridian-pkce";
 import { discover, oidcEnv, randomToken } from "@/lib/seridian-oidc";
 
+/** Start Seridian sign-in: store state, nonce and PKCE verifier, then redirect to the authorize endpoint. */
 export async function GET() {
   try {
     const env = oidcEnv();

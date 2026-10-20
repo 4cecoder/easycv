@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
   return deny ?? NextResponse.json({ authorized: true });
 }
 
+/** Retired password admin login; admins now sign in with Seridian Auth (410 Gone). */
 export async function POST() {
   return NextResponse.json({ error: "Password admin login has been retired. Sign in with Seridian Auth." }, { status: 410 });
 }

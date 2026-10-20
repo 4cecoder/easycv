@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { basicAuth, decryptSession, oidcEnv, SESSION_COOKIE } from "@/lib/seridian-oidc";
 
+/** Clear the local session and best-effort revoke the refresh token at Seridian Auth. */
 export async function POST(request: NextRequest) {
   // Best-effort provider revocation. Local logout always succeeds even if Auth
   // is unreachable; refresh tokens are rotated and become unusable after revoke.

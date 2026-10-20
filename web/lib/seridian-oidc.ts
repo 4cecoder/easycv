@@ -4,6 +4,7 @@ export const SESSION_COOKIE = "easycv_seridian_session";
 
 export interface OidcSession { idToken: string; refreshToken: string | null; sub: string }
 
+/** Read and validate the Seridian OIDC relying-party settings from the environment. */
 export function oidcEnv() {
   const issuer = (process.env.SERIDIAN_AUTH_ISSUER ?? "").trim().replace(/\/+$/, "");
   const clientId = (process.env.SERIDIAN_AUTH_CLIENT_ID ?? "").trim();
@@ -17,11 +18,13 @@ export function oidcEnv() {
   return { issuer, clientId, clientSecret, appUrl, redirectUri: `${appUrl}/api/auth/callback` };
 }
 
+/** 32 random bytes, base64url-encoded, for state, nonce and PKCE verifiers. */
 export function randomToken() {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return Buffer.from(bytes).toString("base64url");
 }
 
+/** Fetch the issuer's OIDC discovery document and check it names the expected issuer. */
 export async function discover(issuer: string) {
   const response = await fetch(`${issuer}/.well-known/openid-configuration`, { cache: "no-store" });
   if (!response.ok) throw new Error(`OIDC discovery failed (${response.status})`);
@@ -34,6 +37,7 @@ export async function discover(issuer: string) {
   return doc as { authorization_endpoint: string; token_endpoint: string; userinfo_endpoint: string; jwks_uri: string };
 }
 
+/** Verify an ES256 ID token's signature, issuer, audience and (optionally) nonce. */
 export async function verifyIdToken(idToken: string, issuer: string, clientId: string, jwksUri: string, nonce?: string) {
   const { payload } = await jwtVerify(idToken, createRemoteJWKSet(new URL(jwksUri)), {
     algorithms: ["ES256"], issuer, audience: clientId,
@@ -44,6 +48,7 @@ export async function verifyIdToken(idToken: string, issuer: string, clientId: s
   return payload;
 }
 
+/** HTTP Basic client authentication header for the token and revocation endpoints. */
 export function basicAuth(clientId: string, clientSecret: string) {
   return `Basic ${Buffer.from(`${encodeURIComponent(clientId)}:${encodeURIComponent(clientSecret)}`).toString("base64")}`;
 }
@@ -55,12 +60,14 @@ async function sessionKey() {
   return crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 
+/** Encrypt the session with AES-GCM for storage in an HttpOnly cookie. */
 export async function encryptSession(session: OidcSession) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await sessionKey(), new TextEncoder().encode(JSON.stringify(session)));
   return Buffer.concat([Buffer.from(iv), Buffer.from(ciphertext)]).toString("base64url");
 }
 
+/** Decrypt and parse a session cookie produced by encryptSession. */
 export async function decryptSession(value: string): Promise<OidcSession> {
   const bytes = Buffer.from(value, "base64url");
   if (bytes.length < 29) throw new Error("Invalid session cookie");

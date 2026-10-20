@@ -9,6 +9,7 @@ export interface AuthenticatedConvex {
   ownerSessionKey: string;
 }
 
+/** Thrown when a request has no valid Seridian session; route handlers map it to 401. */
 export class AuthenticationRequiredError extends Error {
   constructor() { super("Authentication required"); }
 }
@@ -35,6 +36,7 @@ export async function authenticatedConvexFromCookie(cookieValue: string | undefi
   return { convex, ownerSessionKey };
 }
 
+/** Build a Convex client authenticated as the caller from the request's session cookie. */
 export function authenticatedConvexFromRequest(request: NextRequest) {
   return authenticatedConvexFromCookie(request.cookies.get(SESSION_COOKIE)?.value);
 }
