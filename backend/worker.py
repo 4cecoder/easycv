@@ -208,16 +208,46 @@ def profile_fields_from(profile: dict) -> dict:
     return {k: v for k, v in fields.items() if v is not None}
 
 
-def upload_bytes_to_convex(client: ConvexClient, convex_url: str, file_path: str, content_type: str) -> str:
+def upload_bytes_to_convex(client: ConvexClient, worker_secret: str, file_path: str, content_type: str) -> str:
     """Convex's standard out-of-band upload pattern: mint a short-lived
     signed URL via a mutation, POST raw bytes to it, read storageId back
     from the response. Mirrors app/api/upload/route.ts's
     uploadBytesToConvexStorage()."""
-    upload_url = client.mutation("files:generateUploadUrl", {})
+    upload_url = client.mutation("files:workerGenerateUploadUrl", {"workerSecret": worker_secret})
     with open(file_path, "rb") as f:
         resp = requests.post(upload_url, data=f, headers={"Content-Type": content_type}, timeout=DOWNLOAD_TIMEOUT)
     resp.raise_for_status()
     return resp.json()["storageId"]
+
+
+# Uploaded files are attacker-controlled input: the filename only supplies an
+# allowlisted extension (never a path), and downloads are size-capped.
+ALLOWED_UPLOAD_EXTENSIONS = {".pdf", ".txt", ".md"}
+MAX_DOWNLOAD_BYTES = 10 * 1024 * 1024
+
+
+def safe_download_path(download_dir: str, index: int, filename: str) -> str:
+    """Local path for file `index` that can never escape `download_dir`."""
+    ext = os.path.splitext(os.path.basename(str(filename)))[1].lower()
+    if ext not in ALLOWED_UPLOAD_EXTENSIONS:
+        raise ValueError(f"refusing file with unsupported extension: {ext or '(none)'}")
+    path = os.path.realpath(os.path.join(download_dir, f"{index}{ext}"))
+    if os.path.dirname(path) != os.path.realpath(download_dir):
+        raise ValueError("refusing download path outside the job directory")
+    return path
+
+
+def download_capped(url: str, local_path: str, limit: int = MAX_DOWNLOAD_BYTES) -> None:
+    """Stream `url` to `local_path`, failing once more than `limit` bytes arrive."""
+    received = 0
+    with requests.get(url, timeout=DOWNLOAD_TIMEOUT, stream=True, allow_redirects=False) as resp:
+        resp.raise_for_status()
+        with open(local_path, "wb") as out:
+            for chunk in resp.iter_content(chunk_size=64 * 1024):
+                received += len(chunk)
+                if received > limit:
+                    raise ValueError(f"download exceeds {limit} bytes")
+                out.write(chunk)
 
 
 def process_upload(client: ConvexClient, convex_url: str, worker_secret: str, upload_id: str) -> None:
@@ -233,12 +263,9 @@ def process_upload(client: ConvexClient, convex_url: str, worker_secret: str, up
     consolidate_tmp_dir = None
     try:
         local_paths = []
-        for f in files:
-            resp = requests.get(f["url"], timeout=DOWNLOAD_TIMEOUT)
-            resp.raise_for_status()
-            local_path = os.path.join(download_dir, f["filename"])
-            with open(local_path, "wb") as out:
-                out.write(resp.content)
+        for index, f in enumerate(files):
+            local_path = safe_download_path(download_dir, index, f.get("filename", ""))
+            download_capped(f["url"], local_path)
             local_paths.append(local_path)
 
         provider = os.environ.get("LLM_PROVIDER", "ollama")
@@ -248,7 +275,8 @@ def process_upload(client: ConvexClient, convex_url: str, worker_secret: str, up
         result = pipeline.consolidate_files(local_paths, llm_client)
         consolidate_tmp_dir = result["tmp_dir"]
 
-        client.mutation("profiles:saveStructuredProfile", {
+        client.mutation("profiles:workerSaveStructuredProfile", {
+            "workerSecret": worker_secret,
             "uploadId": upload_id,
             **profile_fields_from(result["profile"]),
             "qualityScore": result["score"]["score"],
@@ -278,8 +306,12 @@ def process_upload(client: ConvexClient, convex_url: str, worker_secret: str, up
                     })
 
         if result["pdf_path"]:
-            pdf_storage_id = upload_bytes_to_convex(client, convex_url, result["pdf_path"], "application/pdf")
-            client.mutation("profiles:setProfilePdf", {"uploadId": upload_id, "pdfStorageId": pdf_storage_id})
+            pdf_storage_id = upload_bytes_to_convex(client, worker_secret, result["pdf_path"], "application/pdf")
+            client.mutation("profiles:workerSetProfilePdf", {
+                "workerSecret": worker_secret,
+                "uploadId": upload_id,
+                "pdfStorageId": pdf_storage_id,
+            })
 
         client.mutation("uploads:markReady", {"uploadId": upload_id, "workerSecret": worker_secret})
         print(f"[worker] {upload_id} ready")
