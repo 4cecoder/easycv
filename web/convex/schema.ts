@@ -40,9 +40,8 @@ export const educationEntry = v.object({
 });
 
 export default defineSchema({
-  // Opaque per-visitor upload session. sessionId is the ONLY identity concept
-  // for now (a random token handed to the browser) — no userId/auth here.
-  // Auth (google-oauth) is a separate, deferred item.
+  // Canonical owner key derived server-side from Seridian Auth. Verified
+  // legacy accounts retain their previous session key during the cutover.
   uploads: defineTable({
     sessionId: v.string(),
     status: v.string(),
@@ -290,6 +289,9 @@ export default defineSchema({
   userAccounts: defineTable({
     email: v.string(),
     sessionId: v.string(),
+    // Immutable Seridian subject established only after proof of the legacy
+    // session plus a provider-asserted verified email.
+    seridianSubject: v.optional(v.string()),
     verified: v.boolean(),
     verificationCode: v.optional(v.string()),
     codeExpiresAt: v.optional(v.number()),
@@ -297,7 +299,8 @@ export default defineSchema({
     lastLoginAt: v.number(),
   })
     .index("by_email", ["email"])
-    .index("by_session", ["sessionId"]),
+    .index("by_session", ["sessionId"])
+    .index("by_seridianSubject", ["seridianSubject"]),
 
   // Indeed job postings — scraped listings tracked for matching and cleanup.
   // status: "active" | "expired" | "removed"

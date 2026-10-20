@@ -1,6 +1,6 @@
 import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { ownedUpload } from "./authz";
+import { ownedUpload, requireOwnerSession } from "./authz";
 import { components } from "./_generated/api";
 
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
@@ -22,6 +22,7 @@ export const createPaymentRecord = mutation({
     currency: v.string(),
   },
   handler: async (ctx, { sessionId, ...args }) => {
+    await requireOwnerSession(ctx, sessionId);
     const upload = await ownedUpload(ctx.db, args.uploadId, sessionId);
     if (!upload) {
       throw new Error("Upload not found or not owned by this session");
@@ -87,6 +88,7 @@ export const grantProDownload = mutation({
     sessionId: v.string(),
   },
   handler: async (ctx, { uploadId, sessionId }) => {
+    await requireOwnerSession(ctx, sessionId);
     const upload = await ownedUpload(ctx.db, uploadId, sessionId);
     if (!upload) {
       throw new Error("Upload not found or not owned by this session");
@@ -156,6 +158,7 @@ export const getPaymentStatus = query({
     sessionId: v.string(),
   },
   handler: async (ctx, { uploadId, sessionId }) => {
+    await requireOwnerSession(ctx, sessionId);
     const upload = await ownedUpload(ctx.db, uploadId, sessionId);
     if (!upload) return { paid: false, downloadToken: null };
 

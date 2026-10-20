@@ -13,6 +13,8 @@ const queryMock = vi.fn();
 const mutationMock = vi.fn();
 const createSessionMock = vi.fn();
 const retrievePriceMock = vi.fn();
+const authenticatedConvexFromRequestMock = vi.fn();
+class AuthenticationRequiredError extends Error {}
 
 // ─── All vi.mock calls at top level (Vitest hoists them anyway) ─────────────
 vi.mock("stripe", () => ({
@@ -26,6 +28,11 @@ vi.mock("stripe", () => ({
 
 vi.mock("../../lib/convexServer", () => ({
   getConvexClient: () => ({ query: queryMock, mutation: mutationMock }),
+}));
+
+vi.mock("../../lib/seridian-convex", () => ({
+  AuthenticationRequiredError,
+  authenticatedConvexFromRequest: authenticatedConvexFromRequestMock,
 }));
 
 vi.mock("../../lib/sanitizer", () => ({
@@ -70,6 +77,11 @@ const { POST: checkoutPost } = await import("./checkout/route");
 const { GET: downloadGet } = await import("./download/[token]/route");
 const { POST: jobMatchPost } = await import("./job-match/route");
 
+authenticatedConvexFromRequestMock.mockImplementation(async (request: NextRequest) => {
+  if (!request.cookies.get("easycv_seridian_session")?.value) throw new AuthenticationRequiredError();
+  return { convex: { query: queryMock, mutation: mutationMock }, ownerSessionKey: "seridian-owner-key" };
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // POST /api/upload
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -79,7 +91,7 @@ describe("POST /api/upload", () => {
     process.env.NEXT_PUBLIC_CONVEX_URL = "https://fake.convex.cloud";
   });
 
-  function makeUploadRequest(formData: FormData, cookies?: Record<string, string>) {
+  function makeUploadRequest(formData: FormData, cookies: Record<string, string> = { easycv_seridian_session: "encrypted-session" }) {
     const headers: Record<string, string> = {};
     if (cookies) {
       headers.cookie = Object.entries(cookies)
@@ -100,6 +112,13 @@ describe("POST /api/upload", () => {
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.error).toMatch(/no files/i);
+  });
+
+  test("returns 401 for an upload with no Seridian session", async () => {
+    const res = await uploadPost(makeUploadRequest(new FormData(), {}));
+    expect(res.status).toBe(401);
+    expect(queryMock).not.toHaveBeenCalled();
+    expect(mutationMock).not.toHaveBeenCalled();
   });
 
   test("rejects non-allowed file extensions (.exe)", async () => {
@@ -152,6 +171,10 @@ describe("POST /api/upload", () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.uploadId).toBe("upload_id_abc");
+    expect(mutationMock).toHaveBeenCalledWith(
+      "uploads:createUpload",
+      expect.objectContaining({ sessionId: "seridian-owner-key" }),
+    );
 
     fetchSpy.mockRestore();
   });
@@ -181,7 +204,7 @@ describe("POST /api/checkout", () => {
       "content-type": "application/json",
     };
     if (withSession) {
-      headers.cookie = "cv_session=session1";
+      headers.cookie = "easycv_seridian_session=encrypted-session";
     }
     return new NextRequest("http://localhost/api/checkout", {
       method: "POST",
@@ -203,7 +226,7 @@ describe("POST /api/checkout", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        cookie: "cv_session=session1",
+        cookie: "easycv_seridian_session=encrypted-session",
       },
       body: "not-json",
     });
@@ -219,7 +242,7 @@ describe("POST /api/checkout", () => {
     );
     expect(res.status).toBe(401);
     const json = await res.json();
-    expect(json.error).toMatch(/missing session/i);
+    expect(json.error).toMatch(/authentication required/i);
     expect(createSessionMock).not.toHaveBeenCalled();
     expect(mutationMock).not.toHaveBeenCalled();
   });
@@ -294,7 +317,7 @@ describe("POST /api/job-match", () => {
       "content-type": "application/json",
     };
     if (withSession) {
-      headers.cookie = "cv_session=session1";
+      headers.cookie = "easycv_seridian_session=encrypted-session";
     }
     return new NextRequest("http://localhost/api/job-match", {
       method: "POST",
@@ -337,7 +360,7 @@ describe("POST /api/job-match", () => {
     );
     expect(res.status).toBe(401);
     const json = await res.json();
-    expect(json.error).toMatch(/missing session/i);
+    expect(json.error).toMatch(/authentication required/i);
     expect(queryMock).not.toHaveBeenCalled();
   });
 });

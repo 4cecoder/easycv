@@ -1,16 +1,14 @@
-import { internalMutation, mutation } from "./_generated/server";
-import { v } from "convex/values";
+import { mutation } from "./_generated/server";
+import { ownerSessionKey } from "./authz";
 
 /**
  * Seed data mutation for easy testing and E2E preview demonstrations.
  * Populates sample uploads, resume files, structured profiles, and job matches.
  */
 export const seedSampleData = mutation({
-  args: {
-    sessionId: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const targetSessionId = args.sessionId ?? "seed-demo-session-123";
+  args: {},
+  handler: async (ctx) => {
+    const targetSessionId = await ownerSessionKey(ctx);
     const now = Date.now();
 
     // 1. Create completed upload row

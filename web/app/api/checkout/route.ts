@@ -3,8 +3,7 @@ import Stripe from "stripe";
 
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-import { getConvexClient } from "../../../lib/convexServer";
-import { SESSION_COOKIE } from "../../../lib/session";
+import { authenticatedConvexFromRequest, AuthenticationRequiredError } from "../../../lib/seridian-convex";
 import { withUserMonSpan } from "../../../lib/usermon-server";
 
 function getStripe(): Stripe {
@@ -44,22 +43,24 @@ export const POST = withUserMonSpan("/api/checkout", async (request: NextRequest
     }
 
     // uploadId is visible in the /preview/[uploadId] URL (see
-    // convex/authz.ts), so ownership must be proven by the session cookie,
+    // convex/authz.ts), so ownership must be proven by the Seridian session,
     // not just by knowing the id -- otherwise anyone could pay for and
-    // attach a downloadToken to a stranger's upload. No cookie means no
+    // attach a downloadToken to a stranger's upload. No authenticated identity means no
     // checkout, full stop.
-    const sessionId = request.cookies.get(SESSION_COOKIE)?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: "Missing session" }, { status: 401 });
+    let auth;
+    try { auth = await authenticatedConvexFromRequest(request); }
+    catch (error) {
+      if (error instanceof AuthenticationRequiredError) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      throw error;
     }
-
-    const convex = getConvexClient();
+    const { convex, ownerSessionKey: sessionId } = auth;
     try {
-      await convex.query(api.uploads.getUpload, {
+      const ownedUpload = await convex.query(api.uploads.getUpload, {
         uploadId: uploadId as Id<"uploads">,
         sessionId,
       });
-    } catch (err) {
+      if (!ownedUpload) return NextResponse.json({ error: "Unauthorized or invalid upload" }, { status: 403 });
+    } catch {
       return NextResponse.json({ error: "Unauthorized or invalid upload" }, { status: 403 });
     }
 

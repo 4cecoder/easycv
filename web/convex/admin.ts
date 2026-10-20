@@ -1,20 +1,11 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-
-function verifyAdminPasscode(passcode: string) {
-  const correct = process.env.ADMIN_PASSWORD || "admin123";
-  if (passcode !== correct) {
-    throw new Error("Unauthorized admin passcode");
-  }
-}
+import { requireAdmin } from "./authz";
 
 export const listAllUploads = query({
-  args: { passcode: v.string() },
-  handler: async (ctx, { passcode }) => {
-    const correct = process.env.ADMIN_PASSWORD || "admin123";
-    if (passcode !== correct) {
-      return [];
-    }
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
 
     const uploads = await ctx.db.query("uploads").order("desc").take(100);
 
@@ -49,9 +40,9 @@ export const listAllUploads = query({
 });
 
 export const deleteUpload = mutation({
-  args: { passcode: v.string(), uploadId: v.id("uploads") },
-  handler: async (ctx, { passcode, uploadId }) => {
-    verifyAdminPasscode(passcode);
+  args: { uploadId: v.id("uploads") },
+  handler: async (ctx, { uploadId }) => {
+    await requireAdmin(ctx);
 
     // 1. Delete resumeFiles and their storage files
     const resumeFiles = await ctx.db
@@ -102,9 +93,9 @@ export const deleteUpload = mutation({
 });
 
 export const bypassPayment = mutation({
-  args: { passcode: v.string(), uploadId: v.id("uploads") },
-  handler: async (ctx, { passcode, uploadId }) => {
-    verifyAdminPasscode(passcode);
+  args: { uploadId: v.id("uploads") },
+  handler: async (ctx, { uploadId }) => {
+    await requireAdmin(ctx);
 
     const existingPayment = await ctx.db
       .query("payments")
@@ -138,9 +129,9 @@ export const bypassPayment = mutation({
 });
 
 export const retryUpload = mutation({
-  args: { passcode: v.string(), uploadId: v.id("uploads") },
-  handler: async (ctx, { passcode, uploadId }) => {
-    verifyAdminPasscode(passcode);
+  args: { uploadId: v.id("uploads") },
+  handler: async (ctx, { uploadId }) => {
+    await requireAdmin(ctx);
 
     await ctx.db.patch(uploadId, {
       status: "queued",

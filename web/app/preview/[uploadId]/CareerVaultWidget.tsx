@@ -64,6 +64,7 @@ export function CareerVaultWidget({
     setSaving(true);
     try {
       await saveProfile({
+        sessionId,
         uploadId: uploadId as Id<"uploads">,
         name: profile.name,
         contact: profile.contact,

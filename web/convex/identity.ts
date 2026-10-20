@@ -1,6 +1,67 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { ownedUpload, ownerSessionKey, requireOwnerSession } from "./authz";
 
+export const getOwnerSessionKey = query({
+  args: {},
+  handler: async (ctx) => ownerSessionKey(ctx),
+});
+
+/**
+ * Bind the current Seridian subject to its exact pre-cutover owner key. The
+ * browser-held legacy session is a bearer credential: possession must match
+ * the verified account row's current sessionId exactly. Email alone never
+ * locates or authorizes a legacy record. Convex mutation serialization makes
+ * competing first binds atomic; an existing subject binding is immutable.
+ */
+export const bindLegacyAccount = mutation({
+  args: { legacySessionId: v.string() },
+  handler: async (ctx, { legacySessionId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+    const claims = identity as typeof identity & { email_verified?: boolean };
+    const subject = identity.subject.trim();
+    const email = identity.email?.trim().toLowerCase();
+    if (!subject || claims.email_verified !== true || !email) {
+      throw new Error("A verified Seridian identity is required");
+    }
+    // The retired OTP endpoint used this shared fallback when callers omitted
+    // the browser cookie. It is not proof of possession of a unique owner key.
+    if (!legacySessionId.trim() || legacySessionId === "default_session") {
+      throw new Error("Legacy session proof is invalid");
+    }
+
+    const existingForSubject = await ctx.db
+      .query("userAccounts")
+      .withIndex("by_seridianSubject", (q) => q.eq("seridianSubject", subject))
+      .unique();
+    if (existingForSubject) {
+      if (!existingForSubject.verified) throw new Error("Legacy account is not verified");
+      return existingForSubject.sessionId;
+    }
+
+    const account = await ctx.db
+      .query("userAccounts")
+      .withIndex("by_session", (q) => q.eq("sessionId", legacySessionId))
+      .unique();
+    if (!account || !account.verified || account.email.trim().toLowerCase() !== email) {
+      throw new Error("Legacy session proof does not match a verified account");
+    }
+    if (account.seridianSubject && account.seridianSubject !== subject) {
+      throw new Error("Legacy account is already bound to another Seridian identity");
+    }
+
+    await ctx.db.patch(account._id, { seridianSubject: subject });
+    return account.sessionId;
+  },
+});
+
+/**
+ * Bind a legacy account to the current Seridian subject. The caller must know
+ * the legacy session key and present a provider-asserted verified email that
+ * matches the legacy account. Convex mutations are serializable, so concurrent
+ * first binds cannot replace this subject or bind one subject to two accounts.
+ */
 /**
  * Silent identity resolution — links devices to a single person.
  *
@@ -11,14 +72,18 @@ export const linkDevice = mutation({
   args: {
     deviceHash: v.string(),
     sessionId: v.string(),
-    identityId: v.string(),
-    email: v.optional(v.string()),
     // Device metadata for cross-device analytics
     browser: v.optional(v.string()),
     os: v.optional(v.string()),
     tier: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const owner = await requireOwnerSession(ctx, args.sessionId);
+    const identity = await ctx.auth.getUserIdentity();
+    const claims = identity as (NonNullable<typeof identity> & { email_verified?: boolean }) | null;
+    const verifiedEmail = identity?.email && claims?.email_verified === true
+      ? identity.email.trim().toLowerCase()
+      : undefined;
     // Upsert by deviceHash — one row per device
     const existing = await ctx.db
       .query("deviceIdentities")
@@ -26,16 +91,24 @@ export const linkDevice = mutation({
       .first();
 
     if (existing) {
+      if (existing.sessionId !== owner) throw new Error("Unauthorized");
       await ctx.db.patch(existing._id, {
-        identityId: args.identityId,
-        email: args.email ?? existing.email,
+        identityId: owner,
+        sessionId: owner,
+        email: verifiedEmail,
         lastSeenAt: Date.now(),
       });
       return existing._id;
     }
 
     return await ctx.db.insert("deviceIdentities", {
-      ...args,
+      deviceHash: args.deviceHash,
+      sessionId: owner,
+      identityId: owner,
+      email: verifiedEmail,
+      browser: args.browser,
+      os: args.os,
+      tier: args.tier,
       firstSeenAt: Date.now(),
       lastSeenAt: Date.now(),
     });
@@ -46,8 +119,9 @@ export const linkDevice = mutation({
  * Get all devices belonging to one person (for cross-device analytics).
  */
 export const getDevicesForIdentity = query({
-  args: { identityId: v.string() },
-  handler: async (ctx, { identityId }) => {
+  args: {},
+  handler: async (ctx) => {
+    const identityId = await ownerSessionKey(ctx);
     return await ctx.db
       .query("deviceIdentities")
       .withIndex("by_identity", (q) => q.eq("identityId", identityId))
@@ -56,32 +130,23 @@ export const getDevicesForIdentity = query({
 });
 
 /**
- * Look up identity by email (silently, for cross-device linking).
- */
-export const getIdentityByEmail = query({
-  args: { email: v.string() },
-  handler: async (ctx, { email }) => {
-    const normalized = email.toLowerCase().trim();
-    return await ctx.db
-      .query("deviceIdentities")
-      .withIndex("by_email", (q) => q.eq("email", normalized))
-      .first();
-  },
-});
-
-/**
  * Record a silent identity event (upload, preview, checkout, etc.)
  */
 export const recordIdentityEvent = mutation({
   args: {
+    sessionId: v.string(),
     deviceHash: v.string(),
     event: v.string(),
     uploadId: v.optional(v.id("uploads")),
     metadata: v.optional(v.any()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, { sessionId, uploadId, ...args }) => {
+    const owner = await requireOwnerSession(ctx, sessionId);
+    if (uploadId && !(await ownedUpload(ctx.db, uploadId, owner))) throw new Error("Unauthorized");
     return await ctx.db.insert("identityEvents", {
       ...args,
+      identityId: owner,
+      uploadId,
       timestamp: Date.now(),
     });
   },
@@ -91,11 +156,12 @@ export const recordIdentityEvent = mutation({
  * Get all events for a device (for building user journey timeline).
  */
 export const getEventsForDevice = query({
-  args: { deviceHash: v.string() },
-  handler: async (ctx, { deviceHash }) => {
+  args: {},
+  handler: async (ctx) => {
+    const identityId = await ownerSessionKey(ctx);
     return await ctx.db
       .query("identityEvents")
-      .withIndex("by_device", (q) => q.eq("deviceHash", deviceHash))
+      .withIndex("by_identity", (q) => q.eq("identityId", identityId))
       .order("desc")
       .take(50);
   },
@@ -105,27 +171,13 @@ export const getEventsForDevice = query({
  * Get all events for an identity (cross-device journey).
  */
 export const getEventsForIdentity = query({
-  args: { identityId: v.string() },
-  handler: async (ctx, { identityId }) => {
-    // First find all devices for this identity
-    const devices = await ctx.db
-      .query("deviceIdentities")
+  args: {},
+  handler: async (ctx) => {
+    const identityId = await ownerSessionKey(ctx);
+    return await ctx.db
+      .query("identityEvents")
       .withIndex("by_identity", (q) => q.eq("identityId", identityId))
-      .collect();
-
-    const deviceHashes = devices.map((d) => d.deviceHash);
-    const allEvents = [];
-
-    for (const hash of deviceHashes) {
-      const events = await ctx.db
-        .query("identityEvents")
-        .withIndex("by_device", (q) => q.eq("deviceHash", hash))
-        .order("desc")
-        .take(20);
-      allEvents.push(...events);
-    }
-
-    // Sort by timestamp descending
-    return allEvents.sort((a, b) => b.timestamp - a.timestamp).slice(0, 50);
+      .order("desc")
+      .take(50);
   },
 });

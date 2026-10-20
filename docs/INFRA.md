@@ -244,7 +244,9 @@ Deploy also creates (not files in git):
 | Object | Purpose |
 | --- | --- |
 | Secret `vultr-registry-credentials` | Pull from the private container registry |
-| Secret `easycv-secrets` | Convex URL, worker secret, Stripe, LLM keys |
+| Secret `easycv-secrets` | Self-hosted Convex and database credentials only |
+| Secret `easycv-web-secrets` | OIDC client secret, admin allowlist, Stripe, and hosted inference keys for Next.js |
+| Secret `easycv-worker-secrets` | Worker Convex URL, worker credential, and hosted inference keys; no OIDC or Stripe secrets |
 | ConfigMap `easycv-config` | `NEXT_PUBLIC_CONVEX_URL`, `LLM_PROVIDER`, `LLM_MODEL`, `APP_URL` |
 
 Other YAML under `k8s/` (Convex in-cluster, ingress, Postgres, cert-manager) is **not** applied by the current GitLab `deploy` job. Production Convex is the hosted Convex URL in CI variables.
@@ -273,25 +275,28 @@ Set at **GitLab → Settings → CI/CD → Variables**. Mask secrets. Do not put
 
 | Variable | Used by | What it is |
 | --- | --- | --- |
-| `NEXT_PUBLIC_CONVEX_URL` | Frontend build + runtime ConfigMap/Secret | Public Convex deployment URL |
-| `WORKER_SECRET` | Worker | Shared secret so the worker can claim jobs. If unset, deploy **generates a random one** (fine for a demo; set a stable value in production). |
+| `NEXT_PUBLIC_CONVEX_URL` | Frontend build + runtime ConfigMap | Public Convex deployment URL |
+| `CONVEX_DEPLOY_KEY` | GitLab Convex configure job or Cloud deploy | Deploy key for the intended production Convex deployment |
+| `SERIDIAN_AUTH_ISSUER` | Web + Convex | Must exactly equal `https://auth.seridian.dev` |
+| `SERIDIAN_AUTH_CLIENT_ID` | Web + Convex | Registered EasyCV OIDC client ID |
+| `SERIDIAN_AUTH_CLIENT_SECRET` | Web only | OIDC confidential client secret; never sent to Convex or the worker |
+| `ADMIN_EMAILS` | Web + Convex | Comma-separated verified Seridian admin emails |
+| `APP_URL` | Web + Convex + ConfigMap | Must be `https://easycv.seridian.dev`; used to construct the callback and billing return URIs |
+| `WORKER_SECRET` | Worker + Convex | Shared secret so the worker can claim jobs; set the same value in both runtimes |
 
-Optional alias: `CONVEX_URL` (defaults to `NEXT_PUBLIC_CONVEX_URL` when creating `easycv-secrets`).
-
-### Optional app / billing / LLM
+### Billing and hosted inference
 
 | Variable | Used by | Notes |
 | --- | --- | --- |
-| `APP_URL` / `DOMAIN` | Secret + ConfigMap | Public site URL. Defaults to `https://$DOMAIN` or `https://easycv.example.com`. |
-| `STRIPE_SECRET_KEY` | Secret | Payments |
-| `STRIPE_WEBHOOK_SECRET` | Secret | Stripe webhooks |
-| `STRIPE_PRICE_ID` | Secret | One-time price |
-| `STRIPE_PRO_PRICE_ID` | Secret | Pro price |
-| `OPENAI_API_KEY` | Secret | If `LLM_PROVIDER=openai` |
-| `ANTHROPIC_API_KEY` | Secret | If `LLM_PROVIDER=anthropic` |
+| `STRIPE_SECRET_KEY` | Web and Convex | Payments |
+| `STRIPE_WEBHOOK_SECRET` | Web and Convex | Stripe webhooks |
+| `STRIPE_PRICE_ID` | Web and Convex | One-time price |
+| `STRIPE_PRO_PRICE_ID` | Web and Convex | Pro price |
+| `OPENAI_API_KEY` | Web and worker secrets | Required when `LLM_PROVIDER=openai` |
+| `ANTHROPIC_API_KEY` | Web and worker secrets | Required when `LLM_PROVIDER=anthropic` |
 | `LLM_PROVIDER` | ConfigMap | Deploy default: `openai` |
 | `LLM_MODEL` | ConfigMap | Deploy default: `gpt-4o` |
-| `OLLAMA_API_BASE` | ConfigMap | Only if using Ollama |
+| `OLLAMA_API_BASE` | ConfigMap | Not used by production deployment; local/Tailscale Ollama is rejected by deploy preflight |
 
 ### Written by CI (do not paste by hand each time)
 

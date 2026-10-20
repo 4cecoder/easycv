@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useQuery, useAction } from "convex/react";
+import { useQuery, useAction, useConvexAuth } from "convex/react";
 import { Check, Crown, Loader2, Sparkles } from "lucide-react";
 
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@bytecats/ui-kit";
 
 import { api } from "../../convex/_generated/api";
-import { getBrowserSessionId } from "../../lib/fingerprint";
 
 const FREE_FEATURES = [
   "Upload & parse one resume at a time",
@@ -24,22 +23,18 @@ const PRO_FEATURES = [
 ];
 
 export default function PricingPage() {
-  const [sessionId, setSessionId] = useState("");
+  const { isAuthenticated } = useConvexAuth();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setSessionId(getBrowserSessionId());
-  }, []);
-
-  const isPro = useQuery(api.billing.isSubscribed, sessionId ? { sessionId } : "skip");
+  const isPro = useQuery(api.billing.isSubscribed, isAuthenticated ? {} : "skip");
   const createCheckout = useAction(api.billing.createSubscriptionCheckout);
 
   async function handleSubscribe() {
     setPending(true);
     setError(null);
     try {
-      const { url } = await createCheckout({ sessionId });
+      const { url } = await createCheckout({});
       if (!url) throw new Error("Stripe did not return a checkout URL");
       window.location.href = url;
     } catch (err) {
@@ -120,7 +115,7 @@ export default function PricingPage() {
               </ul>
               <Button
                 onClick={handleSubscribe}
-                disabled={pending || !sessionId || isPro === true}
+                disabled={pending || !isAuthenticated || isPro === true}
                 className="mt-auto font-bold shadow-xs active:scale-95 transition-all"
               >
                 {pending ? (

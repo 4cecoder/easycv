@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
-import { getBrowserSessionId } from "../lib/fingerprint";
+import { useOwnerSessionKey } from "../lib/useOwnerSessionKey";
 import {
   Sparkles,
   Plus,
@@ -53,6 +53,7 @@ export function SmartCareerProfileWizard({
   isOpen,
   onClose,
 }: SmartCareerProfileWizardProps) {
+  const sessionId = useOwnerSessionKey();
   const saveProfile = useMutation(api.profiles.saveStructuredProfile);
   const saveInsights = useMutation(api.insights.saveCandidateInsights);
 
@@ -177,10 +178,11 @@ export function SmartCareerProfileWizard({
   const handleSaveAll = async () => {
     setIsSaving(true);
     try {
-      const sessionId = getBrowserSessionId();
+      if (!sessionId) throw new Error("Authentication required");
 
       // 1. Save main structured resume profile
       await saveProfile({
+        sessionId,
         uploadId: uploadId as Id<"uploads">,
         name: name.trim() || "Candidate",
         contact: {

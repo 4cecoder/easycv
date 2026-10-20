@@ -57,30 +57,42 @@ Set these in the Netlify dashboard (**Site Settings → Environment Variables**)
 | Variable | Required | Notes |
 |---|---|---|
 | `NEXT_PUBLIC_CONVEX_URL` | Yes | Convex deployment URL (e.g. `https://<project>.convex.cloud`) |
-| `CONVEX_URL` | Yes | Same as above, needed by Convex SDK internals |
-| `CONVEX_SITE_URL` | Yes | Convex HTTP actions URL (e.g. `https://<project>.convex.site`) |
 | `STRIPE_SECRET_KEY` | Yes | Stripe secret key (starts with `sk_live_` or `sk_test_`) |
 | `STRIPE_WEBHOOK_SECRET` | Yes | Stripe webhook signing secret (starts with `whsec_`) |
 | `STRIPE_PRICE_ID` | Yes | Stripe Price ID for the checkout product |
-| `APP_URL` | Yes | Trusted origin for Stripe redirects (e.g. `https://easycv.example.com`) |
-| `ADMIN_PASSWORD` | No | Admin panel passcode (defaults to `admin123` — change for production) |
-| `WORKER_SECRET` | Yes | Shared secret between Convex and worker.py (32-byte hex) |
+| `APP_URL` | Yes | Canonical HTTPS origin; production is `https://easycv.seridian.dev` and callback is `${APP_URL}/api/auth/callback` |
+| `SERIDIAN_AUTH_ISSUER` | Yes | Exact issuer value published by the Seridian OIDC discovery document |
+| `SERIDIAN_AUTH_CLIENT_ID` | Yes | EasyCV relying-party client ID registered in Seridian Auth |
+| `SERIDIAN_AUTH_CLIENT_SECRET` | Yes | EasyCV relying-party secret; store as a deployment secret |
+| `ADMIN_EMAILS` | Yes, in web and Convex environments | Comma-separated verified Seridian emails allowed to use EasyCV admin functions |
 | `NEXT_PUBLIC_POSTHOG_KEY` | No | PostHog project API key (app works without it) |
 | `NEXT_PUBLIC_POSTHOG_HOST` | No | PostHog host (defaults to `https://us.i.posthog.com`) |
 | `NEXT_PUBLIC_STRIPE_CLIENT_ID` | No | Stripe Connect client ID for admin (defaults to `ca_12345`) |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | No | Stripe publishable key (starts with `pk_live_` or `pk_test_`) |
-| `LLM_PROVIDER` | No | LLM backend (`ollama`, `openai`, `anthropic`; defaults to `ollama`) |
-| `LLM_MODEL` | No | Model override for the LLM provider |
-| `OLLAMA_API_BASE` | No | Ollama server URL (for the job-match route) |
+| `LLM_PROVIDER` | Yes for job matching | Hosted provider: `openai` (default) or `anthropic`; serverless job matching rejects local Ollama |
+| `LLM_MODEL` | No | Provider-specific model override |
+| `OPENAI_API_KEY` | Yes when `LLM_PROVIDER=openai` | Hosted OpenAI credential; store as a deployment secret |
+| `ANTHROPIC_API_KEY` | Yes when `LLM_PROVIDER=anthropic` | Hosted Anthropic credential; store as a deployment secret |
 
-**Important**: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `WORKER_SECRET`,
-and `ADMIN_PASSWORD` must also be set as **Convex environment variables** via:
+The serverless job-match endpoint calls the configured hosted provider directly. It does not invoke `uv`, Python, a Tailscale URL, or a local Ollama endpoint. The separate Convex worker also needs the selected hosted provider key and `WORKER_SECRET` in its own runtime environment to process queued resume uploads; configuring the web deployment alone does not configure that worker.
+
+Set the same `ADMIN_EMAILS` allowlist in both the web app environment (for
+metrics and Stripe Connect routes) and Convex deployment environment (for
+admin mutations). Keep Stripe credentials in the web host and Convex
+deployment, and keep `WORKER_SECRET` plus the selected hosted inference key in
+the worker and Convex deployment. The OIDC client secret belongs only in the
+web host. For example:
 
 ```bash
+bunx convex env set SERIDIAN_AUTH_ISSUER https://auth.seridian.dev
+bunx convex env set SERIDIAN_AUTH_CLIENT_ID ...
 bunx convex env set STRIPE_SECRET_KEY ...
 bunx convex env set STRIPE_WEBHOOK_SECRET ...
+bunx convex env set STRIPE_PRICE_ID ...
+bunx convex env set STRIPE_PRO_PRICE_ID ...
+bunx convex env set APP_URL https://easycv.seridian.dev
 bunx convex env set WORKER_SECRET ...
-bunx convex env set ADMIN_PASSWORD ...
+bunx convex env set ADMIN_EMAILS "admin@example.com,another-admin@example.com"
 ```
 
 Convex actions (in `convex/http.ts`, `convex/admin.ts`, `convex/workerAuth.ts`)

@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { ownedUpload, requireOwnerSession } from "./authz";
 
 export const recordDeviceTelemetry = mutation({
   args: {
@@ -33,8 +34,11 @@ export const recordDeviceTelemetry = mutation({
     paid: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    const owner = await requireOwnerSession(ctx, args.sessionId);
+    if (args.uploadId && !(await ownedUpload(ctx.db, args.uploadId, owner))) throw new Error("Unauthorized");
     return await ctx.db.insert("deviceTelemetry", {
       ...args,
+      sessionId: owner,
       timestamp: Date.now(),
     });
   },
@@ -45,10 +49,10 @@ export const getSessionTelemetry = query({
     sessionId: v.string(),
   },
   handler: async (ctx, { sessionId }) => {
-    if (!sessionId) return [];
+    const owner = await requireOwnerSession(ctx, sessionId);
     return await ctx.db
       .query("deviceTelemetry")
-      .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+      .withIndex("by_session", (q) => q.eq("sessionId", owner))
       .order("desc")
       .take(10);
   },

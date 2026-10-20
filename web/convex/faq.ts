@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { requireAdmin, requireOwnerSession } from "./authz";
 
 export const recordFaqQuery = mutation({
   args: {
@@ -9,8 +10,10 @@ export const recordFaqQuery = mutation({
     category: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const owner = await requireOwnerSession(ctx, args.sessionId);
     return await ctx.db.insert("faqQueries", {
       ...args,
+      sessionId: owner,
       timestamp: Date.now(),
     });
   },
@@ -18,10 +21,14 @@ export const recordFaqQuery = mutation({
 
 export const rateFaqQuery = mutation({
   args: {
+    sessionId: v.string(),
     queryId: v.id("faqQueries"),
     feedback: v.string(), // "helpful" | "unhelpful"
   },
-  handler: async (ctx, { queryId, feedback }) => {
+  handler: async (ctx, { sessionId, queryId, feedback }) => {
+    const owner = await requireOwnerSession(ctx, sessionId);
+    const entry = await ctx.db.get(queryId);
+    if (!entry || entry.sessionId !== owner) throw new Error("Unauthorized");
     await ctx.db.patch(queryId, { feedback });
     return { success: true };
   },
@@ -32,6 +39,7 @@ export const listRecentFaqFeedback = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, { limit = 50 }) => {
+    await requireAdmin(ctx);
     return await ctx.db
       .query("faqQueries")
       .order("desc")
@@ -46,13 +54,11 @@ export const getSampleQuota = query({
     sessionId: v.string(),
   },
   handler: async (ctx, { sessionId }) => {
-    if (!sessionId) {
-      return { count: 0, maxFree: MAX_FREE_SAMPLES, remaining: MAX_FREE_SAMPLES, isExhausted: false };
-    }
+    const owner = await requireOwnerSession(ctx, sessionId);
 
     const record = await ctx.db
       .query("usageQuotas")
-      .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+      .withIndex("by_session", (q) => q.eq("sessionId", owner))
       .first();
 
     const count = record?.sampleViewCount ?? 0;
@@ -72,11 +78,11 @@ export const consumeSampleQuota = mutation({
     sessionId: v.string(),
   },
   handler: async (ctx, { sessionId }) => {
-    if (!sessionId) return { success: false, remaining: 0 };
+    const owner = await requireOwnerSession(ctx, sessionId);
 
     const existing = await ctx.db
       .query("usageQuotas")
-      .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+      .withIndex("by_session", (q) => q.eq("sessionId", owner))
       .first();
 
     if (existing) {
@@ -93,7 +99,7 @@ export const consumeSampleQuota = mutation({
     }
 
     await ctx.db.insert("usageQuotas", {
-      sessionId,
+      sessionId: owner,
       autoImproveCount: 0,
       sampleViewCount: 1,
       lastUsedAt: Date.now(),

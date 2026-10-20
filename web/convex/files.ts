@@ -1,4 +1,5 @@
 import { mutation } from "./_generated/server";
+import { ownerSessionKey } from "./authz";
 
 // Convex's standard pattern for uploading bytes from a server that isn't
 // itself a Convex function (here: the Next.js API routes in
@@ -8,6 +9,7 @@ import { mutation } from "./_generated/server";
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
+    await ownerSessionKey(ctx);
     return await ctx.storage.generateUploadUrl();
   },
 });

@@ -1,9 +1,16 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
+import { MOCK_JOB_MATCH_RESULT, MOCK_PAYMENT_STATUS, MOCK_UPLOAD } from "./mock-data";
+import { mockConvexApi } from "./convex-mocks";
 
 const PREVIEW_URL = "/preview/seed-demo-upload-id";
 
 test.describe("Preview Page E2E", () => {
   test.beforeEach(async ({ page }) => {
+    await mockConvexApi(page, {
+      upload: MOCK_UPLOAD,
+      payment: MOCK_PAYMENT_STATUS,
+      jobMatch: MOCK_JOB_MATCH_RESULT,
+    });
     await page.goto(PREVIEW_URL);
     // Wait for the Convex query to resolve and render the main content.
     // The page shows skeleton loaders while data is loading; wait for the
@@ -28,7 +35,7 @@ test.describe("Preview Page E2E", () => {
     });
 
     test("Profile Quality card shows a numeric score", async ({ page }) => {
-      const card = page.locator("div").filter({ hasText: /^Profile Quality/ }).first();
+      const card = page.locator("main > div.grid").first().locator("div.rounded-lg").filter({ has: page.getByText("Profile Quality", { exact: true }) });
       // The score is rendered inside a <span> with text-2xl font
       const score = card.locator("span.text-2xl");
       await expect(score).toBeVisible();
@@ -36,12 +43,12 @@ test.describe("Preview Page E2E", () => {
     });
 
     test("Quality Score card shows a numeric /100 score", async ({ page }) => {
-      const card = page.locator("div").filter({ hasText: /^Quality Score/ }).first();
+      const card = page.locator("main > div.grid").first().locator("div.rounded-lg").filter({ has: page.getByText("Quality Score", { exact: true }) });
       await expect(card.getByText("/ 100")).toBeVisible();
     });
 
     test("Requisition Match card shows a percentage or placeholder", async ({ page }) => {
-      const card = page.locator("div").filter({ hasText: /^Requisition Match/ }).first();
+      const card = page.locator("main > div.grid").first().locator("div.rounded-lg").filter({ has: page.getByText("Requisition Match", { exact: true }) });
       // Either a percentage or the -- placeholder
       const score = card.locator("span.text-2xl");
       await expect(score).toBeVisible();
@@ -50,7 +57,7 @@ test.describe("Preview Page E2E", () => {
     });
 
     test("Verified Bullets card shows an achievement count", async ({ page }) => {
-      const card = page.locator("div").filter({ hasText: /^Verified Bullets/ }).first();
+      const card = page.locator("main > div.grid").first().locator("div.rounded-lg").filter({ has: page.getByText("Verified Bullets", { exact: true }) });
       await expect(card.getByText("achievements")).toBeVisible();
     });
   });
@@ -62,7 +69,7 @@ test.describe("Preview Page E2E", () => {
       { label: "Resume", contains: "Document Controls" },
       { label: "Job Match", contains: "Job Match" },
       { label: "Linter", contains: "STE-100" },
-      { label: "Vault", contains: "Vault" },
+      { label: "Vault", contains: "Historical Career Vault" },
       { label: "Pro Package", contains: "Unlock" },
     ] as const;
 
@@ -70,7 +77,7 @@ test.describe("Preview Page E2E", () => {
       test(`clicking "${tab.label}" tab activates its panel`, async ({
         page,
       }) => {
-        const tabButton = page.getByRole("button", { name: tab.label });
+        const tabButton = page.getByRole("button", { name: tab.label, exact: true });
         await tabButton.click();
 
         // The active tab gets a primary-colored bottom border
@@ -84,8 +91,8 @@ test.describe("Preview Page E2E", () => {
     test("clicking a different tab deactivates the previous tab", async ({
       page,
     }) => {
-      const resumeTab = page.getByRole("button", { name: "Resume" });
-      const linterTab = page.getByRole("button", { name: "Linter" });
+      const resumeTab = page.getByRole("button", { name: "Resume", exact: true });
+      const linterTab = page.getByRole("button", { name: "Linter", exact: true });
 
       await resumeTab.click();
       await expect(resumeTab).toHaveClass(/border-primary/);
@@ -105,7 +112,7 @@ test.describe("Preview Page E2E", () => {
       // The header ribbon may show "Copy Source" or a checkout button
       // depending on payment status.  Verify at least the header area
       // renders and the copy-related controls are accessible.
-      const header = page.locator("div.sticky");
+      const header = page.locator("div.sticky.top-12");
       await expect(header).toBeVisible();
     });
 
@@ -128,28 +135,16 @@ test.describe("Preview Page E2E", () => {
     });
   });
 
-  // ── 4. Export HTML Button ────────────────────────────────────────────
+  // ── 4. Pro package gating ────────────────────────────────────────────
 
   test.describe("Export HTML", () => {
-    test("Export HTML button is present in the Pro Package tab", async ({
+    test("unpaid users see the Pro package unlock offer", async ({
       page,
     }) => {
-      await page.getByRole("button", { name: "Pro Package" }).click();
-      const exportBtn = page.getByRole("button", { name: "Export HTML" });
-      await expect(exportBtn).toBeVisible();
-    });
-
-    test("clicking Export HTML triggers a download", async ({ page }) => {
-      await page.getByRole("button", { name: "Pro Package" }).click();
-
-      const exportBtn = page.getByRole("button", { name: "Export HTML" });
-
-      // Expect a download event to be triggered
-      const downloadPromise = page.waitForEvent("download");
-      await exportBtn.click();
-      const download = await downloadPromise;
-
-      expect(download.suggestedFilename()).toMatch(/\.html$/);
+      await page.getByRole("button", { name: "Pro Package", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "Unlock Full ATS Resume Package" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Unlock Everything ($14)" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Export HTML" })).toHaveCount(0);
     });
   });
 
@@ -157,8 +152,7 @@ test.describe("Preview Page E2E", () => {
 
   test.describe("Resume canvas", () => {
     test("renders the profile name in the canvas header", async ({ page }) => {
-      // The resume canvas has an h1 with the profile name
-      const nameHeading = page.locator("h1").filter({ hasText: /Resume|Profile|Consolidated/ }).first();
+      const nameHeading = page.getByRole("heading", { level: 1, name: "Alex Mercer" });
       await expect(nameHeading).toBeVisible();
     });
 

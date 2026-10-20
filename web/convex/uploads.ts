@@ -1,6 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { ownedUpload } from "./authz";
+import { ownedUpload, requireOwnerSession } from "./authz";
 import { requireWorkerSecret } from "./workerAuth";
 
 export const createUpload = mutation({
@@ -11,6 +11,7 @@ export const createUpload = mutation({
     consolidationMetadata: v.optional(v.any()),
   },
   handler: async (ctx, { sessionId, jobDescription, jobLink, consolidationMetadata }) => {
+    const owner = await requireOwnerSession(ctx, sessionId);
     // Deliberately NOT "queued" yet -- the upload route creates this row
     // before it has finished attaching resumeFiles (each is its own
     // mutation + a Convex storage upload in between). "queued" is what
@@ -21,7 +22,7 @@ export const createUpload = mutation({
     // retry budget on a race rather than an actual failure. finalizeUpload
     // flips this to "queued" once the route is done attaching files.
     const uploadId = await ctx.db.insert("uploads", {
-      sessionId,
+      sessionId: owner,
       status: "uploading",
       attempts: 0,
       createdAt: Date.now(),
@@ -44,6 +45,7 @@ export const finalizeUpload = mutation({
     sessionId: v.string(),
   },
   handler: async (ctx, { uploadId, sessionId }) => {
+    await requireOwnerSession(ctx, sessionId);
     const upload = await ownedUpload(ctx.db, uploadId, sessionId);
     if (!upload) throw new Error("Upload not found or not owned by this session");
     await ctx.db.patch(uploadId, { status: "queued" });
@@ -56,6 +58,7 @@ export const getUpload = query({
     sessionId: v.string(),
   },
   handler: async (ctx, { uploadId, sessionId }) => {
+    await requireOwnerSession(ctx, sessionId);
     const upload = await ownedUpload(ctx.db, uploadId, sessionId);
     if (!upload) return null;
 
@@ -88,10 +91,10 @@ export const listSessionUploads = query({
     sessionId: v.string(),
   },
   handler: async (ctx, { sessionId }) => {
-    if (!sessionId) return [];
+    const owner = await requireOwnerSession(ctx, sessionId);
     const uploads = await ctx.db
       .query("uploads")
-      .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+      .withIndex("by_session", (q) => q.eq("sessionId", owner))
       .order("desc")
       .take(15);
 

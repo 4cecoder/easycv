@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { requireAdmin, requireOwnerSession } from "./authz";
 
 /**
  * Silent behavior scorer — updates trust score after each meaningful action.
@@ -14,19 +15,20 @@ export const updateBehaviorScore = mutation({
     meta: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
+    const owner = await requireOwnerSession(ctx, args.sessionId);
     const now = Date.now();
 
     // Find or create score row
     let score = await ctx.db
       .query("userBehaviorScore")
-      .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
+      .withIndex("by_session", (q) => q.eq("sessionId", owner))
       .first();
 
     if (!score) {
       const id = await ctx.db.insert("userBehaviorScore", {
-        sessionId: args.sessionId,
+        sessionId: owner,
         deviceHash: args.deviceHash,
-        identityId: args.identityId,
+        identityId: owner,
         trustScore: 50, // start neutral
         contentScore: 50,
         engagementScore: 10,
@@ -120,9 +122,10 @@ export const updateBehaviorScore = mutation({
 export const getTrustScore = query({
   args: { sessionId: v.string() },
   handler: async (ctx, { sessionId }) => {
+    const owner = await requireOwnerSession(ctx, sessionId);
     return await ctx.db
       .query("userBehaviorScore")
-      .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+      .withIndex("by_session", (q) => q.eq("sessionId", owner))
       .first();
   },
 });
@@ -133,6 +136,7 @@ export const getTrustScore = query({
 export const getFlaggedUsers = query({
   args: {},
   handler: async (ctx) => {
+    await requireAdmin(ctx);
     return await ctx.db
       .query("userBehaviorScore")
       .withIndex("by_trust", (q) => q.lt("trustScore", 30))
@@ -146,6 +150,7 @@ export const getFlaggedUsers = query({
 export const getTrustedUsers = query({
   args: {},
   handler: async (ctx) => {
+    await requireAdmin(ctx);
     return await ctx.db
       .query("userBehaviorScore")
       .withIndex("by_trust", (q) => q.gte("trustScore", 80))

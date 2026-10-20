@@ -2,34 +2,23 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
-import { getBrowserSessionId } from "../lib/fingerprint";
 import {
   Command,
   FileText,
   Zap,
   Keyboard,
   X,
-  User,
-  CheckCircle2,
   Lock,
   Crown,
 } from "lucide-react";
-import { AccountSignupModal } from "./AccountSignupModal";
 import { ThemeToggle } from "./ThemeToggle";
 
 export function AppHeader() {
+  const { isAuthenticated } = useConvexAuth();
   const [showShortcuts, setShowShortcuts] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [sessionId, setSessionId] = useState("");
-
-  useEffect(() => {
-    setSessionId(getBrowserSessionId());
-  }, []);
-
-  const account = useQuery(api.auth.getAccountBySession, sessionId ? { sessionId } : "skip");
-  const isPro = useQuery(api.billing.isSubscribed, sessionId ? { sessionId } : "skip");
+  const isPro = useQuery(api.billing.isSubscribed, isAuthenticated ? {} : "skip");
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -92,19 +81,23 @@ export function AppHeader() {
             )}
 
             {/* User Account / Sync Button */}
-            {account?.verified ? (
-              <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs text-emerald-400 font-medium">
-                <CheckCircle2 className="size-3 text-emerald-400" />
-                <span className="max-w-[120px] truncate">{account.email}</span>
-              </div>
-            ) : (
+            {isAuthenticated ? (
               <button
-                onClick={() => setShowAuthModal(true)}
+                onClick={async () => {
+                  await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
+                  window.location.assign("/");
+                }}
                 className="flex items-center gap-1.5 rounded-md border border-border bg-muted/40 hover:bg-muted px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-all"
               >
-                <User className="size-3.5" />
-                <span className="text-[11px] font-medium">Sign In / Sync</span>
+                <span className="text-[11px] font-medium">Sign out</span>
               </button>
+            ) : (
+              <Link
+                  href="/api/auth/login"
+                  className="flex items-center gap-1.5 rounded-md border border-border bg-muted/40 hover:bg-muted px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-all"
+                >
+                  <span className="text-[11px] font-medium">Login with Seridian</span>
+              </Link>
             )}
 
             {/* Quick Command Palette Button */}
@@ -134,12 +127,6 @@ export function AppHeader() {
           </div>
         </div>
       </header>
-
-      {/* Account Signup / Sync Modal */}
-      <AccountSignupModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-      />
 
       {/* Keyboard Shortcuts Modal */}
       {showShortcuts && (

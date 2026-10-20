@@ -4,6 +4,9 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 const createSessionMock = vi.fn();
 const retrievePriceMock = vi.fn();
 const mutationMock = vi.fn();
+const queryMock = vi.fn();
+const authenticatedConvexFromRequestMock = vi.fn();
+class AuthenticationRequiredError extends Error {}
 
 vi.mock("stripe", () => ({
   default: vi.fn().mockImplementation(function StripeMock(this: unknown) {
@@ -17,12 +20,14 @@ vi.mock("stripe", () => ({
 vi.mock("../../../convex/_generated/api", () => ({
   api: { 
     payments: { createPaymentRecord: "payments:createPaymentRecord" },
-    uploads: { getUpload: "uploads:getUpload" } 
+    uploads: { getUpload: "uploads:getUpload" },
+    identity: { getOwnerSessionKey: "identity:getOwnerSessionKey" },
   },
 }));
 
-vi.mock("../../../lib/convexServer", () => ({
-  getConvexClient: () => ({ mutation: mutationMock, query: vi.fn() }),
+vi.mock("../../../lib/seridian-convex", () => ({
+  AuthenticationRequiredError,
+  authenticatedConvexFromRequest: authenticatedConvexFromRequestMock,
 }));
 
 const { POST } = await import("./route");
@@ -34,7 +39,7 @@ function makeRequest(
 ) {
   const allHeaders = { ...headers };
   if (withSession) {
-    allHeaders.cookie = "cv_session=session1";
+    allHeaders.cookie = "easycv_seridian_session=encrypted-session";
   }
   return new NextRequest("http://localhost/api/checkout", {
     method: "POST",
@@ -46,6 +51,11 @@ function makeRequest(
 describe("checkout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authenticatedConvexFromRequestMock.mockImplementation(async (request: NextRequest) => {
+      if (!request.cookies.get("easycv_seridian_session")?.value) throw new AuthenticationRequiredError();
+      return { convex: { query: queryMock, mutation: mutationMock }, ownerSessionKey: "seridian-owner-key" };
+    });
+    queryMock.mockResolvedValue({ _id: "upload1" });
     process.env.STRIPE_SECRET_KEY = "sk_test";
     process.env.STRIPE_PRICE_ID = "price_test";
     process.env.APP_URL = "https://trusted.example.com";
@@ -84,20 +94,35 @@ describe("checkout", () => {
     expect(createSessionMock).not.toHaveBeenCalled();
   });
 
-  test("401s when there is no session cookie -- uploadId alone is not authorization", async () => {
+  test("401s without the Seridian session cookie -- uploadId alone is not authorization", async () => {
     const res = await POST(makeRequest({ uploadId: "upload1" }, {}, { withSession: false }));
     expect(res.status).toBe(401);
     expect(createSessionMock).not.toHaveBeenCalled();
     expect(mutationMock).not.toHaveBeenCalled();
   });
 
-  test("passes the session cookie's sessionId to createPaymentRecord, not the uploadId alone", async () => {
+  test("uses the identity-derived owner key for authorization and payment ownership", async () => {
     const res = await POST(makeRequest({ uploadId: "upload1" }));
     expect(res.status).toBe(200);
     expect(mutationMock).toHaveBeenCalledWith(
       "payments:createPaymentRecord",
-      expect.objectContaining({ uploadId: "upload1", sessionId: "session1" }),
+      expect.objectContaining({ uploadId: "upload1", sessionId: "seridian-owner-key" }),
     );
+    expect(queryMock).toHaveBeenCalledWith("uploads:getUpload", { uploadId: "upload1", sessionId: "seridian-owner-key" });
+  });
+
+  test("403s when the authenticated Seridian identity does not own the upload", async () => {
+    queryMock.mockResolvedValueOnce(null);
+    const res = await POST(makeRequest({ uploadId: "upload1" }));
+    expect(res.status).toBe(403);
+    expect(createSessionMock).not.toHaveBeenCalled();
+    expect(mutationMock).not.toHaveBeenCalled();
+  });
+
+  test("does not accept the removed legacy cv_session cookie", async () => {
+    const res = await POST(makeRequest({ uploadId: "upload1" }, { cookie: "cv_session=legacy-session" }, { withSession: false }));
+    expect(res.status).toBe(401);
+    expect(createSessionMock).not.toHaveBeenCalled();
   });
 
   test("creates a checkout session with mode 'subscription' and custom price ID when requested", async () => {
@@ -118,7 +143,7 @@ describe("checkout", () => {
       "payments:createPaymentRecord",
       expect.objectContaining({
         uploadId: "upload1",
-        sessionId: "session1",
+        sessionId: "seridian-owner-key",
         amountCents: 1400,
         currency: "usd",
       }),

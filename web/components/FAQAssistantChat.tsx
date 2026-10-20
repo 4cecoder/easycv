@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
-import { getBrowserSessionId } from "../lib/fingerprint";
+import { useOwnerSessionKey } from "../lib/useOwnerSessionKey";
 import {
   MessageSquare,
   X,
@@ -155,6 +155,7 @@ const FAQ_KNOWLEDGE_BASE = [
 ];
 
 export function FAQAssistantChat() {
+  const ownerSessionKey = useOwnerSessionKey();
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -227,13 +228,11 @@ export function FAQAssistantChat() {
     setIsTyping(true);
 
     const match = findBestAnswer(queryText);
-    const sessionId = getBrowserSessionId();
-
     let queryId: Id<"faqQueries"> | undefined;
     try {
-      if (sessionId) {
+      if (ownerSessionKey) {
         queryId = await recordQuery({
-          sessionId,
+          sessionId: ownerSessionKey,
           question: queryText,
           answer: match.text,
           category: match.category,
@@ -268,7 +267,8 @@ export function FAQAssistantChat() {
 
     if (queryId) {
       try {
-        await rateQuery({ queryId, feedback: rating });
+        if (!ownerSessionKey) return;
+        await rateQuery({ sessionId: ownerSessionKey, queryId, feedback: rating });
       } catch {
         // Non-blocking
       }

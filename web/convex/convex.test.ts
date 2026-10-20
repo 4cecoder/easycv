@@ -11,6 +11,7 @@
 
 import { describe, expect, test } from "vitest";
 import { convexTest } from "convex-test";
+import type { UserIdentity } from "convex/server";
 import schema from "./schema";
 import { contact, skills, experienceEntry, educationEntry } from "./schema";
 import { api, internal } from "./_generated/api";
@@ -35,10 +36,46 @@ const sampleQuality = {
   qualityCritical: false,
 };
 
-async function storeFakeFile(t: ReturnType<typeof convexTest>) {
+// Accepts the base test instance or a withIdentity() wrapper; both share one store.
+async function storeFakeFile(t: { run: (fn: (ctx: any) => Promise<any>) => Promise<any> }) {
   return await t.run(async (ctx) => {
     return await ctx.storage.store(new Blob(["hello world"]));
   });
+}
+
+// Seridian identity as Convex receives it after JWT verification. authz.ts and
+// identity.ts read the OIDC claim `email_verified`, so that claim is what the
+// app actually checks; `emailVerified` is mirrored to match the test contract.
+const SERIDIAN_ISSUER = "https://auth.seridian.dev";
+
+function seridianIdentity(
+  subject: string,
+  { email = `${subject}@example.com`, emailVerified = true }: { email?: string; emailVerified?: boolean } = {},
+) {
+  return {
+    subject,
+    tokenIdentifier: `${SERIDIAN_ISSUER}|${subject}`,
+    email,
+    emailVerified,
+    email_verified: emailVerified,
+  };
+}
+
+/**
+ * Signs `t` in as a Seridian user. `owner` is the canonical owner key passed
+ * through legacy-named `sessionId` arguments: without a verified legacy
+ * binding, it resolves to the identity's tokenIdentifier.
+ */
+function signedInAs<T extends { withIdentity(identity: Partial<UserIdentity>): unknown }>(
+  t: T,
+  subject: string,
+  opts: { email?: string; emailVerified?: boolean } = {},
+) {
+  const identity = seridianIdentity(subject, opts);
+  return {
+    t: t.withIdentity(identity) as ReturnType<T["withIdentity"]>,
+    owner: identity.tokenIdentifier,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -48,15 +85,15 @@ async function storeFakeFile(t: ReturnType<typeof convexTest>) {
 describe("schema shape validation", () => {
   describe("uploads table", () => {
     test("creates an upload with all required fields", async () => {
-      const t = convexTest(schema);
+      const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
       const uploadId = await t.mutation(api.uploads.createUpload, {
-        sessionId: "sess-schema-1",
+        sessionId: owner,
       });
       expect(uploadId).toBeTruthy();
 
       const upload = await t.query(api.uploads.getUpload, {
         uploadId,
-        sessionId: "sess-schema-1",
+        sessionId: owner,
       });
       expect(upload).not.toBeNull();
       expect(typeof upload!.sessionId).toBe("string");
@@ -66,7 +103,7 @@ describe("schema shape validation", () => {
     });
 
     test("rejects mutation with missing required field (sessionId)", async () => {
-      const t = convexTest(schema);
+      const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
       await expect(
         t.mutation(api.uploads.createUpload, {} as any),
       ).rejects.toThrow();
@@ -82,13 +119,14 @@ describe("schema shape validation", () => {
 
   describe("structuredProfiles table", () => {
     test("saves a profile with full structured fields", async () => {
-      const t = convexTest(schema);
+      const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
       const uploadId = await t.mutation(api.uploads.createUpload, {
-        sessionId: "sess-schema-sp",
+        sessionId: owner,
       });
 
       const profileId = await t.mutation(api.profiles.saveStructuredProfile, {
         uploadId,
+        sessionId: owner,
         name: "Schema Tester",
         contact: {
           email: "test@schema.dev",
@@ -129,7 +167,7 @@ describe("schema shape validation", () => {
 
       const profile = await t.query(api.profiles.getStructuredProfile, {
         uploadId,
-        sessionId: "sess-schema-sp",
+        sessionId: owner,
       });
       expect(profile).not.toBeNull();
       expect(profile!.name).toBe("Schema Tester");
@@ -151,20 +189,21 @@ describe("schema shape validation", () => {
     });
 
     test("saves a profile with only required quality fields (all optional fields omitted)", async () => {
-      const t = convexTest(schema);
+      const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
       const uploadId = await t.mutation(api.uploads.createUpload, {
-        sessionId: "sess-schema-min",
+        sessionId: owner,
       });
 
       const profileId = await t.mutation(api.profiles.saveStructuredProfile, {
         uploadId,
+        sessionId: owner,
         ...sampleQuality,
       });
       expect(profileId).toBeTruthy();
 
       const profile = await t.query(api.profiles.getStructuredProfile, {
         uploadId,
-        sessionId: "sess-schema-min",
+        sessionId: owner,
       });
       expect(profile).not.toBeNull();
       expect(profile!.name).toBeUndefined();
@@ -175,14 +214,15 @@ describe("schema shape validation", () => {
     });
 
     test("structuredProfiles rejects save with invalid qualityScore type", async () => {
-      const t = convexTest(schema);
+      const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
       const uploadId = await t.mutation(api.uploads.createUpload, {
-        sessionId: "sess-schema-invalid",
+        sessionId: owner,
       });
 
       await expect(
         t.mutation(api.profiles.saveStructuredProfile, {
           uploadId,
+          sessionId: owner,
           qualityScore: "not-a-number" as any,
           qualityMaxScore: 15,
           qualityWarnings: [],
@@ -194,14 +234,14 @@ describe("schema shape validation", () => {
 
   describe("payments table", () => {
     test("creates a payment with valid fields", async () => {
-      const t = convexTest(schema);
+      const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
       const uploadId = await t.mutation(api.uploads.createUpload, {
-        sessionId: "sess-schema-pay",
+        sessionId: owner,
       });
 
       const paymentId = await t.mutation(api.payments.createPaymentRecord, {
         uploadId,
-        sessionId: "sess-schema-pay",
+        sessionId: owner,
         stripeSessionId: "cs_schema_test",
         amountCents: 1500,
         currency: "usd",
@@ -210,37 +250,37 @@ describe("schema shape validation", () => {
 
       const status = await t.query(api.payments.getPaymentStatus, {
         uploadId,
-        sessionId: "sess-schema-pay",
+        sessionId: owner,
       });
       expect(status.paid).toBe(false);
       expect(status.downloadToken).toBeNull();
     });
 
     test("payments rejects missing required fields", async () => {
-      const t = convexTest(schema);
+      const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
       const uploadId = await t.mutation(api.uploads.createUpload, {
-        sessionId: "sess-schema-pay2",
+        sessionId: owner,
       });
 
       await expect(
         t.mutation(api.payments.createPaymentRecord, {
           uploadId,
-          sessionId: "sess-schema-pay2",
+          sessionId: owner,
           // missing stripeSessionId, amountCents, currency
         } as any),
       ).rejects.toThrow();
     });
 
     test("payments rejects invalid amountCents type", async () => {
-      const t = convexTest(schema);
+      const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
       const uploadId = await t.mutation(api.uploads.createUpload, {
-        sessionId: "sess-schema-pay3",
+        sessionId: owner,
       });
 
       await expect(
         t.mutation(api.payments.createPaymentRecord, {
           uploadId,
-          sessionId: "sess-schema-pay3",
+          sessionId: owner,
           stripeSessionId: "cs_bad_amount",
           amountCents: "free" as any,
           currency: "usd",
@@ -274,13 +314,14 @@ describe("contact object validation", () => {
   test.each(VALID_CONTACTS)(
     "accepts valid contact: %j",
     async (contactOverride) => {
-      const t = convexTest(schema);
+      const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
       const uploadId = await t.mutation(api.uploads.createUpload, {
-        sessionId: "sess-contact-valid",
+        sessionId: owner,
       });
 
       const profileId = await t.mutation(api.profiles.saveStructuredProfile, {
         uploadId,
+        sessionId: owner,
         contact: contactOverride,
         ...sampleQuality,
       });
@@ -289,13 +330,14 @@ describe("contact object validation", () => {
   );
 
   test("contact accepts all optional fields present", async () => {
-    const t = convexTest(schema);
+    const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
     const uploadId = await t.mutation(api.uploads.createUpload, {
-      sessionId: "sess-contact-full",
+      sessionId: owner,
     });
 
     await t.mutation(api.profiles.saveStructuredProfile, {
       uploadId,
+      sessionId: owner,
       contact: {
         email: "a@b.com",
         phone: "123",
@@ -308,7 +350,7 @@ describe("contact object validation", () => {
 
     const profile = await t.query(api.profiles.getStructuredProfile, {
       uploadId,
-      sessionId: "sess-contact-full",
+      sessionId: owner,
     });
     expect(profile?.contact?.email).toBe("a@b.com");
     expect(profile?.contact?.phone).toBe("123");
@@ -318,14 +360,15 @@ describe("contact object validation", () => {
   });
 
   test("contact rejects extra unknown fields", async () => {
-    const t = convexTest(schema);
+    const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
     const uploadId = await t.mutation(api.uploads.createUpload, {
-      sessionId: "sess-contact-extra",
+      sessionId: owner,
     });
 
     await expect(
       t.mutation(api.profiles.saveStructuredProfile, {
         uploadId,
+        sessionId: owner,
         contact: {
           email: "x@y.com",
           fax: "555-1234", // unknown field
@@ -336,14 +379,15 @@ describe("contact object validation", () => {
   });
 
   test("contact rejects non-string field values", async () => {
-    const t = convexTest(schema);
+    const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
     const uploadId = await t.mutation(api.uploads.createUpload, {
-      sessionId: "sess-contact-type",
+      sessionId: owner,
     });
 
     await expect(
       t.mutation(api.profiles.saveStructuredProfile, {
         uploadId,
+        sessionId: owner,
         contact: {
           email: 12345 as any,
         },
@@ -385,13 +429,14 @@ describe("skills object validation", () => {
   test.each(VALID_SKILLS)(
     "accepts valid skills: %j",
     async (skillsObj) => {
-      const t = convexTest(schema);
+      const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
       const uploadId = await t.mutation(api.uploads.createUpload, {
-        sessionId: "sess-skills-valid",
+        sessionId: owner,
       });
 
       const profileId = await t.mutation(api.profiles.saveStructuredProfile, {
         uploadId,
+        sessionId: owner,
         skills: skillsObj,
         ...sampleQuality,
       });
@@ -400,14 +445,15 @@ describe("skills object validation", () => {
   );
 
   test("skills rejects missing required sub-array", async () => {
-    const t = convexTest(schema);
+    const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
     const uploadId = await t.mutation(api.uploads.createUpload, {
-      sessionId: "sess-skills-missing",
+      sessionId: owner,
     });
 
     await expect(
       t.mutation(api.profiles.saveStructuredProfile, {
         uploadId,
+        sessionId: owner,
         skills: {
           languages: ["JS"],
           frameworks: [],
@@ -419,14 +465,15 @@ describe("skills object validation", () => {
   });
 
   test("skills rejects non-array values", async () => {
-    const t = convexTest(schema);
+    const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
     const uploadId = await t.mutation(api.uploads.createUpload, {
-      sessionId: "sess-skills-type",
+      sessionId: owner,
     });
 
     await expect(
       t.mutation(api.profiles.saveStructuredProfile, {
         uploadId,
+        sessionId: owner,
         skills: {
           languages: "Python" as any, // should be array
           frameworks: [],
@@ -440,14 +487,15 @@ describe("skills object validation", () => {
   });
 
   test("skills rejects arrays with non-string elements", async () => {
-    const t = convexTest(schema);
+    const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
     const uploadId = await t.mutation(api.uploads.createUpload, {
-        sessionId: "sess-skills-elems",
+        sessionId: owner,
     });
 
     await expect(
       t.mutation(api.profiles.saveStructuredProfile, {
         uploadId,
+        sessionId: owner,
         skills: {
           languages: [123 as any],
           frameworks: [],
@@ -467,13 +515,14 @@ describe("skills object validation", () => {
 
 describe("experience entry validation", () => {
   test("accepts a minimal experience entry (only bullets required)", async () => {
-    const t = convexTest(schema);
+    const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
     const uploadId = await t.mutation(api.uploads.createUpload, {
-      sessionId: "sess-exp-min",
+      sessionId: owner,
     });
 
     const profileId = await t.mutation(api.profiles.saveStructuredProfile, {
       uploadId,
+      sessionId: owner,
       experience: [{ bullets: ["Did stuff"] }],
       ...sampleQuality,
     });
@@ -481,7 +530,7 @@ describe("experience entry validation", () => {
 
     const profile = await t.query(api.profiles.getStructuredProfile, {
       uploadId,
-      sessionId: "sess-exp-min",
+      sessionId: owner,
     });
     expect(profile!.experience).toHaveLength(1);
     expect(profile!.experience![0].bullets).toEqual(["Did stuff"]);
@@ -490,13 +539,14 @@ describe("experience entry validation", () => {
   });
 
   test("accepts a full experience entry with all fields", async () => {
-    const t = convexTest(schema);
+    const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
     const uploadId = await t.mutation(api.uploads.createUpload, {
-      sessionId: "sess-exp-full",
+      sessionId: owner,
     });
 
     await t.mutation(api.profiles.saveStructuredProfile, {
       uploadId,
+      sessionId: owner,
       experience: [
         {
           title: "Senior Engineer",
@@ -512,7 +562,7 @@ describe("experience entry validation", () => {
 
     const profile = await t.query(api.profiles.getStructuredProfile, {
       uploadId,
-      sessionId: "sess-exp-full",
+      sessionId: owner,
     });
     expect(profile!.experience![0].title).toBe("Senior Engineer");
     expect(profile!.experience![0].company).toBe("BigTech Inc.");
@@ -523,14 +573,15 @@ describe("experience entry validation", () => {
   });
 
   test("rejects an experience entry without bullets array", async () => {
-    const t = convexTest(schema);
+    const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
     const uploadId = await t.mutation(api.uploads.createUpload, {
-      sessionId: "sess-exp-nobullets",
+      sessionId: owner,
     });
 
     await expect(
       t.mutation(api.profiles.saveStructuredProfile, {
         uploadId,
+        sessionId: owner,
         experience: [
           {
             title: "Engineer",
@@ -544,13 +595,14 @@ describe("experience entry validation", () => {
   });
 
   test("accepts multiple experience entries", async () => {
-    const t = convexTest(schema);
+    const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
     const uploadId = await t.mutation(api.uploads.createUpload, {
-      sessionId: "sess-exp-multi",
+      sessionId: owner,
     });
 
     await t.mutation(api.profiles.saveStructuredProfile, {
       uploadId,
+      sessionId: owner,
       experience: [
         { title: "Junior Dev", company: "Startup", bullets: ["Learned fast"] },
         { title: "Mid Dev", company: "Scaleup", bullets: ["Shipped features"] },
@@ -561,7 +613,7 @@ describe("experience entry validation", () => {
 
     const profile = await t.query(api.profiles.getStructuredProfile, {
       uploadId,
-      sessionId: "sess-exp-multi",
+      sessionId: owner,
     });
     expect(profile!.experience).toHaveLength(3);
     expect(profile!.experience![0].title).toBe("Junior Dev");
@@ -569,20 +621,21 @@ describe("experience entry validation", () => {
   });
 
   test("accepts experience with empty bullets array", async () => {
-    const t = convexTest(schema);
+    const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
     const uploadId = await t.mutation(api.uploads.createUpload, {
-      sessionId: "sess-exp-emptybullets",
+      sessionId: owner,
     });
 
     await t.mutation(api.profiles.saveStructuredProfile, {
       uploadId,
+      sessionId: owner,
       experience: [{ title: "Intern", company: "Co", bullets: [] }],
       ...sampleQuality,
     });
 
     const profile = await t.query(api.profiles.getStructuredProfile, {
       uploadId,
-      sessionId: "sess-exp-emptybullets",
+      sessionId: owner,
     });
     expect(profile!.experience![0].bullets).toEqual([]);
   });
@@ -594,13 +647,14 @@ describe("experience entry validation", () => {
 
 describe("education entry validation", () => {
   test("accepts a minimal education entry (all fields optional)", async () => {
-    const t = convexTest(schema);
+    const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
     const uploadId = await t.mutation(api.uploads.createUpload, {
-      sessionId: "sess-edu-min",
+      sessionId: owner,
     });
 
     const profileId = await t.mutation(api.profiles.saveStructuredProfile, {
       uploadId,
+      sessionId: owner,
       education: [{}],
       ...sampleQuality,
     });
@@ -608,7 +662,7 @@ describe("education entry validation", () => {
 
     const profile = await t.query(api.profiles.getStructuredProfile, {
       uploadId,
-      sessionId: "sess-edu-min",
+      sessionId: owner,
     });
     expect(profile!.education).toHaveLength(1);
     expect(profile!.education![0].degree).toBeUndefined();
@@ -617,13 +671,14 @@ describe("education entry validation", () => {
   });
 
   test("accepts a full education entry", async () => {
-    const t = convexTest(schema);
+    const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
     const uploadId = await t.mutation(api.uploads.createUpload, {
-      sessionId: "sess-edu-full",
+      sessionId: owner,
     });
 
     await t.mutation(api.profiles.saveStructuredProfile, {
       uploadId,
+      sessionId: owner,
       education: [
         {
           degree: "M.S. Computer Science",
@@ -636,7 +691,7 @@ describe("education entry validation", () => {
 
     const profile = await t.query(api.profiles.getStructuredProfile, {
       uploadId,
-      sessionId: "sess-edu-full",
+      sessionId: owner,
     });
     expect(profile!.education![0].degree).toBe("M.S. Computer Science");
     expect(profile!.education![0].school).toBe("Stanford University");
@@ -644,13 +699,14 @@ describe("education entry validation", () => {
   });
 
   test("accepts multiple education entries", async () => {
-    const t = convexTest(schema);
+    const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
     const uploadId = await t.mutation(api.uploads.createUpload, {
-      sessionId: "sess-edu-multi",
+      sessionId: owner,
     });
 
     await t.mutation(api.profiles.saveStructuredProfile, {
       uploadId,
+      sessionId: owner,
       education: [
         { degree: "B.S. CS", school: "MIT", years: "2014-2018" },
         { degree: "M.S. CS", school: "Stanford", years: "2018-2020" },
@@ -661,21 +717,22 @@ describe("education entry validation", () => {
 
     const profile = await t.query(api.profiles.getStructuredProfile, {
       uploadId,
-      sessionId: "sess-edu-multi",
+      sessionId: owner,
     });
     expect(profile!.education).toHaveLength(3);
     expect(profile!.education![2].degree).toBe("PhD AI");
   });
 
   test("education rejects non-string field values", async () => {
-    const t = convexTest(schema);
+    const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
     const uploadId = await t.mutation(api.uploads.createUpload, {
-      sessionId: "sess-edu-type",
+      sessionId: owner,
     });
 
     await expect(
       t.mutation(api.profiles.saveStructuredProfile, {
         uploadId,
+        sessionId: owner,
         education: [
           {
             degree: 12345 as any,
@@ -1525,9 +1582,9 @@ describe("analyzeProfileBulletsSTE100", () => {
 
 describe("profileFieldsFrom -> Convex schema integration", () => {
   test("output of profileFieldsFrom is accepted by saveStructuredProfile", async () => {
-    const t = convexTest(schema);
+    const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
     const uploadId = await t.mutation(api.uploads.createUpload, {
-      sessionId: "sess-integration",
+      sessionId: owner,
     });
 
     const rawProfile = {
@@ -1571,6 +1628,7 @@ describe("profileFieldsFrom -> Convex schema integration", () => {
     // The mapped output should be accepted by the mutation
     const profileId = await t.mutation(api.profiles.saveStructuredProfile, {
       uploadId,
+      sessionId: owner,
       ...mapped,
       ...sampleQuality,
     });
@@ -1578,16 +1636,16 @@ describe("profileFieldsFrom -> Convex schema integration", () => {
 
     const saved = await t.query(api.profiles.getStructuredProfile, {
       uploadId,
-      sessionId: "sess-integration",
+      sessionId: owner,
     });
     expect(saved?.name).toBe("Integration Test User");
     expect(saved?.skills?.languages).toEqual(["TypeScript", "Python"]);
   });
 
   test("profileFieldsFrom _raw fallback accepted by saveStructuredProfile", async () => {
-    const t = convexTest(schema);
+    const { t, owner } = signedInAs(convexTest(schema), "convex-test-user");
     const uploadId = await t.mutation(api.uploads.createUpload, {
-      sessionId: "sess-integration-raw",
+      sessionId: owner,
     });
 
     const mapped = profileFieldsFrom({ _raw: "unparseable LLM output" });
@@ -1595,6 +1653,7 @@ describe("profileFieldsFrom -> Convex schema integration", () => {
 
     const profileId = await t.mutation(api.profiles.saveStructuredProfile, {
       uploadId,
+      sessionId: owner,
       ...mapped,
       ...sampleQuality,
     });
@@ -1602,7 +1661,7 @@ describe("profileFieldsFrom -> Convex schema integration", () => {
 
     const saved = await t.query(api.profiles.getStructuredProfile, {
       uploadId,
-      sessionId: "sess-integration-raw",
+      sessionId: owner,
     });
     expect(saved?.rawFallback).toBe("unparseable LLM output");
   });

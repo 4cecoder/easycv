@@ -39,7 +39,7 @@ spec:
               cpu: "500m"
           envFrom:
             - secretRef:
-                name: easycv-secrets
+                name: easycv-worker-secrets
             - configMapRef:
                 name: easycv-config
           env:

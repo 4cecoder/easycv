@@ -2,7 +2,7 @@
 
 import React, { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { getBrowserSessionId } from "@/lib/fingerprint";
+import { getTelemetrySessionId } from "@/lib/fingerprint";
 import { usermon, USERMON_RELEASE } from "@/lib/usermon";
 
 /**
@@ -18,7 +18,7 @@ export function UserMonProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const sessionKey = getBrowserSessionId();
+    const sessionKey = getTelemetrySessionId();
     if (sessionKey) {
       usermon.trackSession({
         sessionKey,

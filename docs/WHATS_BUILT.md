@@ -45,7 +45,7 @@
 
 | File | Purpose |
 |------|---------|
-| `lib/session.ts` | Cookie name constant (`cv_session`) |
+| `lib/seridian-oidc.ts` | Seridian OIDC session verification and encrypted session cookie |
 | `lib/profileMapping.ts` | Defensive Python→TS field coercion |
 | `lib/convexClient.ts` | React Convex client (reactive) |
 | `lib/convexServer.ts` | HTTP Convex client (server-side) |

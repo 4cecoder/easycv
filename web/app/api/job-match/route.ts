@@ -1,17 +1,11 @@
-import { exec } from "child_process";
-import { randomUUID } from "crypto";
-import { promises as fs } from "fs";
 import { NextRequest, NextResponse } from "next/server";
-import path from "path";
-import { promisify } from "util";
 
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-import { getConvexClient } from "../../../lib/convexServer";
-import { SESSION_COOKIE } from "../../../lib/session";
+import { authenticatedConvexFromRequest, AuthenticationRequiredError } from "../../../lib/seridian-convex";
+import { runHostedJobMatch } from "../../../lib/hosted-job-match";
+import { sanitizeTextForLLM } from "../../../lib/sanitizer";
 import { withUserMonSpan } from "../../../lib/usermon-server";
-
-const execAsync = promisify(exec);
 
 export const POST = withUserMonSpan("/api/job-match", async (request: NextRequest) => {
   try {
@@ -21,21 +15,26 @@ export const POST = withUserMonSpan("/api/job-match", async (request: NextReques
     };
 
     const { uploadId, jobDescription } = body;
-    if (!uploadId || !jobDescription) {
+    if (typeof uploadId !== "string" || !uploadId || typeof jobDescription !== "string" || !jobDescription.trim()) {
       return NextResponse.json(
         { error: "uploadId and jobDescription are required" },
         { status: 400 }
       );
     }
+    if (jobDescription.length > 50_000) {
+      return NextResponse.json({ error: "jobDescription exceeds the 50 KB limit" }, { status: 400 });
+    }
 
     // Verify session
-    const sessionId = request.cookies.get(SESSION_COOKIE)?.value;
-    if (!sessionId) {
-      return NextResponse.json({ error: "Missing session" }, { status: 401 });
+    let auth;
+    try { auth = await authenticatedConvexFromRequest(request); }
+    catch (error) {
+      if (error instanceof AuthenticationRequiredError) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      throw error;
     }
 
     // Query Convex structured profile
-    const convex = getConvexClient();
+    const { convex, ownerSessionKey: sessionId } = auth;
     const profile = await convex.query(api.profiles.getStructuredProfile, {
       uploadId: uploadId as Id<"uploads">,
       sessionId,
@@ -47,13 +46,6 @@ export const POST = withUserMonSpan("/api/job-match", async (request: NextReques
         { status: 404 }
       );
     }
-
-    // Create temp files for python CLI input
-    const tempDir = path.join(process.cwd(), "tmp");
-    await fs.mkdir(tempDir, { recursive: true });
-
-    const profilePath = path.join(tempDir, `profile-${randomUUID()}.json`);
-    const jdPath = path.join(tempDir, `jd-${randomUUID()}.txt`);
 
     // We exclude metadata fields to pass clean resume JSON to the LLM
     const cleanProfile = {
@@ -67,47 +59,16 @@ export const POST = withUserMonSpan("/api/job-match", async (request: NextReques
       languagesSpoken: profile.languagesSpoken,
     };
 
-    await fs.writeFile(profilePath, JSON.stringify(cleanProfile));
-    await fs.writeFile(jdPath, jobDescription);
-
-    const provider = process.env.LLM_PROVIDER || "openai";
-    const model = process.env.LLM_MODEL || "";
-    const modelArg = model ? ` --model "${model}"` : "";
-
-    // Execute matching CLI subcommand
-    // Execute python command from root project directory
-    const rootDir = path.resolve(process.cwd(), "..");
-    const command = `uv run python pipeline.py match-job --profile "${profilePath}" --job-desc "${jdPath}" --llm "${provider}"${modelArg}`;
-
-    let matchResult;
-    try {
-      const { stdout } = await execAsync(command, {
-        cwd: rootDir,
-        env: {
-          ...process.env,
-          OLLAMA_API_BASE: process.env.OLLAMA_API_BASE || "",
-        },
-      });
-      
-      // The CLI prints log messages followed by JSON. We extract the JSON part.
-      const jsonStart = stdout.indexOf("{");
-      if (jsonStart !== -1) {
-        matchResult = JSON.parse(stdout.substring(jsonStart));
-      } else {
-        throw new Error("No JSON found in python CLI stdout: " + stdout);
-      }
-    } finally {
-      // Clean up temp files
-      await fs.unlink(profilePath).catch(() => {});
-      await fs.unlink(jdPath).catch(() => {});
-    }
+    const matchResult = await runHostedJobMatch(cleanProfile, sanitizeTextForLLM(jobDescription));
 
     return NextResponse.json({ success: true, result: matchResult });
   } catch (err) {
     console.error("Job match API failed", err);
+    const message = err instanceof Error ? err.message : "Failed to analyze job match";
+    const status = /not configured|unsupported hosted provider|requires a hosted provider/i.test(message) ? 503 : 502;
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Failed to analyze job match" },
-      { status: 500 }
+      { error: message },
+      { status }
     );
   }
 });

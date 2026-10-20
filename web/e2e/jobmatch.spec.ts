@@ -1,90 +1,11 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
+import { MOCK_UPLOAD, MOCK_JOB_MATCH_RESULT, MOCK_PAYMENT_STATUS } from "./mock-data";
+import { mockConvexApi } from "./convex-mocks";
 
 /* ------------------------------------------------------------------ */
 /*  Shared fixtures – mock Convex API responses so every preview page  */
 /*  test can render a "ready" upload with a pre-computed job match.    */
 /* ------------------------------------------------------------------ */
-
-const MOCK_UPLOAD = {
-  _id: "seed-demo-upload-id",
-  status: "ready",
-  structuredProfile: {
-    name: "Alex Mercer",
-    titles: ["Senior Software Engineer"],
-    summary:
-      "Results-driven software engineer with 8+ years building scalable distributed systems.",
-    contact: {
-      email: "alex@example.com",
-      phone: "555-0100",
-      linkedin: "linkedin.com/in/alexmercer",
-    },
-    skills: {
-      languages: ["TypeScript", "Python", "Go"],
-      frameworks: ["React", "Next.js", "Node.js"],
-      cloud_devops: ["AWS", "Docker", "Kubernetes", "CI/CD"],
-      databases: ["PostgreSQL", "MongoDB", "Redis"],
-      tools: ["Git", "Jira", "Datadog"],
-    },
-    experience: [
-      {
-        title: "Senior Software Engineer",
-        company: "Acme Corp",
-        start: "2021-01",
-        end: "Present",
-        location: "Remote",
-        bullets: [
-          "Architected a microservices platform that handles 2M+ daily API requests with 99.99% uptime.",
-          "Led a cross-functional team of 5 engineers to deliver a real-time analytics dashboard.",
-          "Reduced average API latency by 40% through query optimization and caching strategies.",
-        ],
-      },
-    ],
-    education: [
-      {
-        degree: "B.S. Computer Science",
-        school: "MIT",
-        years: "2012 – 2016",
-      },
-    ],
-    certifications: ["AWS Solutions Architect – Associate"],
-    qualityScore: 92,
-    qualityMaxScore: 100,
-    qualityCritical: false,
-    qualityWarnings: [],
-  },
-  files: [],
-};
-
-const MOCK_JOB_MATCH_RESULT = {
-  matchScore: 78,
-  matchedKeywords: [
-    "TypeScript",
-    "React",
-    "AWS",
-    "microservices",
-    "REST API",
-    "CI/CD",
-    "PostgreSQL",
-  ],
-  missingKeywords: [
-    "Kafka",
-    "GraphQL",
-    "Terraform",
-    "system design",
-  ],
-  gapAnalysis:
-    "Your profile demonstrates strong backend and cloud competency. To close the gap, highlight direct experience with event-driven architectures (Kafka) and infrastructure-as-code (Terraform). Consider adding examples of GraphQL API design and large-scale system design sessions.",
-  tailoredBullets: [
-    "Architected and deployed a microservices platform on AWS using TypeScript and Docker, serving 2M+ daily requests with 99.99% uptime via CI/CD pipelines.",
-    "Optimized PostgreSQL query performance by 40%, implementing Redis caching layers to reduce API latency across production workloads.",
-    "Led a cross-functional team of 5 engineers to deliver a React-based real-time analytics dashboard integrated with REST APIs and PostgreSQL data stores.",
-  ],
-};
-
-const MOCK_PAYMENT_STATUS = {
-  paid: false,
-  downloadToken: null,
-};
 
 /**
  * Intercept Convex query calls and return canned data so preview page
@@ -95,69 +16,11 @@ const MOCK_PAYMENT_STATUS = {
  * whose body contains the function path we care about and return the
  * matching mock payload.
  */
-function mockConvexQueries(page: import("@playwright/test").Page) {
-  // Intercept Convex HTTP actions used by PreviewClient
-  page.on("request", () => {});
-
-  // The Convex client sends POST requests with a JSON body like:
-  // { "path": "uploads:getUpload", "args": { ... }, ... }
-  // We match on the URL containing the Convex deployment host.
-  page.route("**/api/query**", async (route) => {
-    const request = route.request();
-    const body = request.postData();
-    if (!body) {
-      return route.fallback();
-    }
-
-    try {
-      const parsed = JSON.parse(body);
-      const path: string = parsed.path ?? parsed[0]?.path ?? "";
-
-      if (path.includes("uploads:getUpload")) {
-        return route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({ value: MOCK_UPLOAD }),
-        });
-      }
-
-      if (path.includes("payments:getPaymentStatus")) {
-        return route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({ value: MOCK_PAYMENT_STATUS }),
-        });
-      }
-
-      if (path.includes("profiles:getJobMatch")) {
-        return route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({ value: MOCK_JOB_MATCH_RESULT }),
-        });
-      }
-    } catch {
-      // Not JSON or unrecognised shape – fall through
-    }
-
-    return route.fallback();
-  });
-
-  // Also intercept the Convex "api/mutation" and "api/action" paths
-  page.route("**/api/mutation**", async (route) => {
-    return route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ value: null }),
-    });
-  });
-
-  page.route("**/api/action**", async (route) => {
-    return route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ value: null }),
-    });
+export async function mockConvexQueries(page: import("@playwright/test").Page) {
+  await mockConvexApi(page, {
+    upload: MOCK_UPLOAD,
+    payment: MOCK_PAYMENT_STATUS,
+    jobMatch: MOCK_JOB_MATCH_RESULT,
   });
 }
 
@@ -238,7 +101,7 @@ test.describe("Job Match – Landing Page URL Detection", () => {
 
 test.describe("Job Match – Preview Page Tab Access", () => {
   test.beforeEach(async ({ page }) => {
-    mockConvexQueries(page);
+    await mockConvexQueries(page);
     mockJobMatchApi(page);
   });
 
@@ -301,7 +164,7 @@ test.describe("Job Match – Preview Page Tab Access", () => {
 
 test.describe("Job Match – Result Display (Pre-seeded Match)", () => {
   test.beforeEach(async ({ page }) => {
-    mockConvexQueries(page);
+    await mockConvexQueries(page);
     mockJobMatchApi(page);
   });
 
@@ -327,7 +190,7 @@ test.describe("Job Match – Result Display (Pre-seeded Match)", () => {
     await jobMatchTab.click();
 
     // The large score circle should display "78%"
-    await expect(page.getByText("78%")).toBeVisible();
+    await expect(page.getByText("78%", { exact: true })).toBeVisible();
     // "Match" label should be near the score
     await expect(page.getByText("Match", { exact: true })).toBeVisible();
     // Compatibility Score heading
@@ -437,13 +300,32 @@ test.describe("Job Match – Result Display (Pre-seeded Match)", () => {
 
 test.describe("Job Match – Analyze Button Integration", () => {
   test.beforeEach(async ({ page }) => {
-    mockConvexQueries(page);
+    await mockConvexQueries(page);
     mockJobMatchApi(page);
   });
 
   test("pasting text and clicking Analyze shows loading state then results", async ({
     page,
   }) => {
+    let finishAnalysis!: () => void;
+    const analysisResponse = new Promise<void>((resolve) => {
+      finishAnalysis = resolve;
+    });
+    let analysisStarted!: () => void;
+    const analysisRequest = new Promise<void>((resolve) => {
+      analysisStarted = resolve;
+    });
+    // Hold the API response so the transient loading state is observable and
+    // deterministic, then release it to verify the result rendering.
+    await page.route("**/api/job-match", async (route) => {
+      analysisStarted();
+      await analysisResponse;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, result: MOCK_JOB_MATCH_RESULT }),
+      });
+    });
     await page.goto("/preview/seed-demo-upload-id");
 
     const jobMatchTab = page.getByRole("button", { name: /Job Match/i });
@@ -463,10 +345,11 @@ test.describe("Job Match – Analyze Button Integration", () => {
     });
     await analyzeBtn.click();
 
-    // Should briefly show loading state
+    await analysisRequest;
     await expect(
       page.getByText("Analyzing Compatibility...")
     ).toBeVisible();
+    finishAnalysis();
 
     // After the API responds, results should appear
     await expect(page.getByText("Compatibility Score")).toBeVisible();
@@ -512,7 +395,7 @@ test.describe("Job Match – Analyze Button Integration", () => {
 
 test.describe("Job Match – Keyword Progress Bar", () => {
   test.beforeEach(async ({ page }) => {
-    mockConvexQueries(page);
+    await mockConvexQueries(page);
     mockJobMatchApi(page);
   });
 
