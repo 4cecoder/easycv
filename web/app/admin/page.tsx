@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { 
   DollarSign, 
@@ -29,39 +29,30 @@ type StripeMetrics = {
 };
 
 export default function AdminDashboard() {
-  const [password, setPassword] = useState("");
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(true);
   const [authError, setAuthError] = useState("");
   const [metrics, setMetrics] = useState<StripeMetrics | null>(null);
   const [loadingMetrics, setLoadingMetrics] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
 
-  const uploads = useQuery(api.admin.listAllUploads, { passcode: isAuthorized ? password : "" }) || [];
+  const uploads = useQuery(api.admin.listAllUploads, isAuthorized ? {} : "skip") || [];
   const bypassPaymentMutation = useMutation(api.admin.bypassPayment);
   const deleteUploadMutation = useMutation(api.admin.deleteUpload);
   const retryUploadMutation = useMutation(api.admin.retryUpload);
 
-  function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setAuthError("");
-
-    fetch("/api/admin/auth", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
-    })
+  useEffect(() => {
+    fetch("/api/admin/auth", { cache: "no-store", credentials: "same-origin" })
       .then(async (res) => {
-        if (res.ok) {
-          setIsAuthorized(true);
-          fetchMetrics();
-        } else {
-          const body = await res.json().catch(() => ({}));
-          setAuthError(body.error ?? "Invalid passcode");
-        }
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error ?? "Sign in with an authorized Seridian account.");
+        setIsAuthorized(true);
+        fetchMetrics();
       })
-      .catch(() => setAuthError("Auth verification failed"));
-  }
+      .catch((err) => setAuthError(err instanceof Error ? err.message : "Admin access unavailable"))
+      .finally(() => setCheckingAccess(false));
+  }, []);
 
   function fetchMetrics() {
     setLoadingMetrics(true);
@@ -77,7 +68,7 @@ export default function AdminDashboard() {
   async function handleBypassPayment(uploadId: Id<"uploads">) {
     setActionLoading(`bypass-${uploadId}`);
     try {
-      await bypassPaymentMutation({ passcode: password, uploadId });
+      await bypassPaymentMutation({ uploadId });
       alert("Payment bypassed successfully!");
     } catch (err) {
       alert(`Bypass failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -89,7 +80,7 @@ export default function AdminDashboard() {
   async function handleRetry(uploadId: Id<"uploads">) {
     setActionLoading(`retry-${uploadId}`);
     try {
-      await retryUploadMutation({ passcode: password, uploadId });
+      await retryUploadMutation({ uploadId });
       alert("Upload status reset to queued!");
     } catch (err) {
       alert(`Retry failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -102,7 +93,7 @@ export default function AdminDashboard() {
     if (!confirm("Are you sure you want to delete this upload and all associated records?")) return;
     setActionLoading(`delete-${uploadId}`);
     try {
-      await deleteUploadMutation({ passcode: password, uploadId });
+      await deleteUploadMutation({ uploadId });
       alert("Upload deleted successfully!");
     } catch (err) {
       alert(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -121,36 +112,17 @@ export default function AdminDashboard() {
           </div>
           <h1 className="text-2xl font-bold tracking-tight">Admin Gate</h1>
           <p className="text-sm text-muted-foreground">
-            Enter your passcode to manage easyCV and view Stripe metrics.
+            {checkingAccess ? "Checking your Seridian account…" : "Sign in with an account listed in the Convex ADMIN_EMAILS allowlist."}
           </p>
         </div>
 
-        <form onSubmit={handleLogin} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="passcode" className="text-xs font-semibold text-muted-foreground uppercase">
-              Passcode
-            </label>
-            <input
-              id="passcode"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="flex w-full items-center justify-center rounded-md bg-primary py-2 text-sm font-semibold text-primary-foreground transition-all hover:opacity-90"
-          >
-            Unlock Dashboard
-          </button>
+        <div className="flex flex-col gap-4">
+          {!isAuthorized && <a href="/api/auth/login" className="flex w-full items-center justify-center rounded-md bg-primary py-2 text-sm font-semibold text-primary-foreground transition-all hover:opacity-90">Sign in with Seridian Auth</a>}
 
           {authError && (
             <p className="text-center text-xs font-medium text-destructive">{authError}</p>
           )}
-        </form>
+        </div>
       </main>
     );
   }
@@ -392,7 +364,7 @@ export default function AdminDashboard() {
               ) : (
                 <tr>
                   <td colSpan={8} className="py-6 text-center text-muted-foreground">
-                    No uploads in system or incorrect admin password.
+                    No uploads are available for this account.
                   </td>
                 </tr>
               )}

@@ -164,8 +164,8 @@ export async function getIdentityPayload(): Promise<IdentityPayload> {
   const deviceHash = await getDeviceHash();
   const linkedIdentity = getLinkedIdentity();
   // Lazy import to avoid circular deps
-  const { getBrowserSessionId } = await import("./fingerprint");
-  const sessionId = getBrowserSessionId();
+  const { getTelemetrySessionId } = await import("./fingerprint");
+  const sessionId = getTelemetrySessionId();
 
   return { deviceHash, linkedIdentity, sessionId };
 }

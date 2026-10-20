@@ -1,10 +1,11 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { ownedUpload } from "./authz";
+import { ownedUpload, requireOwnerSession } from "./authz";
 import { requireWorkerSecret } from "./workerAuth";
 
 export const addResumeFile = mutation({
   args: {
+    sessionId: v.string(),
     uploadId: v.id("uploads"),
     filename: v.string(),
     storageId: v.id("_storage"),
@@ -16,7 +17,10 @@ export const addResumeFile = mutation({
     tags: v.optional(v.array(v.string())),
     isHistorical: v.optional(v.boolean()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, { sessionId, ...args }) => {
+    await requireOwnerSession(ctx, sessionId);
+    const upload = await ownedUpload(ctx.db, args.uploadId, sessionId);
+    if (!upload) throw new Error("Upload not found or not owned by this session");
     return await ctx.db.insert("resumeFiles", args);
   },
 });
@@ -27,6 +31,7 @@ export const listResumeFiles = query({
     sessionId: v.string(),
   },
   handler: async (ctx, { uploadId, sessionId }) => {
+    await requireOwnerSession(ctx, sessionId);
     const upload = await ownedUpload(ctx.db, uploadId, sessionId);
     if (!upload) return [];
 

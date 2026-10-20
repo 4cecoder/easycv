@@ -13,6 +13,13 @@ test.describe("Checkout Flow E2E", () => {
   test("clicking checkout sends POST to /api/checkout with uploadId", async ({
     page,
   }) => {
+    await page.route("**/api/checkout", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ url: "https://checkout.stripe.com/pay/cs_test_e2e" }),
+      })
+    );
     const checkoutRequest = page.waitForRequest(
       (req) =>
         req.url().includes("/api/checkout") && req.method() === "POST"

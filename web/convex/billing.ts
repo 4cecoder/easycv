@@ -1,20 +1,19 @@
 import { v } from "convex/values";
 import { action, query } from "./_generated/server";
-import { components } from "./_generated/api";
+import { api, components } from "./_generated/api";
 import { StripeSubscriptions } from "@convex-dev/stripe";
 
-// sessionId (the same opaque `cv_session` cookie value used everywhere else
-// in this app -- schema.ts:43-45) is the only identity concept this app has,
-// so it doubles as the Stripe component's `userId` key. There is no real
-// auth provider here, so ctx.auth.getUserIdentity() is not usable.
 const stripeClient = new StripeSubscriptions(components.stripe, {});
 
 const ACTIVE_STATUSES = new Set(["active", "trialing"]);
 
 export const createSubscriptionCheckout = action({
-  args: { sessionId: v.string(), email: v.optional(v.string()) },
+  args: {},
   returns: v.object({ url: v.union(v.string(), v.null()) }),
-  handler: async (ctx, { sessionId, email }) => {
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+    const sessionId: string = await ctx.runQuery(api.identity.getOwnerSessionKey, {});
     const priceId = process.env.STRIPE_PRO_PRICE_ID;
     if (!priceId) {
       throw new Error("Server is not configured with STRIPE_PRO_PRICE_ID");
@@ -23,7 +22,7 @@ export const createSubscriptionCheckout = action({
 
     const customer = await stripeClient.getOrCreateCustomer(ctx, {
       userId: sessionId,
-      email,
+      email: identity.email,
     });
 
     const { url } = await stripeClient.createCheckoutSession(ctx, {
@@ -45,9 +44,10 @@ export const createSubscriptionCheckout = action({
 });
 
 export const isSubscribed = query({
-  args: { sessionId: v.string() },
+  args: {},
   returns: v.boolean(),
-  handler: async (ctx, { sessionId }) => {
+  handler: async (ctx) => {
+    const sessionId: string = await ctx.runQuery(api.identity.getOwnerSessionKey, {});
     const subscriptions = await ctx.runQuery(
       components.stripe.public.listSubscriptionsByUserId,
       { userId: sessionId },

@@ -29,6 +29,7 @@ import {
   Zap
 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
+import { useOwnerSessionKey } from "../../../lib/useOwnerSessionKey";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { CheckoutButton } from "./CheckoutButton";
 import { QualitySuggestions } from "./QualitySuggestions";
@@ -159,24 +160,23 @@ function LoadingEngagementWidget({ status }: { status: "queued" | "processing" }
 
 export function PreviewClient({
   uploadId,
-  sessionId,
 }: {
   uploadId: string;
-  sessionId: string;
 }) {
-  const upload = useQuery(api.uploads.getUpload, {
+  const sessionId = useOwnerSessionKey();
+  const upload = useQuery(api.uploads.getUpload, sessionId ? {
     uploadId: uploadId as Id<"uploads">,
     sessionId,
-  });
-  const paymentStatus = useQuery(api.payments.getPaymentStatus, {
+  } : "skip");
+  const paymentStatus = useQuery(api.payments.getPaymentStatus, sessionId ? {
     uploadId: uploadId as Id<"uploads">,
     sessionId,
-  });
-  const jobMatch = useQuery(api.profiles.getJobMatch, {
+  } : "skip");
+  const jobMatch = useQuery(api.profiles.getJobMatch, sessionId ? {
     uploadId: uploadId as Id<"uploads">,
     sessionId,
-  });
-  const isPro = useQuery(api.billing.isSubscribed, { sessionId });
+  } : "skip");
+  const isPro = useQuery(api.billing.isSubscribed, sessionId ? {} : "skip");
   const grantProDownload = useMutation(api.payments.grantProDownload);
 
   const [activeTab, setActiveTab] = useState<"document" | "match" | "linter" | "vault" | "export">("document");
@@ -205,7 +205,7 @@ export function PreviewClient({
   // (free) download token the first time we see an active subscription and
   // this upload hasn't already got one from a real Stripe charge.
   useEffect(() => {
-    if (isPro && paymentStatus && !paymentStatus.paid) {
+    if (sessionId && isPro && paymentStatus && !paymentStatus.paid) {
       grantProDownload({ uploadId: uploadId as Id<"uploads">, sessionId }).catch(() => {});
     }
   }, [isPro, paymentStatus, uploadId, sessionId, grantProDownload]);
@@ -214,6 +214,10 @@ export function PreviewClient({
     navigator.clipboard.writeText(text);
     setCopiedSection(sectionKey);
     setTimeout(() => setCopiedSection(null), 2000);
+  }
+
+  if (!sessionId) {
+    return <div className="mx-auto max-w-lg p-8 text-center"><p className="mb-4 text-sm text-muted-foreground">Sign in with Seridian Auth to view this upload.</p><a className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground" href="/api/auth/login">Sign in</a></div>;
   }
 
   if (upload === undefined) {

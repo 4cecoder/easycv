@@ -1,12 +1,11 @@
-import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { ConvexHttpClient } from "convex/browser";
 
 import { NextRequest, NextResponse } from "next/server";
 
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-import { getConvexClient } from "../../../lib/convexServer";
-import { SESSION_COOKIE } from "../../../lib/session";
+import { authenticatedConvexFromRequest, AuthenticationRequiredError } from "../../../lib/seridian-convex";
 import { withUserMonSpan } from "../../../lib/usermon-server";
 
 // Mirrors pipeline.py's SUPPORTED_EXTRACT_EXT (pipeline.py:70) -- the actual
@@ -39,8 +38,7 @@ function contentTypeFor(ext: string): string {
   }
 }
 
-async function uploadBytesToConvexStorage(bytes: Buffer, contentType: string): Promise<string> {
-  const convex = getConvexClient();
+async function uploadBytesToConvexStorage(convex: ConvexHttpClient, bytes: Buffer, contentType: string): Promise<string> {
   const uploadUrl = await convex.mutation(api.files.generateUploadUrl, {});
   const res = await fetch(uploadUrl, {
     method: "POST",
@@ -76,6 +74,13 @@ import {
 // module docstring for the full rationale.
 export const POST = withUserMonSpan("/api/upload", async (request: NextRequest) => {
   try {
+    let auth;
+    try { auth = await authenticatedConvexFromRequest(request); }
+    catch (error) {
+      if (error instanceof AuthenticationRequiredError) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      throw error;
+    }
+    const { convex, ownerSessionKey: sessionId } = auth;
     const formData = await request.formData();
     const files = formData.getAll("files").filter((f): f is File => f instanceof File);
     if (files.length === 0) {
@@ -162,8 +167,6 @@ export const POST = withUserMonSpan("/api/upload", async (request: NextRequest) 
     const jobDescription = (formData.get("jobDescription") as string) || undefined;
     const sanitizedJobDesc = jobDescription ? sanitizeTextForLLM(jobDescription) : undefined;
     const jobLink = (formData.get("jobLink") as string) || undefined;
-    const sessionId = request.cookies.get(SESSION_COOKIE)?.value ?? randomUUID();
-    const convex = getConvexClient();
     const uploadId = await convex.mutation(api.uploads.createUpload, {
       sessionId,
       jobDescription: sanitizedJobDesc,
@@ -171,8 +174,9 @@ export const POST = withUserMonSpan("/api/upload", async (request: NextRequest) 
     });
 
     for (const item of preparedFiles) {
-      const storageId = await uploadBytesToConvexStorage(item.bytes, contentTypeFor(item.ext));
+      const storageId = await uploadBytesToConvexStorage(convex, item.bytes, contentTypeFor(item.ext));
       await convex.mutation(api.resumeFiles.addResumeFile, {
+        sessionId,
         uploadId,
         filename: item.name,
         storageId: storageId as Id<"_storage">,
@@ -190,15 +194,7 @@ export const POST = withUserMonSpan("/api/upload", async (request: NextRequest) 
     // an actual failure.
     await convex.mutation(api.uploads.finalizeUpload, { uploadId, sessionId });
 
-    const response = NextResponse.json({ uploadId });
-    if (!request.cookies.get(SESSION_COOKIE)) {
-      response.cookies.set(SESSION_COOKIE, sessionId, {
-        httpOnly: true,
-        sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 30,
-      });
-    }
-    return response;
+    return NextResponse.json({ uploadId });
   } catch (err) {
     console.error("upload failed", err);
     return NextResponse.json(

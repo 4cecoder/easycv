@@ -20,25 +20,72 @@ EMAIL="${EMAIL:?Set EMAIL (for Let's Encrypt TLS certs)}"
 DOMAIN_EMAILS=("${DOMAIN}" "www.${DOMAIN}")
 
 # ── Sensible defaults (no need to set these unless overriding) ────────────────
-CONVEX_MODE="${CONVEX_MODE:-self-hosted}"
-# On-device AI (Needle 2 + WebGPU) is the default — zero cloud cost
-# Cloud LLMs (openai/anthropic) are pro-tier only, gated by Stripe
-LLM_PROVIDER="${LLM_PROVIDER:-on-device}"
+CONVEX_MODE="${CONVEX_MODE:-}"
+# Production worker inference must not depend on a developer workstation or
+# tailnet service. Choose a hosted provider by default; environment variables
+# still take precedence, followed by values in .env.production.
+LLM_PROVIDER="${LLM_PROVIDER:-}"
 LLM_MODEL="${LLM_MODEL:-}"
 OLLAMA_API_BASE="${OLLAMA_API_BASE:-}"
-APP_URL="${APP_URL:-https://${DOMAIN}}"
-# Auto-generate WORKER_SECRET if not provided
-if [[ -z "${WORKER_SECRET:-}" ]]; then
+APP_URL="${APP_URL:-}"
+# ─────────────────────────────────────────────────────────────────────────────
+
+die() { echo -e "${RED}ERROR:${NC} $*" >&2; exit 1; }
+ok() { echo -e "${GREEN}✓${NC} $*"; }
+
+# ── Helper: read value (env var, then .env.production, then optional default) ─
+get() {
+  local spec="$1" key="${1%%:-*}" fallback="" value
+  if [[ "$spec" == *":-"* ]]; then fallback="${spec#*:-}"; fi
+  value="${!key:-}"
+  if [[ -z "$value" && -f "$ENV" ]]; then
+    value="$(grep -E "^${key}=" "$ENV" 2>/dev/null | head -1 | cut -d'=' -f2-)"
+  fi
+  if [[ -n "$value" ]]; then echo "$value"; else echo "$fallback"; fi
+}
+
+APP_URL="$(get APP_URL:-https://${DOMAIN})"
+
+WORKER_SECRET="$(get WORKER_SECRET:-)"
+if [[ -z "$WORKER_SECRET" ]]; then
   WORKER_SECRET="$(openssl rand -hex 32)"
   echo -e "${CYAN}Auto-generated WORKER_SECRET${NC}"
 fi
-# ─────────────────────────────────────────────────────────────────────────────
 
-b64() { echo -n "$1" | base64; }
-die() { echo -e "${RED}ERROR:${NC} $*" >&2; exit 1; }
+# Resolve and validate OIDC settings before building images or changing cluster
+# state. Auth is required for every production deployment.
+SERIDIAN_AUTH_ISSUER="$(get SERIDIAN_AUTH_ISSUER)"
+SERIDIAN_AUTH_CLIENT_ID="$(get SERIDIAN_AUTH_CLIENT_ID)"
+SERIDIAN_AUTH_CLIENT_SECRET="$(get SERIDIAN_AUTH_CLIENT_SECRET)"
+ADMIN_EMAILS="$(get ADMIN_EMAILS)"
+[[ -n "$SERIDIAN_AUTH_ISSUER" ]] || die "Set SERIDIAN_AUTH_ISSUER in the environment or .env.production"
+[[ -n "$SERIDIAN_AUTH_CLIENT_ID" ]] || die "Set SERIDIAN_AUTH_CLIENT_ID in the environment or .env.production"
+[[ -n "$SERIDIAN_AUTH_CLIENT_SECRET" ]] || die "Set SERIDIAN_AUTH_CLIENT_SECRET in the environment or .env.production"
+[[ -n "$ADMIN_EMAILS" ]] || die "Set ADMIN_EMAILS (comma-separated verified admin emails) in the environment or .env.production"
+for name in STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PRICE_ID STRIPE_PRO_PRICE_ID; do
+  [[ -n "$(get "$name")" ]] || die "Set $name in the environment or .env.production to preserve production billing"
+done
 
-# ── Helper: read value (env var first, then .env.production) ─────────────────
-get() { echo "${!1:-$(grep -E "^$1=" "$ENV" 2>/dev/null | head -1 | cut -d'=' -f2-)"; }
+# Production inference must use a reachable hosted provider with its key
+# provisioned before any image build or cluster mutation begins.
+LLM_PROVIDER="$(get LLM_PROVIDER:-openai)"
+OPENAI_API_KEY="$(get OPENAI_API_KEY:-)"
+ANTHROPIC_API_KEY="$(get ANTHROPIC_API_KEY:-)"
+case "$LLM_PROVIDER" in
+  openai) [[ -n "$OPENAI_API_KEY" ]] || die "LLM_PROVIDER=openai requires OPENAI_API_KEY in the environment or .env.production" ;;
+  anthropic) [[ -n "$ANTHROPIC_API_KEY" ]] || die "LLM_PROVIDER=anthropic requires ANTHROPIC_API_KEY in the environment or .env.production" ;;
+  *) die "Unsupported production LLM_PROVIDER '$LLM_PROVIDER'; choose openai or anthropic" ;;
+esac
+
+CONVEX_MODE="$(get CONVEX_MODE:-self-hosted)"
+CONVEX_DEPLOY_KEY="$(get CONVEX_DEPLOY_KEY:-)"
+NEXT_CONVEX_URL="$(get NEXT_PUBLIC_CONVEX_URL:-)"
+if [[ "$CONVEX_MODE" == "cloud" || "$NEXT_CONVEX_URL" == *".convex.cloud"* || -n "$CONVEX_DEPLOY_KEY" ]]; then
+  IS_CLOUD=true
+  [[ -n "$CONVEX_DEPLOY_KEY" ]] || die "Convex Cloud requires CONVEX_DEPLOY_KEY so Auth environment variables can be configured safely"
+else
+  IS_CLOUD=false
+fi
 
 # ── Preflight ───────────────────────────────────────────────────────────────
 command -v kubectl &>/dev/null || die "kubectl not found"
@@ -97,12 +144,7 @@ kubectl create secret docker-registry vultr-registry-credentials \
   -n "$NS" 2>/dev/null || true
 
 # ── Determine Convex Deployment Mode (Cloud vs Self-Hosted) ───────────────────
-CONVEX_MODE="$(get CONVEX_MODE:-)"
-CONVEX_DEPLOY_KEY="$(get CONVEX_DEPLOY_KEY:-)"
-NEXT_CONVEX_URL="$(get NEXT_PUBLIC_CONVEX_URL:-)"
-
-if [[ "$CONVEX_MODE" == "cloud" || "$NEXT_CONVEX_URL" == *".convex.cloud"* || -n "$CONVEX_DEPLOY_KEY" ]]; then
-  IS_CLOUD=true
+if [[ "$IS_CLOUD" == true ]]; then
   echo -e "${CYAN}Convex Mode: CLOUD (${NEXT_CONVEX_URL})${NC}"
 else
   IS_CLOUD=false
@@ -116,6 +158,7 @@ if [[ -z "$INSTANCE_SECRET" || "$INSTANCE_SECRET" == "generate_with_openssl_rand
   INSTANCE_SECRET="$(openssl rand -hex 32)"
 fi
 POSTGRES_URL="$(get POSTGRES_URL:-)"
+POSTGRES_PASSWORD="$(get POSTGRES_PASSWORD:-)"
 
 if [[ "$IS_CLOUD" == true ]]; then
   INTERNAL_CONVEX_URL="$NEXT_CONVEX_URL"
@@ -126,27 +169,34 @@ else
   NEXT_CONVEX_URL="https://convex.${DOMAIN}/api"
 fi
 
-cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: Secret
-metadata:
-  name: easycv-secrets
-  namespace: ${NS}
-type: Opaque
-data:
-  INSTANCE_SECRET: $(b64 "$INSTANCE_SECRET")
-  POSTGRES_URL: $(b64 "$POSTGRES_URL")
-  CONVEX_SELF_HOSTED_ADMIN_KEY: $(b64 "${INSTANCE_NAME}|${INSTANCE_SECRET}")
-  CONVEX_URL: $(b64 "$INTERNAL_CONVEX_URL")
-  APP_URL: $(b64 "$(get APP_URL)")
-  STRIPE_SECRET_KEY: $(b64 "$(get STRIPE_SECRET_KEY)")
-  STRIPE_WEBHOOK_SECRET: $(b64 "$(get STRIPE_WEBHOOK_SECRET)")
-  STRIPE_PRICE_ID: $(b64 "$(get STRIPE_PRICE_ID)")
-  STRIPE_PRO_PRICE_ID: $(b64 "$(get STRIPE_PRO_PRICE_ID)")
-  WORKER_SECRET: $(b64 "$(get WORKER_SECRET)")
-  OPENAI_API_KEY: $(b64 "$(get OPENAI_API_KEY:-)")
-  ANTHROPIC_API_KEY: $(b64 "$(get ANTHROPIC_API_KEY:-)")
-EOF
+# Keep each workload limited to the secrets it needs. In particular, the
+# worker must never receive the OIDC client secret or Stripe credentials.
+kubectl create secret generic easycv-secrets -n "$NS" \
+  --from-literal=INSTANCE_SECRET="$INSTANCE_SECRET" \
+  --from-literal=POSTGRES_URL="$POSTGRES_URL" \
+  --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+  --from-literal=CONVEX_SELF_HOSTED_ADMIN_KEY="${INSTANCE_NAME}|${INSTANCE_SECRET}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl create secret generic easycv-web-secrets -n "$NS" \
+  --from-literal=SERIDIAN_AUTH_ISSUER="$SERIDIAN_AUTH_ISSUER" \
+  --from-literal=SERIDIAN_AUTH_CLIENT_ID="$SERIDIAN_AUTH_CLIENT_ID" \
+  --from-literal=SERIDIAN_AUTH_CLIENT_SECRET="$SERIDIAN_AUTH_CLIENT_SECRET" \
+  --from-literal=ADMIN_EMAILS="$ADMIN_EMAILS" \
+  --from-literal=STRIPE_SECRET_KEY="$(get STRIPE_SECRET_KEY)" \
+  --from-literal=STRIPE_WEBHOOK_SECRET="$(get STRIPE_WEBHOOK_SECRET)" \
+  --from-literal=STRIPE_PRICE_ID="$(get STRIPE_PRICE_ID)" \
+  --from-literal=STRIPE_PRO_PRICE_ID="$(get STRIPE_PRO_PRICE_ID)" \
+  --from-literal=OPENAI_API_KEY="$OPENAI_API_KEY" \
+  --from-literal=ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl create secret generic easycv-worker-secrets -n "$NS" \
+  --from-literal=CONVEX_URL="$INTERNAL_CONVEX_URL" \
+  --from-literal=WORKER_SECRET="$(get WORKER_SECRET)" \
+  --from-literal=OPENAI_API_KEY="$OPENAI_API_KEY" \
+  --from-literal=ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+  --dry-run=client -o yaml | kubectl apply -f -
 
 # ── ConfigMap ────────────────────────────────────────────────────────────────
 cat <<EOF | kubectl apply -f -
@@ -164,8 +214,8 @@ data:
   NEXT_PUBLIC_CONVEX_URL: "${NEXT_CONVEX_URL}"
   NEXT_PUBLIC_POSTHOG_KEY: "$(get NEXT_PUBLIC_POSTHOG_KEY:-)"
   APP_URL: "$(get APP_URL:-https://${DOMAIN})"
-  LLM_PROVIDER: "$(get LLM_PROVIDER)"
-  LLM_MODEL: "$(get LLM_MODEL)"
+  LLM_PROVIDER: "$LLM_PROVIDER"
+  LLM_MODEL: "$(get LLM_MODEL:-gpt-4o)"
   OLLAMA_API_BASE: "$(get OLLAMA_API_BASE:-)"
 EOF
 
@@ -214,26 +264,28 @@ kubectl rollout status deployment/easycv-worker    -n "$NS" --timeout=300s
 # ── Auto-Deploy Schema & Worker Auth ─────────────────────────────────────────
 if [[ "$IS_CLOUD" == true ]]; then
   if [[ -n "$CONVEX_DEPLOY_KEY" ]]; then
-    echo -e "${YELLOW}Deploying schema to Convex Cloud with deploy key...${NC}"
-    (cd web && CONVEX_DEPLOY_KEY="${CONVEX_DEPLOY_KEY}" bunx convex deploy 2>&1 | tail -5) || warn "Cloud schema deploy finished with warnings"
-
-    echo -e "${YELLOW}Configuring WORKER_SECRET on Convex Cloud...${NC}"
-    (cd web && CONVEX_DEPLOY_KEY="${CONVEX_DEPLOY_KEY}" bunx convex env set WORKER_SECRET "$(get WORKER_SECRET)" 2>&1 | tail -3) || true
-  else
-    echo -e "${CYAN}Convex Cloud selected without CONVEX_DEPLOY_KEY; assuming schema is already deployed.${NC}"
+    echo -e "${YELLOW}Configuring worker and Seridian Auth environment on Convex Cloud...${NC}"
+    for name in WORKER_SECRET SERIDIAN_AUTH_ISSUER SERIDIAN_AUTH_CLIENT_ID ADMIN_EMAILS APP_URL STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PRICE_ID STRIPE_PRO_PRICE_ID; do
+      value="$(get "$name")"
+      (cd web && CONVEX_DEPLOY_KEY="${CONVEX_DEPLOY_KEY}" bunx convex env set --force "$name" "$value") || die "Could not configure Convex Cloud variable $name"
+    done
+    echo -e "${YELLOW}Deploying schema and Auth config to Convex Cloud with deploy key...${NC}"
+    (cd web && CONVEX_DEPLOY_KEY="${CONVEX_DEPLOY_KEY}" bunx convex deploy 2>&1 | tail -5) || die "Convex Cloud schema deploy failed"
   fi
 else
   ADMIN_KEY=$(kubectl exec deploy/convex-backend -n "$NS" -- ./generate_admin_key.sh | tail -n 1 2>/dev/null || echo "${INSTANCE_NAME}|${INSTANCE_SECRET}")
 
-  echo -e "${YELLOW}Deploying Convex schema to live self-hosted backend...${NC}"
   TMP_ENV=$(mktemp)
   echo "CONVEX_SELF_HOSTED_URL=https://convex.${DOMAIN}/api" > "$TMP_ENV"
   echo "CONVEX_SELF_HOSTED_ADMIN_KEY=${ADMIN_KEY}" >> "$TMP_ENV"
 
-  (cd web && bunx convex deploy --env-file "$TMP_ENV" 2>&1 | tail -5) || warn "Self-hosted schema deploy finished with warnings"
-
-  echo -e "${YELLOW}Configuring WORKER_SECRET in self-hosted Convex...${NC}"
-  (cd web && bunx convex env set WORKER_SECRET "$(get WORKER_SECRET)" --env-file "$TMP_ENV" 2>&1 | tail -3) || true
+  echo -e "${YELLOW}Configuring worker and Seridian Auth environment in self-hosted Convex...${NC}"
+  for name in WORKER_SECRET SERIDIAN_AUTH_ISSUER SERIDIAN_AUTH_CLIENT_ID ADMIN_EMAILS APP_URL STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PRICE_ID STRIPE_PRO_PRICE_ID; do
+    value="$(get "$name")"
+    (cd web && bunx convex env set --force --env-file "$TMP_ENV" "$name" "$value") || die "Could not configure self-hosted Convex variable $name"
+  done
+  echo -e "${YELLOW}Deploying schema and Auth config to live self-hosted backend...${NC}"
+  (cd web && bunx convex deploy --env-file "$TMP_ENV" 2>&1 | tail -5) || die "Self-hosted Convex schema deploy failed"
   rm -f "$TMP_ENV"
 fi
 
@@ -255,5 +307,5 @@ fi
 echo -e "  ${GREEN}External IP:${NC}      ${IP}"
 echo -e "  ${GREEN}Namespace:${NC}        ${NS}"
 echo ""
-echo -e "  ${GREEN}Status:${NC} All pods, database, schema, and worker auth are 100% live and ready."
+echo -e "  ${GREEN}Status:${NC} Deployment rollout commands completed; run the production smoke and E2E checks."
 echo ""

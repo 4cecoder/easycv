@@ -68,7 +68,7 @@ export function middleware(request: NextRequest) {
   const config: RateLimitConfig = RATE_LIMITS[label];
 
   const ip = getClientIp(request);
-  const sessionId = request.cookies.get("cv_session")?.value;
+  const sessionId = request.cookies.get("easycv_telemetry_session")?.value;
 
   const result = checkRateLimit(label, config, ip, sessionId);
 

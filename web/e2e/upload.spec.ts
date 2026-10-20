@@ -25,7 +25,14 @@ test.describe("Upload Flow E2E", () => {
   });
 
   test("clicking a sample resume loads it and auto-submits", async ({ page }) => {
-    // Intercept the upload API so we can observe the request without needing a real backend
+    // Keep the browser test isolated from Convex workers and hosted/local LLMs.
+    await page.route("/api/upload", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, uploadId: "e2e-upload" }),
+      })
+    );
     const uploadRequestPromise = page.waitForRequest("/api/upload", { timeout: 5000 });
 
     // Click the first sample resume (Alex Mercer)

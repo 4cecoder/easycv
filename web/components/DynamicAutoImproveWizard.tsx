@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
-import { getBrowserSessionId } from "../lib/fingerprint";
+import { useOwnerSessionKey } from "../lib/useOwnerSessionKey";
 import {
   Sparkles,
   Zap,
@@ -52,11 +52,7 @@ export function DynamicAutoImproveWizard({
   isOpen,
   onClose,
 }: DynamicAutoImproveWizardProps) {
-  const [sessionId, setSessionId] = useState("");
-
-  useEffect(() => {
-    setSessionId(getBrowserSessionId());
-  }, []);
+  const sessionId = useOwnerSessionKey();
 
   const saveProfile = useMutation(api.profiles.saveStructuredProfile);
   const consumeQuota = useMutation(api.quotas.consumeAutoImproveQuota);
@@ -222,8 +218,10 @@ export function DynamicAutoImproveWizard({
       if (!isPaid && sessionId) {
         await consumeQuota({ sessionId });
       }
+      if (!sessionId) throw new Error("Authentication required");
 
       await saveProfile({
+        sessionId,
         uploadId: uploadId as Id<"uploads">,
         name: profile?.name || "Candidate",
         contact: {

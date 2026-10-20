@@ -31,12 +31,9 @@ data:
   APP_URL: "https://easycv.yourdomain.com"
 
   # ── LLM Configuration ────────────────────────────────────────────────────
-  # Options: ollama | openai | anthropic
-  LLM_PROVIDER: "ollama"
+  # Production inference uses the hosted OpenAI API. Ollama is a developer-only
+  # option and must not be required by the production cluster.
+  LLM_PROVIDER: "openai"
 
-  # Model name — must match what the provider supports
-  LLM_MODEL: "openbmb/minicpm5:latest"
-
-  # Ollama API base URL (only used when LLM_PROVIDER=ollama)
-  # In-cluster: use the Ollama service ClusterIP or external endpoint
-  OLLAMA_API_BASE: "http://ollama.ollama.svc.cluster.local:11434"
+  # Keep aligned with the worker's provider configuration.
+  LLM_MODEL: "gpt-4o"

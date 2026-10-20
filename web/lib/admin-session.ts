@@ -1,83 +1,23 @@
-/**
- * Admin session management.
- *
- * Admin sessions use a signed cookie separate from the user session.
- * The password is exchanged once for a short-lived session token.
- * All admin API routes MUST call requireAdmin() to verify.
- */
-
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import crypto from "node:crypto";
+import { decryptSession, discover, oidcEnv, verifyIdToken, SESSION_COOKIE } from "./seridian-oidc";
 
-export const ADMIN_SESSION_COOKIE = "cv_admin_session";
-export const ADMIN_SESSION_MAX_AGE = 8 * 60 * 60; // 8 hours
-
-// In-memory session store (resets on cold start — acceptable for single-admin)
-const adminSessions = new Map<string, { createdAt: number; ip?: string }>();
-
-function signToken(token: string): string {
-  const secret = process.env.ADMIN_PASSWORD || "admin123";
-  return crypto.createHmac("sha256", secret).update(token).digest("hex");
-}
-
-/**
- * Create an admin session after password verification.
- * Returns the session token to set as a cookie.
- */
-export function createAdminSession(clientIp?: string): string {
-  const token = crypto.randomBytes(32).toString("hex");
-  const signature = signToken(token);
-  adminSessions.set(signature, { createdAt: Date.now(), ip: clientIp });
-  return signature;
-}
-
-/**
- * Verify an admin session token.
- * Returns true if the session is valid and not expired.
- */
-export function verifyAdminSession(token: string | undefined | null): boolean {
-  if (!token) return false;
-  const session = adminSessions.get(token);
-  if (!session) return false;
-  const ageMs = Date.now() - session.createdAt;
-  if (ageMs > ADMIN_SESSION_MAX_AGE * 1000) {
-    adminSessions.delete(token);
-    return false;
-  }
-  return true;
-}
-
-/**
- * Build the Set-Cookie header for the admin session.
- */
-export function buildAdminCookie(token: string): string {
-  return [
-    `${ADMIN_SESSION_COOKIE}=${token}`,
-    `Path=/`,
-    `Max-Age=${ADMIN_SESSION_MAX_AGE}`,
-    `SameSite=lax`,
-    `HttpOnly`,
-    process.env.NODE_ENV === "production" ? "Secure" : "",
-  ]
-    .filter(Boolean)
-    .join("; ");
-}
-
-/**
- * Extract admin session from request cookies.
- */
-export function extractAdminSession(request: NextRequest): string | null {
-  return request.cookies.get(ADMIN_SESSION_COOKIE)?.value ?? null;
-}
-
-/**
- * Require a valid admin session. Returns null on success, or a NextResponse on failure.
- */
+/** Verify a Seridian session and the same verified-email allowlist used by Convex. */
 export async function requireAdmin(request: NextRequest): Promise<NextResponse | null> {
-  const token = extractAdminSession(request);
-  if (!verifyAdminSession(token)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const cookie = request.cookies.get(SESSION_COOKIE)?.value;
+  if (!cookie) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  try {
+    const session = await decryptSession(cookie);
+    const env = oidcEnv();
+    const provider = await discover(env.issuer);
+    const claims = await verifyIdToken(session.idToken, env.issuer, env.clientId, provider.jwks_uri);
+    if (claims.sub !== session.sub) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    const email = typeof claims.email === "string" ? claims.email.trim().toLowerCase() : "";
+    const allowed = new Set((process.env.ADMIN_EMAILS ?? "").split(",").map((entry) => entry.trim().toLowerCase()).filter(Boolean));
+    if (claims.email_verified !== true || !email || !allowed.has(email)) {
+      return NextResponse.json({ error: "Admin access is not enabled for this account" }, { status: 403 });
+    }
+    return null;
+  } catch {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
-  return null; // null = OK, continue
 }

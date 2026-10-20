@@ -11,11 +11,16 @@
 #   VULTR_S3_ACCESS_KEY    Object Storage access key (Masked) — terraform state
 #   VULTR_S3_SECRET_KEY    Object Storage secret key (Masked) — terraform state
 #
-# App variables (worker will crash-loop until these exist):
+# App variables:
 #   NEXT_PUBLIC_CONVEX_URL
 #   WORKER_SECRET
 #
-# Optional: CONVEX_URL, APP_URL, STRIPE_*, LLM_*, OPENAI_API_KEY, ANTHROPIC_API_KEY
+# Required for production deploys: CONVEX_DEPLOY_KEY, SERIDIAN_AUTH_ISSUER,
+#   SERIDIAN_AUTH_CLIENT_ID, SERIDIAN_AUTH_CLIENT_SECRET, ADMIN_EMAILS,
+#   APP_URL, Stripe credentials and price IDs, LLM_PROVIDER, and the selected
+#   provider API key, and NETLIFY_AUTH_TOKEN. NETLIFY_SITE_ID is the fixed
+#   production site id below; the Netlify job deploys the public web frontend.
+# Optional: LLM_MODEL, OLLAMA_API_BASE
 # Required for KUBECONFIG sync: GITLAB_API_TOKEN (Project Access Token, Maintainer, api)
 
 include:
@@ -25,12 +30,14 @@ stages:
   - cluster
   - verify
   - build
+  - configure
   - deploy
 
 variables:
   VULTRCR_HOST: atl.vultrcr.com
   VULTRCR_NAME: seridian
   K8S_NAMESPACE: easycv
+  NETLIFY_SITE_ID: a6ab07c1-3db7-4c24-b643-7d35769b5546
   DOCKER_TLS_CERTDIR: ""
   DOCKER_HOST: tcp://docker:2375
   DOCKER_DRIVER: overlay2
@@ -59,11 +66,63 @@ verify-lockfile:
   stage: verify
   image: oven/bun:1
   script:
-    - cd web && bun install --frozen-lockfile
+    - |
+      if [ -n "${GITHUB_TOKEN:-}" ]; then
+        git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+        git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "git@github.com:"
+      fi
+      cd web && bun install --frozen-lockfile
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_COMMIT_TAG
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+production-preflight:
+  stage: verify
+  image: alpine:3.22
+  script:
+    - |
+      set -eu
+      for name in NEXT_PUBLIC_CONVEX_URL CONVEX_DEPLOY_KEY SERIDIAN_AUTH_ISSUER SERIDIAN_AUTH_CLIENT_ID SERIDIAN_AUTH_CLIENT_SECRET ADMIN_EMAILS APP_URL WORKER_SECRET STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PRICE_ID STRIPE_PRO_PRICE_ID NETLIFY_AUTH_TOKEN; do
+        value="$(printenv "$name" || true)"
+        if [ -z "$value" ]; then echo "$name is required for a production EasyCV cutover" >&2; exit 1; fi
+      done
+      if [ "$SERIDIAN_AUTH_ISSUER" != "https://auth.seridian.dev" ]; then
+        echo "SERIDIAN_AUTH_ISSUER must exactly match https://auth.seridian.dev" >&2; exit 1
+      fi
+      if [ "$APP_URL" != "https://easycv.seridian.dev" ]; then
+        echo "APP_URL must exactly match the canonical EasyCV production origin https://easycv.seridian.dev" >&2; exit 1
+      fi
+      LLM_PROVIDER="${LLM_PROVIDER:-openai}"
+      case "$LLM_PROVIDER" in
+        openai) [ -n "${OPENAI_API_KEY:-}" ] || { echo "LLM_PROVIDER=openai requires OPENAI_API_KEY" >&2; exit 1; } ;;
+        anthropic) [ -n "${ANTHROPIC_API_KEY:-}" ] || { echo "LLM_PROVIDER=anthropic requires ANTHROPIC_API_KEY" >&2; exit 1; } ;;
+        *) echo "LLM_PROVIDER must be openai or anthropic" >&2; exit 1 ;;
+      esac
+      case "$NEXT_PUBLIC_CONVEX_URL" in https://*.convex.cloud) ;; *) echo "NEXT_PUBLIC_CONVEX_URL must identify the production Convex Cloud deployment" >&2; exit 1 ;; esac
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+configure-convex-auth:
+  stage: configure
+  image: oven/bun:1
+  script:
+    - |
+      set -eu
+      : "${GITHUB_TOKEN:?GITHUB_TOKEN is required to install the private UI kit}"
+      git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+      git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "git@github.com:"
+      cd web && bun install --frozen-lockfile
+    - |
+      set -eu
+      for name in SERIDIAN_AUTH_ISSUER SERIDIAN_AUTH_CLIENT_ID ADMIN_EMAILS WORKER_SECRET APP_URL STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PRICE_ID STRIPE_PRO_PRICE_ID; do
+        bunx convex env set --force "$name" "$(printenv "$name")"
+      done
+      bunx convex deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
 
 build-worker:
   extends: .docker
@@ -113,6 +172,7 @@ deploy:
   needs:
     - build-worker
     - build-frontend
+    - configure-convex-auth
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_COMMIT_TAG
@@ -132,6 +192,24 @@ deploy:
       sh "$CI_PROJECT_DIR/terraform/scripts/export-kubeconfig.sh" /tmp/easycv.kubeconfig
       export KUBECONFIG=/tmp/easycv.kubeconfig
       echo "Using kubeconfig from Terraform state (current VKE cluster)"
+
+      # Reject a partially configured release before touching Kubernetes.
+      : "${NEXT_PUBLIC_CONVEX_URL:?NEXT_PUBLIC_CONVEX_URL is required}"
+      : "${SERIDIAN_AUTH_ISSUER:?SERIDIAN_AUTH_ISSUER is required}"
+      : "${SERIDIAN_AUTH_CLIENT_ID:?SERIDIAN_AUTH_CLIENT_ID is required}"
+      : "${SERIDIAN_AUTH_CLIENT_SECRET:?SERIDIAN_AUTH_CLIENT_SECRET is required}"
+      : "${ADMIN_EMAILS:?ADMIN_EMAILS is required}"
+      : "${APP_URL:?APP_URL is required}"
+      : "${STRIPE_SECRET_KEY:?STRIPE_SECRET_KEY is required to preserve billing}"
+      : "${STRIPE_WEBHOOK_SECRET:?STRIPE_WEBHOOK_SECRET is required to preserve billing}"
+      : "${STRIPE_PRICE_ID:?STRIPE_PRICE_ID is required to preserve billing}"
+      : "${STRIPE_PRO_PRICE_ID:?STRIPE_PRO_PRICE_ID is required to preserve billing}"
+      LLM_PROVIDER="${LLM_PROVIDER:-openai}"
+      case "$LLM_PROVIDER" in
+        openai) : "${OPENAI_API_KEY:?OPENAI_API_KEY is required for OpenAI inference}" ;;
+        anthropic) : "${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required for Anthropic inference}" ;;
+        *) echo "Unsupported production LLM_PROVIDER: $LLM_PROVIDER" >&2; exit 1 ;;
+      esac
 
       CLUSTER_IP="$(terraform -chdir=terraform output -raw cluster_ip 2>/dev/null || true)"
       if [ -z "$CLUSTER_IP" ] || [ "$CLUSTER_IP" = "null" ]; then
@@ -169,21 +247,38 @@ deploy:
         --docker-password="$VULTRCR_PASSWORD" \
         --dry-run=client -o yaml | kubectl apply -f -
 
-      CONVEX_VALUE="${CONVEX_URL:-${NEXT_PUBLIC_CONVEX_URL:-}}"
+      # Keep the frontend, worker, and Convex CLI on one deployment.
+      CONVEX_VALUE="$NEXT_PUBLIC_CONVEX_URL"
 
       WORKER_SECRET="${WORKER_SECRET:-$(openssl rand -hex 32)}"
       echo "Using WORKER_SECRET (auto-generated if not set)"
 
       kubectl create secret generic easycv-secrets \
         --namespace "$K8S_NAMESPACE" \
-        --from-literal="CONVEX_URL=${CONVEX_VALUE}" \
-        --from-literal="NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL:-}" \
-        --from-literal="APP_URL=${APP_URL:-https://${DOMAIN:-easycv.example.com}}" \
-        --from-literal="WORKER_SECRET=${WORKER_SECRET}" \
+        --from-literal="INSTANCE_SECRET=${INSTANCE_SECRET:-}" \
+        --from-literal="POSTGRES_URL=${POSTGRES_URL:-}" \
+        --from-literal="POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-}" \
+        --from-literal="CONVEX_SELF_HOSTED_ADMIN_KEY=${CONVEX_SELF_HOSTED_ADMIN_KEY:-}" \
+        --dry-run=client -o yaml | kubectl apply -f -
+
+      kubectl create secret generic easycv-web-secrets \
+        --namespace "$K8S_NAMESPACE" \
+        --from-literal="SERIDIAN_AUTH_ISSUER=${SERIDIAN_AUTH_ISSUER}" \
+        --from-literal="SERIDIAN_AUTH_CLIENT_ID=${SERIDIAN_AUTH_CLIENT_ID}" \
+        --from-literal="SERIDIAN_AUTH_CLIENT_SECRET=${SERIDIAN_AUTH_CLIENT_SECRET}" \
+        --from-literal="ADMIN_EMAILS=${ADMIN_EMAILS}" \
         --from-literal="STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}" \
         --from-literal="STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}" \
         --from-literal="STRIPE_PRICE_ID=${STRIPE_PRICE_ID:-}" \
         --from-literal="STRIPE_PRO_PRICE_ID=${STRIPE_PRO_PRICE_ID:-}" \
+        --from-literal="OPENAI_API_KEY=${OPENAI_API_KEY:-}" \
+        --from-literal="ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}" \
+        --dry-run=client -o yaml | kubectl apply -f -
+
+      kubectl create secret generic easycv-worker-secrets \
+        --namespace "$K8S_NAMESPACE" \
+        --from-literal="CONVEX_URL=${CONVEX_VALUE}" \
+        --from-literal="WORKER_SECRET=${WORKER_SECRET}" \
         --from-literal="OPENAI_API_KEY=${OPENAI_API_KEY:-}" \
         --from-literal="ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}" \
         --dry-run=client -o yaml | kubectl apply -f -
@@ -194,7 +289,7 @@ deploy:
         --from-literal="LLM_PROVIDER=${LLM_PROVIDER:-openai}" \
         --from-literal="LLM_MODEL=${LLM_MODEL:-gpt-4o}" \
         --from-literal="OLLAMA_API_BASE=${OLLAMA_API_BASE:-}" \
-        --from-literal="APP_URL=${APP_URL:-https://${DOMAIN:-easycv.example.com}}" \
+        --from-literal="APP_URL=${APP_URL}" \
         --dry-run=client -o yaml | kubectl apply -f -
 
       WORKER_IMAGE="${VULTRCR_HOST}/${VULTRCR_NAME}/easycv-worker:${CI_COMMIT_SHORT_SHA}"
@@ -222,3 +317,41 @@ deploy:
       echo "Frontend LoadBalancer (may take a few minutes to get an IP):"
       kubectl get svc easycv-frontend -n "$K8S_NAMESPACE"
       kubectl get pods -n "$K8S_NAMESPACE"
+
+# Netlify is the current public EasyCV origin. The Kubernetes frontend is not
+# enough to cut over https://easycv.seridian.dev, so publish the same source to
+# the linked production Netlify site as part of every production release.
+deploy-netlify:
+  stage: deploy
+  image: oven/bun:1
+  environment:
+    name: production
+    url: https://easycv.seridian.dev
+  needs:
+    - configure-convex-auth
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+  script:
+    - |
+      set -eu
+      : "${NETLIFY_AUTH_TOKEN:?NETLIFY_AUTH_TOKEN is required to deploy the public production site}"
+      : "${GITHUB_TOKEN:?GITHUB_TOKEN is required to install the private UI kit}"
+      git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+      git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "git@github.com:"
+      cd web
+      export NETLIFY_AUTH_TOKEN
+      export NETLIFY_SITE_ID
+      for name in NEXT_PUBLIC_CONVEX_URL CONVEX_URL APP_URL SERIDIAN_AUTH_ISSUER SERIDIAN_AUTH_CLIENT_ID ADMIN_EMAILS STRIPE_PRICE_ID STRIPE_PRO_PRICE_ID LLM_PROVIDER LLM_MODEL; do
+        value="$(printenv "$name" || true)"
+        if [ -n "$value" ]; then
+          bunx netlify-cli env:set "$name" "$value" --context production --force
+        fi
+      done
+      for name in SERIDIAN_AUTH_CLIENT_SECRET STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET WORKER_SECRET OPENAI_API_KEY ANTHROPIC_API_KEY; do
+        value="$(printenv "$name" || true)"
+        if [ -n "$value" ]; then
+          bunx netlify-cli env:set "$name" "$value" --context production --secret --force
+        fi
+      done
+      bunx netlify-cli deploy --build --prod --site "$NETLIFY_SITE_ID" --message "EasyCV ${CI_COMMIT_SHORT_SHA}"

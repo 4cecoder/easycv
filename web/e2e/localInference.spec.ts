@@ -1,7 +1,9 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("Free Tier Local Inference & Upload", () => {
-  test("renders free browser-local AI extraction badge", async ({ page }) => {
+test.describe("Inference-independent upload UI", () => {
+  // These are presentation checks only. They never start an inference worker,
+  // contact Ollama, or require a machine on the developer's tailnet.
+  test("renders the upload experience", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator("body")).toBeVisible();
   });

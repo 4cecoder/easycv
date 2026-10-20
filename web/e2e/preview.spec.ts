@@ -1,9 +1,16 @@
 import { test, expect } from "@playwright/test";
+import { MOCK_JOB_MATCH_RESULT, MOCK_PAYMENT_STATUS, MOCK_UPLOAD } from "./mock-data";
+import { mockConvexApi } from "./convex-mocks";
 
 const PREVIEW_URL = "/preview/seed-demo-upload-id";
 
 test.describe("Preview Page E2E", () => {
   test.beforeEach(async ({ page }) => {
+    mockConvexApi(page, {
+      upload: MOCK_UPLOAD,
+      payment: MOCK_PAYMENT_STATUS,
+      jobMatch: MOCK_JOB_MATCH_RESULT,
+    });
     await page.goto(PREVIEW_URL);
     // Wait for the Convex query to resolve and render the main content.
     // The page shows skeleton loaders while data is loading; wait for the

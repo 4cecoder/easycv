@@ -5,7 +5,6 @@
  * Logs actions, detects rapid-fire abuse, pairs with identity.
  * Never shown to user. Never blocks UI.
  */
-import { getBrowserSessionId } from "./fingerprint";
 import { getDeviceHash, getLinkedIdentity } from "./identity";
 
 let lastActionTime = 0;
@@ -45,13 +44,12 @@ export async function trackAction(
   uploadId?: string,
 ) {
   try {
-    const sessionId = getBrowserSessionId();
     const deviceHash = await getDeviceHash();
     const identityId = getLinkedIdentity() ?? undefined;
     const rapidFire = isRapidFire();
 
     const entry: TrackedAction = {
-      sessionId,
+      sessionId: "",
       deviceHash,
       identityId,
       uploadId,
@@ -85,10 +83,10 @@ async function flushActions() {
   const batch = actionQueue.splice(0, 50);
   try {
     const { api } = await import("../convex/_generated/api");
-    const { getConvexReactClient } = await import("./convexClient");
-    const client = getConvexReactClient();
+    const { getAuthenticatedConvexClient } = await import("./authenticatedConvexClient");
+    const { client, ownerSessionKey } = await getAuthenticatedConvexClient();
     // Fire and forget — batch insert
-    client.mutation(api.audit.logActions, { actions: batch as any });
+    client.mutation(api.audit.logActions, { actions: batch.map((action) => ({ ...action, sessionId: ownerSessionKey })) as any });
   } catch { /* best effort */ }
 }
 

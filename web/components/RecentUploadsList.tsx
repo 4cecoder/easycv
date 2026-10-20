@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
-import { getBrowserSessionId } from "../lib/fingerprint";
+import { useOwnerSessionKey } from "../lib/useOwnerSessionKey";
 import {
   FileText,
   Clock,
@@ -20,12 +19,7 @@ import {
 import { Card, CardContent, CardHeader, Badge, Button } from "@bytecats/ui-kit";
 
 export function RecentUploadsList() {
-  const [sessionId, setSessionId] = useState<string>("");
-
-  useEffect(() => {
-    const sid = getBrowserSessionId();
-    setSessionId(sid);
-  }, []);
+  const sessionId = useOwnerSessionKey();
 
   const uploads = useQuery(
     api.uploads.listSessionUploads,
@@ -45,11 +39,11 @@ export function RecentUploadsList() {
             Recent Career Documents
           </h3>
           <Badge variant="outline" className="text-[10px] font-mono">
-            {uploads.length} Saved in this Browser
+            {uploads.length} Saved to your account
           </Badge>
         </div>
         <span className="text-[11px] text-muted-foreground hidden sm:inline">
-          Zero-login browser vault
+          Your account vault
         </span>
       </div>
 

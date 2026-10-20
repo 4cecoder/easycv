@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { requireOwnerSession } from "./authz";
 
 const MAX_FREE_AUTO_IMPROVES = 2;
 
@@ -8,18 +9,11 @@ export const getAutoImproveQuota = query({
     sessionId: v.string(),
   },
   handler: async (ctx, { sessionId }) => {
-    if (!sessionId) {
-      return {
-        count: 0,
-        maxFree: MAX_FREE_AUTO_IMPROVES,
-        remaining: MAX_FREE_AUTO_IMPROVES,
-        isExhausted: false,
-      };
-    }
+    const owner = await requireOwnerSession(ctx, sessionId);
 
     const quota = await ctx.db
       .query("usageQuotas")
-      .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+      .withIndex("by_session", (q) => q.eq("sessionId", owner))
       .first();
 
     const count = quota?.autoImproveCount ?? 0;
@@ -39,11 +33,11 @@ export const consumeAutoImproveQuota = mutation({
     sessionId: v.string(),
   },
   handler: async (ctx, { sessionId }) => {
-    if (!sessionId) return { success: false, remaining: 0 };
+    const owner = await requireOwnerSession(ctx, sessionId);
 
     const existing = await ctx.db
       .query("usageQuotas")
-      .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+      .withIndex("by_session", (q) => q.eq("sessionId", owner))
       .first();
 
     if (existing) {
@@ -60,7 +54,7 @@ export const consumeAutoImproveQuota = mutation({
     }
 
     await ctx.db.insert("usageQuotas", {
-      sessionId,
+      sessionId: owner,
       autoImproveCount: 1,
       lastUsedAt: Date.now(),
     });

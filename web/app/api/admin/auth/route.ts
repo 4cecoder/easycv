@@ -1,21 +1,13 @@
-import { NextResponse } from "next/server";
-import { createAdminSession, buildAdminCookie } from "../../../../lib/admin-session";
-import { withUserMonSpan } from "../../../../lib/usermon-server";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "../../../../lib/admin-session";
 
-export const POST = withUserMonSpan("/api/admin/auth", async (request: Request) => {
-  try {
-    const { password } = await request.json();
-    const correctPassword = process.env.ADMIN_PASSWORD || "admin123";
+// Lightweight server-side check used by the dashboard to show an access message.
+// Convex independently enforces the same verified-email ADMIN_EMAILS allowlist.
+export async function GET(request: NextRequest) {
+  const deny = await requireAdmin(request);
+  return deny ?? NextResponse.json({ authorized: true });
+}
 
-    if (password !== correctPassword) {
-      return NextResponse.json({ error: "Invalid passcode" }, { status: 401 });
-    }
-
-    const token = createAdminSession();
-    const response = NextResponse.json({ success: true });
-    response.headers.set("Set-Cookie", buildAdminCookie(token));
-    return response;
-  } catch (err) {
-    return NextResponse.json({ error: "Authentication error" }, { status: 500 });
-  }
-});
+export async function POST() {
+  return NextResponse.json({ error: "Password admin login has been retired. Sign in with Seridian Auth." }, { status: 410 });
+}

@@ -31,7 +31,9 @@
 #
 #   # App
 #   APP_URL                        = "https://easycv.example.com"
-#   ADMIN_PASSWORD                 = "<strong-admin-password>"
+#   SERIDIAN_AUTH_ISSUER           = "<exact issuer from OIDC discovery>"
+#   SERIDIAN_AUTH_CLIENT_ID        = "<registered EasyCV relying party>"
+#   SERIDIAN_AUTH_CLIENT_SECRET    = "<Netlify secret>"
 #
 #   # Worker (shared secret between Convex and worker.py)
 #   WORKER_SECRET                  = "<openssl rand -hex 32>"
@@ -40,10 +42,13 @@
 #   NEXT_PUBLIC_USERMON_ENDPOINT   = "https://quirky-seal-916.convex.site/v1/ingest"
 #   NEXT_PUBLIC_USERMON_KEY        = "um_15cd8c8aeb43eb64e8f5fc6ed301281ae4d2ec4cbae16f6827a97d8cb68e8456131067c8"
 #
-#   # LLM provider (job-match endpoint; defaults to "ollama" if unset)
-#   LLM_PROVIDER                   = "ollama"
-#   LLM_MODEL                      = ""
-#   OLLAMA_API_BASE                = ""
+#   # Hosted provider used by the serverless job-match route
+#   LLM_PROVIDER                   = "openai" # or "anthropic"
+#   LLM_MODEL                      = "gpt-4o" # optional; provider-specific
+#   OPENAI_API_KEY                 = "<Netlify secret>" # or ANTHROPIC_API_KEY
+
+# Set the same ADMIN_EMAILS value in this web deployment and the Convex
+# deployment: comma-separated verified Seridian emails allowed to use admin.
 
 # ── Serverless function defaults ─────────────────────────────────────────────
 # Next.js API routes and SSR pages run as Netlify Functions when deployed.

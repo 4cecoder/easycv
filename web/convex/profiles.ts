@@ -1,7 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { contact, skills, experienceEntry, educationEntry } from "./schema";
-import { ownedUpload } from "./authz";
+import { ownedUpload, requireOwnerSession } from "./authz";
 
 // All structuredProfiles fields except uploadId (the lookup key) and
 // pdfStorageId (set separately by setProfilePdf once a PDF has been compiled).
@@ -24,10 +24,14 @@ const profileFields = {
 
 export const saveStructuredProfile = mutation({
   args: {
+    sessionId: v.string(),
     uploadId: v.id("uploads"),
     ...profileFields,
   },
-  handler: async (ctx, { uploadId, ...fields }) => {
+  handler: async (ctx, { sessionId, uploadId, ...fields }) => {
+    await requireOwnerSession(ctx, sessionId);
+    const upload = await ownedUpload(ctx.db, uploadId, sessionId);
+    if (!upload) throw new Error("Upload not found or not owned by this session");
     const existing = await ctx.db
       .query("structuredProfiles")
       .withIndex("by_upload", (q) => q.eq("uploadId", uploadId))
@@ -62,10 +66,14 @@ export const saveStructuredProfile = mutation({
 
 export const setProfilePdf = mutation({
   args: {
+    sessionId: v.string(),
     uploadId: v.id("uploads"),
     pdfStorageId: v.id("_storage"),
   },
-  handler: async (ctx, { uploadId, pdfStorageId }) => {
+  handler: async (ctx, { sessionId, uploadId, pdfStorageId }) => {
+    await requireOwnerSession(ctx, sessionId);
+    const upload = await ownedUpload(ctx.db, uploadId, sessionId);
+    if (!upload) throw new Error("Upload not found or not owned by this session");
     const existing = await ctx.db
       .query("structuredProfiles")
       .withIndex("by_upload", (q) => q.eq("uploadId", uploadId))
@@ -84,6 +92,7 @@ export const getStructuredProfile = query({
     sessionId: v.string(),
   },
   handler: async (ctx, { uploadId, sessionId }) => {
+    await requireOwnerSession(ctx, sessionId);
     const upload = await ownedUpload(ctx.db, uploadId, sessionId);
     if (!upload) return null;
 
@@ -108,6 +117,7 @@ export const getProfilePdfUrl = query({
     sessionId: v.string(),
   },
   handler: async (ctx, { uploadId, sessionId }) => {
+    await requireOwnerSession(ctx, sessionId);
     const upload = await ownedUpload(ctx.db, uploadId, sessionId);
     if (!upload) return null;
 
@@ -157,6 +167,7 @@ export const getJobMatch = query({
     sessionId: v.string(),
   },
   handler: async (ctx, { uploadId, sessionId }) => {
+    await requireOwnerSession(ctx, sessionId);
     const upload = await ownedUpload(ctx.db, uploadId, sessionId);
     if (!upload) return null;
 

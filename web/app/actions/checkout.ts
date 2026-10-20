@@ -8,9 +8,8 @@
  *
  * Security guarantees:
  *   • uploadId format is validated with a strict regex.
- *   • Session ownership is verified via Convex before creating a payment.
- *   • Session cookie is read server-side from next/headers – never trusted
- *     from client-supplied input (prevents session spoofing).
+ *   • Seridian identity and upload ownership are verified via authenticated Convex before payment.
+ *   • The encrypted Seridian session cookie is read server-side; client-supplied IDs are ignored.
  *   • success_url / cancel_url are derived from a trusted server-side env var,
  *     never from the client-supplied Origin header (prevents open-redirect).
  *   • Error messages never leak Stripe keys, env names, or stack traces.
@@ -21,8 +20,8 @@ import Stripe from "stripe";
 
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { getConvexClient } from "../../lib/convexServer";
-import { SESSION_COOKIE } from "../../lib/session";
+import { authenticatedConvexFromCookie, AuthenticationRequiredError } from "../../lib/seridian-convex";
+import { SESSION_COOKIE } from "../../lib/seridian-oidc";
 import { checkoutSchema } from "./schemas";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
@@ -54,7 +53,7 @@ export type CheckoutActionResult =
 /**
  * Create a Stripe checkout session for a given upload.
  *
- * The caller must have an active session cookie that owns the upload.
+ * The caller must have an active Seridian session whose owner key owns the upload.
  *
  * Input:
  *   • uploadId  – Convex upload document ID (validated format)
@@ -79,22 +78,21 @@ export async function createCheckout(input: {
     const { uploadId, plan, isSubscription: subFlag } = parsed.data;
 
     // ── 2. Session ownership verification ─────────────────────────────────────
-    // Read the session cookie server-side – this is the authoritative identity.
-    // The client never supplies the sessionId; it comes from the HTTP cookie
-    // jar which is not modifiable by JavaScript in the browser.
+    // Derive the owner key from the verified Seridian identity; never accept it from input.
     const cookieStore = await cookies();
-    const sessionId = cookieStore.get(SESSION_COOKIE)?.value;
-    if (!sessionId) {
-      return { success: false, error: "Authentication required" };
+    let auth;
+    try { auth = await authenticatedConvexFromCookie(cookieStore.get(SESSION_COOKIE)?.value); }
+    catch (error) {
+      return { success: false, error: error instanceof AuthenticationRequiredError ? "Authentication required" : "Checkout service is not configured" };
     }
-
-    const convex = getConvexClient();
+    const { convex, ownerSessionKey: sessionId } = auth;
 
     try {
-      await convex.query(api.uploads.getUpload, {
+      const ownedUpload = await convex.query(api.uploads.getUpload, {
         uploadId: uploadId as Id<"uploads">,
         sessionId,
       });
+      if (!ownedUpload) return { success: false, error: "Upload not found or access denied" };
     } catch {
       return { success: false, error: "Upload not found or access denied" };
     }

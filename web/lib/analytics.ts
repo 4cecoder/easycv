@@ -1,4 +1,4 @@
-import { type DeviceProfile, getBrowserSessionId } from "./fingerprint";
+import { type DeviceProfile, getTelemetrySessionId } from "./fingerprint";
 import { usermon } from "./usermon";
 
 export interface UploadStartedPayload {
@@ -20,7 +20,7 @@ export interface UploadCompletePayload {
 export function trackUploadStarted(payload: UploadStartedPayload): void {
   if (typeof window === "undefined") return;
 
-  const sessionId = getBrowserSessionId();
+  const sessionId = getTelemetrySessionId();
   const body = {
     event: "upload_started",
     sessionId,
@@ -56,7 +56,7 @@ export function trackUploadStarted(payload: UploadStartedPayload): void {
 export function trackUploadComplete(payload: UploadCompletePayload): void {
   if (typeof window === "undefined") return;
 
-  const sessionId = getBrowserSessionId();
+  const sessionId = getTelemetrySessionId();
   const body = {
     event: "upload_completed",
     sessionId,
@@ -89,7 +89,7 @@ export function trackUploadComplete(payload: UploadCompletePayload): void {
 
 export function trackEvent(name: string, properties?: Record<string, any>): void {
   if (typeof window === "undefined") return;
-  const sessionId = getBrowserSessionId();
+  const sessionId = getTelemetrySessionId();
 
   try {
     usermon.trackRumEvent({

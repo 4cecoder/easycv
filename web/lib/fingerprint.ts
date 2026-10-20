@@ -1,12 +1,12 @@
 /**
- * Browser Session & Device Fingerprint Utility
+ * Anonymous Telemetry Session & Device Profile Utility
  *
- * Zero-login identifier + silent device telemetry collection.
+ * Anonymous telemetry identifier + silent device telemetry collection.
  * Pairs every upload with rich device/browser data for product analytics.
  */
 
-const SESSION_STORAGE_KEY = "easycv_browser_session";
-const COOKIE_NAME = "cv_session";
+const SESSION_STORAGE_KEY = "easycv_telemetry_session";
+const COOKIE_NAME = "easycv_telemetry_session";
 const DEVICE_CACHE_KEY = "easycv_device_profile";
 const DEVICE_CACHE_TTL = 86400000; // 24h
 
@@ -113,7 +113,7 @@ function classifyTier(cores: number, memoryGb: number, gpu: string): DeviceProfi
   return "unknown";
 }
 
-export function getBrowserSessionId(): string {
+export function getTelemetrySessionId(): string {
   if (typeof window === "undefined") return "";
 
   let sessionId = localStorage.getItem(SESSION_STORAGE_KEY);
@@ -135,6 +135,9 @@ export function getBrowserSessionId(): string {
   return sessionId;
 }
 
+/** @deprecated Use getTelemetrySessionId; this value is analytics-only, never auth. */
+export const getBrowserSessionId = getTelemetrySessionId;
+
 /**
  * Collect full device profile. Cached for 24h to avoid repeated detection.
  * Silent — no user interaction required.
@@ -152,7 +155,7 @@ export async function collectDeviceProfile(): Promise<DeviceProfile> {
     } catch { /* ignore corrupt cache */ }
   }
 
-  const sessionId = getBrowserSessionId();
+  const sessionId = getTelemetrySessionId();
   const ua = navigator.userAgent;
   const { browser, browserVersion, os, osVersion } = parseUA(ua);
 

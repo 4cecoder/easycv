@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { requireAdmin } from "./authz";
 
 /**
  * Admin-only mutation to save/update a third-party integration.
@@ -7,15 +8,11 @@ import { v } from "convex/values";
  */
 export const setIntegration = mutation({
   args: {
-    passcode: v.string(),
     provider: v.string(),
     config: v.record(v.string(), v.string()),
   },
-  handler: async (ctx, { passcode, provider, config }) => {
-    const correct = process.env.ADMIN_PASSWORD || "admin123";
-    if (passcode !== correct) {
-      throw new Error("Unauthorized");
-    }
+  handler: async (ctx, { provider, config }) => {
+    const adminEmail = await requireAdmin(ctx);
 
     const existing = await ctx.db
       .query("integrations")
@@ -25,12 +22,14 @@ export const setIntegration = mutation({
     if (existing) {
       await ctx.db.patch(existing._id, {
         config,
+        updatedBy: adminEmail,
         updatedAt: Date.now(),
       });
     } else {
       await ctx.db.insert("integrations", {
         provider,
         config,
+        updatedBy: adminEmail,
         updatedAt: Date.now(),
       });
     }
@@ -44,12 +43,10 @@ export const setIntegration = mutation({
  */
 export const getIntegration = query({
   args: {
-    passcode: v.string(),
     provider: v.string(),
   },
-  handler: async (ctx, { passcode, provider }) => {
-    const correct = process.env.ADMIN_PASSWORD || "admin123";
-    if (passcode !== correct) return null;
+  handler: async (ctx, { provider }) => {
+    await requireAdmin(ctx);
 
     return await ctx.db
       .query("integrations")
@@ -62,10 +59,9 @@ export const getIntegration = query({
  * List all configured integrations (admin-only).
  */
 export const listIntegrations = query({
-  args: { passcode: v.string() },
-  handler: async (ctx, { passcode }) => {
-    const correct = process.env.ADMIN_PASSWORD || "admin123";
-    if (passcode !== correct) return [];
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
 
     return await ctx.db.query("integrations").collect();
   },

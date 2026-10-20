@@ -2,11 +2,14 @@ import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import { useConvexAuth } from "convex/react";
 
 // ─── Global Mocks (vi.mock is hoisted above imports) ───────────────────────
 
-// Mock convex/react
+// Mock convex/react. Auth state now comes from useConvexAuth (Seridian session),
+// so AppHeader and useOwnerSessionKey need it; default to signed out.
 vi.mock("convex/react", () => ({
+  useConvexAuth: vi.fn(() => ({ isAuthenticated: false, isLoading: false })),
   useQuery: vi.fn(() => null),
   useMutation: vi.fn(() => vi.fn()),
 }));
@@ -198,6 +201,10 @@ describe("AppHeader", () => {
       </ThemeProvider>
     );
 
+  beforeEach(() => {
+    vi.mocked(useConvexAuth).mockReturnValue({ isAuthenticated: false, isLoading: false } as ReturnType<typeof useConvexAuth>);
+  });
+
   it("renders easyCV branding", () => {
     renderHeader();
     expect(screen.getByText("easyCV")).toBeInTheDocument();
@@ -211,9 +218,18 @@ describe("AppHeader", () => {
     expect(link).toHaveAttribute("href", "/");
   });
 
-  it("renders the sign in button when no account", () => {
+  it("renders the Seridian login link when signed out", () => {
     renderHeader();
-    expect(screen.getByText("Sign In / Sync")).toBeInTheDocument();
+    const link = screen.getByText("Login with Seridian").closest("a");
+    expect(link).toHaveAttribute("href", "/api/auth/login");
+    expect(screen.queryByText("Sign out")).not.toBeInTheDocument();
+  });
+
+  it("renders the sign out button when authenticated via Seridian", () => {
+    vi.mocked(useConvexAuth).mockReturnValue({ isAuthenticated: true, isLoading: false } as ReturnType<typeof useConvexAuth>);
+    renderHeader();
+    expect(screen.getByText("Sign out")).toBeInTheDocument();
+    expect(screen.queryByText("Login with Seridian")).not.toBeInTheDocument();
   });
 
   it("renders shortcuts button", () => {

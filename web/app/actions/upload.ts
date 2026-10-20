@@ -12,16 +12,17 @@
  *   • Magic-byte validation prevents extension spoofing.
  *   • PDFs are sanitised (strip /JavaScript, /Launch, /EmbeddedFiles).
  *   • Text is stripped of prompt-injection payloads before LLM processing.
- *   • Filenames are never interpolated into shell commands.
  *   • Error messages never leak internal stack traces or env details.
  */
 
-import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { cookies } from "next/headers";
+import { ConvexHttpClient } from "convex/browser";
 
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { getConvexClient } from "../../lib/convexServer";
+import { authenticatedConvexFromCookie } from "../../lib/seridian-convex";
+import { SESSION_COOKIE } from "../../lib/seridian-oidc";
 import {
   validateMagicBytes,
   sanitizePdfBuffer,
@@ -65,10 +66,10 @@ function classifyFilename(filename: string): string {
 
 /** Upload a raw byte buffer to Convex file storage and return its storageId. */
 async function uploadBytesToConvexStorage(
+  convex: ConvexHttpClient,
   bytes: Buffer,
   contentType: string,
 ): Promise<string> {
-  const convex = getConvexClient();
   const uploadUrl = await convex.mutation(api.files.generateUploadUrl, {});
   const res = await fetch(uploadUrl, {
     method: "POST",
@@ -180,15 +181,8 @@ export async function uploadFiles(formData: FormData): Promise<UploadActionResul
     const preparedFiles = await Promise.all(rawFiles.map(prepareFile));
 
     // ── 5. Create upload record in Convex ─────────────────────────────────────
-    const convex = getConvexClient();
-
-    // Session management: use existing cookie if present, else generate new.
-    // NOTE: Server Actions run in a server-only context; we cannot access
-    // cookies directly here. The client must supply the session cookie via
-    // a wrapper or we rely on Convex's built-in session tracking.
-    // For now we generate a fresh session for each upload (matches prior
-    // fallback behaviour in the API route).
-    const sessionId = randomUUID();
+    const cookieStore = await cookies();
+    const { convex, ownerSessionKey: sessionId } = await authenticatedConvexFromCookie(cookieStore.get(SESSION_COOKIE)?.value);
 
     const uploadId = await convex.mutation(api.uploads.createUpload, {
       sessionId,
@@ -199,10 +193,12 @@ export async function uploadFiles(formData: FormData): Promise<UploadActionResul
     // ── 6. Upload each file to Convex storage and attach to the upload ────────
     for (const item of preparedFiles) {
       const storageId = await uploadBytesToConvexStorage(
+        convex,
         item.bytes,
         contentTypeFor(item.ext),
       );
       await convex.mutation(api.resumeFiles.addResumeFile, {
+        sessionId,
         uploadId,
         filename: item.name,
         storageId: storageId as Id<"_storage">,
