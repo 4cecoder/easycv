@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { MOCK_UPLOAD, MOCK_JOB_MATCH_RESULT, MOCK_PAYMENT_STATUS } from "./mock-data";
 import { mockConvexApi } from "./convex-mocks";
 
@@ -16,8 +16,8 @@ import { mockConvexApi } from "./convex-mocks";
  * whose body contains the function path we care about and return the
  * matching mock payload.
  */
-export function mockConvexQueries(page: import("@playwright/test").Page) {
-  mockConvexApi(page, {
+export async function mockConvexQueries(page: import("@playwright/test").Page) {
+  await mockConvexApi(page, {
     upload: MOCK_UPLOAD,
     payment: MOCK_PAYMENT_STATUS,
     jobMatch: MOCK_JOB_MATCH_RESULT,
@@ -101,7 +101,7 @@ test.describe("Job Match – Landing Page URL Detection", () => {
 
 test.describe("Job Match – Preview Page Tab Access", () => {
   test.beforeEach(async ({ page }) => {
-    mockConvexQueries(page);
+    await mockConvexQueries(page);
     mockJobMatchApi(page);
   });
 
@@ -164,7 +164,7 @@ test.describe("Job Match – Preview Page Tab Access", () => {
 
 test.describe("Job Match – Result Display (Pre-seeded Match)", () => {
   test.beforeEach(async ({ page }) => {
-    mockConvexQueries(page);
+    await mockConvexQueries(page);
     mockJobMatchApi(page);
   });
 
@@ -190,7 +190,7 @@ test.describe("Job Match – Result Display (Pre-seeded Match)", () => {
     await jobMatchTab.click();
 
     // The large score circle should display "78%"
-    await expect(page.getByText("78%")).toBeVisible();
+    await expect(page.getByText("78%", { exact: true })).toBeVisible();
     // "Match" label should be near the score
     await expect(page.getByText("Match", { exact: true })).toBeVisible();
     // Compatibility Score heading
@@ -300,13 +300,32 @@ test.describe("Job Match – Result Display (Pre-seeded Match)", () => {
 
 test.describe("Job Match – Analyze Button Integration", () => {
   test.beforeEach(async ({ page }) => {
-    mockConvexQueries(page);
+    await mockConvexQueries(page);
     mockJobMatchApi(page);
   });
 
   test("pasting text and clicking Analyze shows loading state then results", async ({
     page,
   }) => {
+    let finishAnalysis!: () => void;
+    const analysisResponse = new Promise<void>((resolve) => {
+      finishAnalysis = resolve;
+    });
+    let analysisStarted!: () => void;
+    const analysisRequest = new Promise<void>((resolve) => {
+      analysisStarted = resolve;
+    });
+    // Hold the API response so the transient loading state is observable and
+    // deterministic, then release it to verify the result rendering.
+    await page.route("**/api/job-match", async (route) => {
+      analysisStarted();
+      await analysisResponse;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, result: MOCK_JOB_MATCH_RESULT }),
+      });
+    });
     await page.goto("/preview/seed-demo-upload-id");
 
     const jobMatchTab = page.getByRole("button", { name: /Job Match/i });
@@ -326,10 +345,11 @@ test.describe("Job Match – Analyze Button Integration", () => {
     });
     await analyzeBtn.click();
 
-    // Should briefly show loading state
+    await analysisRequest;
     await expect(
       page.getByText("Analyzing Compatibility...")
     ).toBeVisible();
+    finishAnalysis();
 
     // After the API responds, results should appear
     await expect(page.getByText("Compatibility Score")).toBeVisible();
@@ -375,7 +395,7 @@ test.describe("Job Match – Analyze Button Integration", () => {
 
 test.describe("Job Match – Keyword Progress Bar", () => {
   test.beforeEach(async ({ page }) => {
-    mockConvexQueries(page);
+    await mockConvexQueries(page);
     mockJobMatchApi(page);
   });
 

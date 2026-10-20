@@ -27,7 +27,9 @@ server-side environment. Never put an API key in a `NEXT_PUBLIC_*` variable.
 Set these in the EasyCV Convex deployment environment:
 
 - `SERIDIAN_AUTH_ISSUER`: the exact issuer from Seridian Auth's OIDC discovery
-  document. Production currently returns `https://auth.seridian.dev`.
+  document. Production currently returns
+  `https://successful-puma-904.convex.site`; the accepted switch to
+  `https://auth.seridian.dev` has not run yet (see core ADR 0002).
 - `SERIDIAN_AUTH_CLIENT_ID`: the registered EasyCV relying-party client ID.
 - `ADMIN_EMAILS`: comma-separated verified email addresses allowed to use
   EasyCV's admin operations.
@@ -45,14 +47,21 @@ the same Convex deployment used by the frontend and worker.
 
 For the live EasyCV site, use `APP_URL=https://easycv.seridian.dev` and register
 `https://easycv.seridian.dev/api/auth/callback` as the OIDC redirect URI. Set
-`SERIDIAN_AUTH_ISSUER=https://auth.seridian.dev`, the registered client ID,
-client secret, and the same `ADMIN_EMAILS` value in the web host's server-side
-environment and Convex deployment. Production Netlify currently has only
-`APP_URL`, `CONVEX_URL`, and `NEXT_PUBLIC_CONVEX_URL`; its `APP_URL` still uses
-the old Netlify hostname, and Auth, Stripe, and hosted inference values are
-absent. Its live build also does not include the new `/api/auth/*` routes. Do
-not treat the code cutover as live until the Auth client is provisioned,
-secrets are configured, and the new release is deployed and verified.
+`SERIDIAN_AUTH_ISSUER` to exactly the issuer returned by the public discovery
+document, the registered client ID, client secret, and the same `ADMIN_EMAILS`
+value in the web host's server-side environment and Convex deployment.
+Production Netlify currently has the canonical `APP_URL`, matching
+`CONVEX_URL` and `NEXT_PUBLIC_CONVEX_URL` for `reliable-firefly-73`, Auth issuer
+and client ID, admin email, and OpenAI inference settings. The issuer is set to
+`https://auth.seridian.dev`, which matches the issuer in discovery on
+`successful-puma-904.convex.site`. However, all checked paths on
+`auth.seridian.dev`, including discovery and OIDC endpoints, currently return
+404, so authentication cannot work until branded domain routing is restored.
+`SERIDIAN_AUTH_CLIENT_SECRET` and Stripe credentials are missing. The existing
+client secret was shared in a screenshot and must be revoked before use. The
+live EasyCV build still returns 404 for `/api/auth/*`;
+do not treat the code cutover as live until replacement client credentials,
+billing settings, production data decision, and the new release are verified.
 Keep the client secret private. `APP_URL` must be the canonical public origin.
 
 To override the production defaults, export `LLM_PROVIDER` and `LLM_MODEL`

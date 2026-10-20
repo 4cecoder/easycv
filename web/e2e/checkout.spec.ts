@@ -1,6 +1,12 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
+import { mockConvexApi } from "./convex-mocks";
+import { MOCK_PAYMENT_STATUS, MOCK_UPLOAD } from "./mock-data";
 
 const UPLOAD_ID = "test-upload-id";
+
+test.beforeEach(async ({ page }) => {
+  await mockConvexApi(page, { upload: MOCK_UPLOAD, payment: MOCK_PAYMENT_STATUS });
+});
 
 test.describe("Checkout Flow E2E", () => {
   test("checkout button renders with correct default label", async ({ page }) => {
@@ -67,7 +73,7 @@ test.describe("Checkout Flow E2E", () => {
     await page.goto(`/preview/${UPLOAD_ID}`);
     await page.getByRole("button", { name: "Download PDF ($14)" }).click();
 
-    await expect(page.getByRole("alert")).toBeVisible();
+    await expect(page.getByRole("alert").filter({ hasText: "Something went wrong" })).toBeVisible();
     await expect(page.getByText("Something went wrong")).toBeVisible();
     // Button should be re-enabled after error
     await expect(
@@ -89,7 +95,7 @@ test.describe("Checkout Flow E2E", () => {
     await page.goto(`/preview/${UPLOAD_ID}`);
     await page.getByRole("button", { name: "Download PDF ($14)" }).click();
 
-    await expect(page.getByRole("alert")).toBeVisible();
+    await expect(page.getByRole("alert").filter({ hasText: "Checkout failed (500)" })).toBeVisible();
     await expect(page.getByText("Checkout failed (500)")).toBeVisible();
   });
 
@@ -104,17 +110,18 @@ test.describe("Checkout Flow E2E", () => {
         body: JSON.stringify({ url: stripeUrl }),
       })
     );
-
-    // Intercept the navigation so we don't actually leave the page
-    const navigationPromise = page.waitForURL((url) =>
-      url.href.includes(stripeUrl)
+    await page.route("https://checkout.stripe.com/**", (route) =>
+      route.fulfill({ status: 200, contentType: "text/plain", body: "E2E Stripe redirect" })
     );
+
+    // Keep the redirect local to Playwright while still verifying the URL.
+    const navigationPromise = page.waitForURL(stripeUrl);
 
     await page.goto(`/preview/${UPLOAD_ID}`);
     await page.getByRole("button", { name: "Download PDF ($14)" }).click();
 
-    const navigatedUrl = await navigationPromise;
-    expect(navigatedUrl.href).toBe(stripeUrl);
+    await navigationPromise;
+    expect(page.url()).toBe(stripeUrl);
   });
 
   test("Stripe redirect URL contains valid checkout domain", async ({
@@ -128,15 +135,19 @@ test.describe("Checkout Flow E2E", () => {
         body: JSON.stringify({ url: stripeUrl }),
       })
     );
+    await page.route("https://checkout.stripe.com/**", (route) =>
+      route.fulfill({ status: 200, contentType: "text/plain", body: "E2E Stripe redirect" })
+    );
 
     const navigationPromise = page.waitForURL((url) =>
-      url.href.includes("checkout.stripe.com")
+      url.hostname === "checkout.stripe.com"
     );
 
     await page.goto(`/preview/${UPLOAD_ID}`);
     await page.getByRole("button", { name: "Download PDF ($14)" }).click();
 
-    const navigatedUrl = await navigationPromise;
+    await navigationPromise;
+    const navigatedUrl = new URL(page.url());
     expect(navigatedUrl.hostname).toBe("checkout.stripe.com");
     expect(navigatedUrl.pathname).toMatch(/^\/pay\//);
   });
@@ -161,6 +172,9 @@ test.describe("Checkout Flow E2E", () => {
         });
       }
     });
+    await page.route("https://checkout.stripe.com/**", (route) =>
+      route.fulfill({ status: 200, contentType: "text/plain", body: "E2E Stripe redirect" })
+    );
 
     await page.goto(`/preview/${UPLOAD_ID}`);
 
@@ -170,7 +184,7 @@ test.describe("Checkout Flow E2E", () => {
 
     // Retry succeeds
     await page.getByRole("button", { name: "Download PDF ($14)" }).click();
-    await expect(page.getByRole("alert")).not.toBeVisible();
+    await expect(page.getByRole("alert").filter({ hasText: "Temporary failure" })).toHaveCount(0);
   });
 
   test("missing uploadId returns 400 error", async ({ page }) => {

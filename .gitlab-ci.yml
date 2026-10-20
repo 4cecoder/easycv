@@ -13,6 +13,7 @@
 #
 # App variables:
 #   NEXT_PUBLIC_CONVEX_URL
+#   CONVEX_URL (must match NEXT_PUBLIC_CONVEX_URL for the production deployment)
 #   WORKER_SECRET
 #
 # Required for production deploys: CONVEX_DEPLOY_KEY, SERIDIAN_AUTH_ISSUER,
@@ -83,13 +84,21 @@ production-preflight:
   script:
     - |
       set -eu
-      for name in NEXT_PUBLIC_CONVEX_URL CONVEX_DEPLOY_KEY SERIDIAN_AUTH_ISSUER SERIDIAN_AUTH_CLIENT_ID SERIDIAN_AUTH_CLIENT_SECRET ADMIN_EMAILS APP_URL WORKER_SECRET STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PRICE_ID STRIPE_PRO_PRICE_ID NETLIFY_AUTH_TOKEN; do
+      for name in NEXT_PUBLIC_CONVEX_URL CONVEX_URL CONVEX_DEPLOY_KEY SERIDIAN_AUTH_ISSUER SERIDIAN_AUTH_CLIENT_ID SERIDIAN_AUTH_CLIENT_SECRET ADMIN_EMAILS APP_URL WORKER_SECRET STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PRICE_ID STRIPE_PRO_PRICE_ID NETLIFY_AUTH_TOKEN; do
         value="$(printenv "$name" || true)"
         if [ -z "$value" ]; then echo "$name is required for a production EasyCV cutover" >&2; exit 1; fi
       done
-      if [ "$SERIDIAN_AUTH_ISSUER" != "https://auth.seridian.dev" ]; then
-        echo "SERIDIAN_AUTH_ISSUER must exactly match https://auth.seridian.dev" >&2; exit 1
+      apk add --no-cache curl jq >/dev/null
+      case "$SERIDIAN_AUTH_ISSUER" in https://*) ;; *) echo "SERIDIAN_AUTH_ISSUER must use HTTPS" >&2; exit 1 ;; esac
+      discovery="$(curl -fsSL --max-time 15 "$SERIDIAN_AUTH_ISSUER/.well-known/openid-configuration")"
+      discovered_issuer="$(printf '%s' "$discovery" | jq -er '.issuer | strings')"
+      if [ "$discovered_issuer" != "$SERIDIAN_AUTH_ISSUER" ]; then
+        echo "SERIDIAN_AUTH_ISSUER must exactly match the discovery document issuer" >&2; exit 1
       fi
+      for endpoint_name in authorization_endpoint token_endpoint userinfo_endpoint jwks_uri; do
+        endpoint="$(printf '%s' "$discovery" | jq -er --arg key "$endpoint_name" '.[$key] | strings')"
+        case "$endpoint" in "$SERIDIAN_AUTH_ISSUER"/*) ;; *) echo "$endpoint_name must use the configured OIDC issuer origin" >&2; exit 1 ;; esac
+      done
       if [ "$APP_URL" != "https://easycv.seridian.dev" ]; then
         echo "APP_URL must exactly match the canonical EasyCV production origin https://easycv.seridian.dev" >&2; exit 1
       fi
@@ -100,6 +109,9 @@ production-preflight:
         *) echo "LLM_PROVIDER must be openai or anthropic" >&2; exit 1 ;;
       esac
       case "$NEXT_PUBLIC_CONVEX_URL" in https://*.convex.cloud) ;; *) echo "NEXT_PUBLIC_CONVEX_URL must identify the production Convex Cloud deployment" >&2; exit 1 ;; esac
+      if [ "$CONVEX_URL" != "$NEXT_PUBLIC_CONVEX_URL" ]; then
+        echo "CONVEX_URL and NEXT_PUBLIC_CONVEX_URL must identify the same production deployment" >&2; exit 1
+      fi
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_COMMIT_TAG

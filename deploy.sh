@@ -16,7 +16,7 @@ RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC
 VCR_REGISTRY="registry.vultrcr.com"
 VCR_PROJECT="${VCR_PROJECT:?Set VCR_PROJECT (Vultr Container Registry project name)}"
 DOMAIN="${DOMAIN:?Set DOMAIN (e.g. easycv.example.com)}"
-EMAIL="${EMAIL:?Set EMAIL (for Let's Encrypt TLS certs)}"
+EMAIL="${EMAIL:?Set EMAIL (for Lets Encrypt TLS certs)}"
 DOMAIN_EMAILS=("${DOMAIN}" "www.${DOMAIN}")
 
 # ── Sensible defaults (no need to set these unless overriding) ────────────────
@@ -39,7 +39,7 @@ get() {
   if [[ "$spec" == *":-"* ]]; then fallback="${spec#*:-}"; fi
   value="${!key:-}"
   if [[ -z "$value" && -f "$ENV" ]]; then
-    value="$(grep -E "^${key}=" "$ENV" 2>/dev/null | head -1 | cut -d'=' -f2-)"
+    value=$(grep -E "^${key}=" "$ENV" 2>/dev/null | head -1 | cut -d= -f2-)
   fi
   if [[ -n "$value" ]]; then echo "$value"; else echo "$fallback"; fi
 }
@@ -62,6 +62,30 @@ ADMIN_EMAILS="$(get ADMIN_EMAILS)"
 [[ -n "$SERIDIAN_AUTH_CLIENT_ID" ]] || die "Set SERIDIAN_AUTH_CLIENT_ID in the environment or .env.production"
 [[ -n "$SERIDIAN_AUTH_CLIENT_SECRET" ]] || die "Set SERIDIAN_AUTH_CLIENT_SECRET in the environment or .env.production"
 [[ -n "$ADMIN_EMAILS" ]] || die "Set ADMIN_EMAILS (comma-separated verified admin emails) in the environment or .env.production"
+SERIDIAN_AUTH_ISSUER="$SERIDIAN_AUTH_ISSUER" bun -e '
+  const issuer = process.env.SERIDIAN_AUTH_ISSUER;
+  let discovery;
+  try {
+    const response = await fetch(`${issuer}/.well-known/openid-configuration`, { signal: AbortSignal.timeout(15000) });
+    if (!response.ok) throw new Error(`discovery returned HTTP ${response.status}`);
+    discovery = await response.json();
+  } catch (error) {
+    console.error(`Cannot verify Seridian Auth discovery: ${error instanceof Error ? error.message : "request failed"}`);
+    process.exit(1);
+  }
+  if (discovery.issuer !== issuer) {
+    console.error("SERIDIAN_AUTH_ISSUER must exactly match the discovery document issuer");
+    process.exit(1);
+  }
+  for (const key of ["authorization_endpoint", "token_endpoint", "userinfo_endpoint", "jwks_uri"]) {
+    try {
+      if (new URL(discovery[key]).origin !== issuer) throw new Error();
+    } catch {
+      console.error(`${key} must use the configured OIDC issuer origin`);
+      process.exit(1);
+    }
+  }
+' || die "Seridian Auth OIDC discovery preflight failed"
 for name in STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PRICE_ID STRIPE_PRO_PRICE_ID; do
   [[ -n "$(get "$name")" ]] || die "Set $name in the environment or .env.production to preserve production billing"
 done
@@ -137,10 +161,17 @@ ok "Images built and pushed for ${TARGET_PLATFORM}"
 kubectl create namespace "$NS" --dry-run=client -o yaml | kubectl apply -f -
 
 # ── Create registry pull secret (idempotent) ────────────────────────────────
+registry_credential() {
+  local field="$1"
+  kubectl get secret vultr-registry-credentials -n "$NS" -o jsonpath='{.data.\.dockerconfigjson}' 2>/dev/null \
+    | base64 -d \
+    | VCR_REGISTRY="$VCR_REGISTRY" CREDENTIAL_FIELD="$field" python3 -c 'import json,os,sys; print(json.load(sys.stdin)["auths"][os.environ["VCR_REGISTRY"]][os.environ["CREDENTIAL_FIELD"]])' \
+    2>/dev/null || true
+}
 kubectl create secret docker-registry vultr-registry-credentials \
   --docker-server="$VCR_REGISTRY" \
-  --docker-username="$(kubectl get secret vultr-registry-credentials -n "$NS" -o jsonpath='{.data.\.dockerconfigjson}' 2>/dev/null | base64 -d | python3 -c 'import sys,json; print(json.load(sys.stdin)["auths"]["'"$VCR_REGISTRY"'"]["username"])' 2>/dev/null || echo '')" \
-  --docker-password="$(kubectl get secret vultr-registry-credentials -n "$NS" -o jsonpath='{.data.\.dockerconfigjson}' 2>/dev/null | base64 -d | python3 -c 'import sys,json; print(json.load(sys.stdin)["auths"]["'"$VCR_REGISTRY"'"]["password"])' 2>/dev/null || echo '')" \
+  --docker-username="$(registry_credential username)" \
+  --docker-password="$(registry_credential password)" \
   -n "$NS" 2>/dev/null || true
 
 # ── Determine Convex Deployment Mode (Cloud vs Self-Hosted) ───────────────────

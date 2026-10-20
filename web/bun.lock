@@ -5,7 +5,7 @@
     "": {
       "name": "easycv-web",
       "dependencies": {
-        "@bytecats/ui-kit": "github:4cecoder/ui-kit",
+        "@bytecats/ui-kit": "github:seridian-dev/ui-kit-archive#59cc62439425bd26b703fe2bc9ed04b40b6614f9",
         "@convex-dev/stripe": "^0.1.6",
         "@huggingface/transformers": "^4.2.0",
         "@opentelemetry/exporter-trace-otlp-grpc": "^0.221.0",
@@ -16,8 +16,8 @@
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "convex": "^1.42.3",
-        "lucide-react": "^1.25.0",
         "jose": "^6.2.6",
+        "lucide-react": "^1.25.0",
         "next": "^16.2.10",
         "radix-ui": "^1.6.4",
         "react": "^19.2.7",
@@ -115,7 +115,7 @@
 
     "@bramus/specificity": ["@bramus/specificity@2.4.2", "", { "dependencies": { "css-tree": "^3.0.0" }, "bin": { "specificity": "bin/cli.js" } }, "sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw=="],
 
-    "@bytecats/ui-kit": ["@bytecats/ui-kit@github:4cecoder/ui-kit#59cc624", { "dependencies": { "canvas-confetti": "^1.9.4", "class-variance-authority": "^0.7.1", "clsx": "^2.1.1", "cmdk": "^1.1.1", "date-fns": "^4.4.0", "lucide-react": "^1.25.0", "motion": "^12.42.2", "radix-ui": "^1.6.4", "react-day-picker": "^10.0.1", "sonner": "^2.0.7", "tailwind-merge": "^3.6.0" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" } }, "4cecoder-ui-kit-59cc624", "sha512-ChnXI2rU+QWDE1oFSddf6NJ+3OXy6gKlsv74WDHZ8yHCRq0Lb3jXhbe4PJpK5b3qQjF0d8+dG+D++y447w9ROw=="],
+    "@bytecats/ui-kit": ["@bytecats/ui-kit@github:seridian-dev/ui-kit-archive#59cc624", { "dependencies": { "canvas-confetti": "^1.9.4", "class-variance-authority": "^0.7.1", "clsx": "^2.1.1", "cmdk": "^1.1.1", "date-fns": "^4.4.0", "lucide-react": "^1.25.0", "motion": "^12.42.2", "radix-ui": "^1.6.4", "react-day-picker": "^10.0.1", "sonner": "^2.0.7", "tailwind-merge": "^3.6.0" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" } }, "seridian-dev-ui-kit-archive-59cc624", "sha512-rghzKld1iRBYPxacSZwd7987/5ewh9DTAElxoo887dflivDUlllnaGS5VwFPo01UGznvVhHYO2yejwcajosHpw=="],
 
     "@convex-dev/stripe": ["@convex-dev/stripe@0.1.6", "", { "dependencies": { "stripe": "^22.2.1" }, "peerDependencies": { "convex": "^1.29.3", "react": "^18.3.1 || ^19.0.0" } }, "sha512-6+DLM6QDLiFYeBKwJGlPrpm9tgZKe/EWlTYcbLyIKqS5q4xZHjTsyvFE98TD0hPLfniVVoD+/rO+PAnhSsNXkg=="],
 
