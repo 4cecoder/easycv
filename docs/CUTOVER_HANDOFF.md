@@ -54,7 +54,7 @@ Move EasyCV sign-in and user ownership to Seridian Auth, while preserving existi
 
 | Repo | Location | Branch / remote | State |
 |---|---|---|---|
-| EasyCV | `~/bytecats/adventurers/easycv` | `feat/seridian-auth-cutover` | Cutover code pushed at `1f50a78` and GitHub PR checks pass; unrelated dirty automation logs, generated files, and `docs/OVERHAUL_PLAN.md` remain outside that commit. Not deployed. |
+| EasyCV | `~/bytecats/adventurers/easycv` | `feat/seridian-auth-cutover` | Current HEAD `e3f9df2`; cutover implementation is in `1f50a78`; GitHub PR checks pass. Unrelated dirty automation logs, generated files, and `docs/OVERHAUL_PLAN.md` remain outside these commits. Not deployed. |
 | Seridian Auth | `~/bytecats/seridian-auth` | `fix/account-switcher-light-contrast`, remote GitLab `4cecoder/seridian-auth` | CLI/admin-scope, proxy, project/org, and Auth security changes **uncommitted** |
 | Unified core | `~/bytecats/core-wt/easycv-project-api` | branch `feat/easycv-auth-project-api`, based on `origin/main` `11306a7` | Project/org API and platform-admin CLI user API **uncommitted**; shared mounts and AUTH-76 submodule pin preserved |
 
@@ -182,7 +182,7 @@ The CLI no longer fabricates credentials. Project and app operations are authent
 - The Convex auth provider now bootstraps `/api/auth/token` on mount. Forced refresh no longer toggles the provider's initial `isLoading` state, which previously caused Convex 1.43.0 to clear and recreate auth on refresh.
 - The Auth management API proxy exists locally, with focused tests (3), but is not live until the Auth web deploy is released.
 - Core project/org routes and protected `/v1/admin/users` CLI endpoints are ported into a clean worktree on current `origin/main` `11306a7`; project/user API tests and backend typecheck pass. The existing org-scoped `/v1/users` remains unchanged. Changes are uncommitted.
-- EasyCV's cutover branch is pushed at `1f50a78`; GitHub frontend/backend checks and GitLab mirror push pass. The cutover changes are committed; unrelated workspace changes remain uncommitted. Auth and core changes remain uncommitted. No production config changes, API key/org provisioning, or deployment occurred in this pass. The latest production probe found Auth discovery returns the branded issuer from Convex, but all checked paths on `auth.seridian.dev` still return 404.
+- EasyCV's cutover branch is pushed at `e3f9df2` (implementation commit `1f50a78`); GitHub frontend/backend checks and GitLab mirror push pass. The cutover changes are committed; unrelated workspace changes remain uncommitted. Auth and core changes remain uncommitted. No production config changes, API key/org provisioning, or deployment occurred in this pass. The latest production probe found Auth discovery returns the branded issuer from Convex, but all checked paths on `auth.seridian.dev` still return 404.
 - The requested organization/project provisioning is authorized by the cutover task, but no authenticated management API credential is available in the local CLI session. Create or provide an owner-scoped key with only the scopes needed for the requested operations; do not use a platform-admin key for project provisioning. CLI provisioning cannot be exercised against a real organization until that credential is available and the management proxy is deployed.
 
 ## Cutover sequence
