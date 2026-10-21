@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { FAIR_USE_LIMITS, limitMessageForResponse } from "../../../lib/limits";
 import {
   AlertCircle,
   CheckCircle2,
@@ -40,6 +41,7 @@ export function JobMatchWidget({
   const [jobDescription, setJobDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [limitNotice, setLimitNotice] = useState<string | null>(null);
   const [result, setResult] = useState<MatchResult | null>(initialMatch || null);
 
   useEffect(() => {
@@ -55,6 +57,7 @@ export function JobMatchWidget({
     }
     setLoading(true);
     setError(null);
+    setLimitNotice(null);
     try {
       const res = await fetch("/api/job-match", {
         method: "POST",
@@ -62,6 +65,11 @@ export function JobMatchWidget({
         body: JSON.stringify({ uploadId, jobDescription }),
       });
       const body = await res.json().catch(() => ({}));
+      const limitMessage = res.ok ? null : limitMessageForResponse("job_match", res, body);
+      if (limitMessage) {
+        setLimitNotice(limitMessage);
+        return;
+      }
       if (!res.ok) {
         throw new Error(body.error ?? "Failed to analyze job match");
       }
@@ -150,8 +158,24 @@ export function JobMatchWidget({
           )}
         </div>
 
+        <p className="text-[11px] text-muted-foreground">
+          AI job matching: up to {FAIR_USE_LIMITS.jobMatchPerHour} per hour and {FAIR_USE_LIMITS.jobMatchPerDay} per day. Results are AI estimates; review them before acting on them.
+        </p>
+
+        <div role="status" aria-live="polite">
+          {limitNotice && (
+            <p
+              className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-foreground"
+              data-testid="job-match-limit"
+            >
+              <AlertCircle className="size-4 mt-0.5 shrink-0" aria-hidden="true" />
+              <span>{limitNotice}</span>
+            </p>
+          )}
+        </div>
+
         {error && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" role="alert">
             <AlertCircle className="size-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>

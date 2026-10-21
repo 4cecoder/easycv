@@ -36,6 +36,9 @@ import {
 } from "@bytecats/ui-kit";
 import { validateBulletSTE100, analyzeProfileBulletsSTE100 } from "../lib/ste100";
 import { CheckoutButton } from "../app/preview/[uploadId]/CheckoutButton";
+import Link from "next/link";
+import { formatPrice, formatPriceWithInterval, FREE_AUTO_IMPROVE_PASSES, PRO_MONTHLY, RESUME_UNLOCK } from "../lib/catalog";
+import { isQuotaExhaustedError } from "../lib/limits";
 
 interface DynamicAutoImproveWizardProps {
   uploadId: string;
@@ -167,6 +170,8 @@ export function DynamicAutoImproveWizard({
 
   const [currentStepIdx, setCurrentStepIdx] = useState(0);
   const [isApplying, setIsApplying] = useState(false);
+  const [applyNotice, setApplyNotice] = useState<string | null>(null);
+  const [applyError, setApplyError] = useState<string | null>(null);
 
   // Group detected opportunities into dynamic wizard steps
   const wizardSteps = useMemo(() => {
@@ -214,6 +219,8 @@ export function DynamicAutoImproveWizard({
     if (isLimitReached) return;
 
     setIsApplying(true);
+    setApplyNotice(null);
+    setApplyError(null);
     try {
       if (!isPaid && sessionId) {
         await consumeQuota({ sessionId });
@@ -223,34 +230,37 @@ export function DynamicAutoImproveWizard({
       await saveProfile({
         sessionId,
         uploadId: uploadId as Id<"uploads">,
-        name: profile?.name || "Candidate",
+        name: profile?.name,
         contact: {
           ...profile?.contact,
           phone: phone.trim() || profile?.contact?.phone,
           location: location.trim() || profile?.contact?.location,
         },
-        titles: profile?.titles || ["Software Engineer"],
+        titles: profile?.titles,
         summary: summary.trim(),
-        skills: profile?.skills || {
-          languages: ["TypeScript", "Python"],
-          frameworks: ["React", "Next.js"],
-          cloud_devops: ["AWS", "Docker"],
-          databases: ["PostgreSQL"],
-          tools: ["Git"],
-        },
+        // Never fill gaps with invented data: keep what the user has.
+        skills: profile?.skills,
         experience,
-        education: education.length > 0 ? education : [{ degree: "B.S. in Computer Science", school: "Accredited University", years: "2018 - 2022" }],
-        certifications: certifications.length > 0 ? certifications : ["AWS Certified Solutions Architect"],
-        languagesSpoken: languagesSpoken.length > 0 ? languagesSpoken : ["English (Native / Full Professional)"],
+        education,
+        certifications,
+        languagesSpoken,
         rawFallback: profile?.rawFallback,
-        qualityScore: 98, // Boost to near-perfect upon resolving all opportunities
-        qualityMaxScore: 100,
-        qualityWarnings: [],
-        qualityCritical: false,
+        // Keep the existing score; it is only recomputed by real scoring.
+        qualityScore: profile?.qualityScore ?? 0,
+        qualityMaxScore: profile?.qualityMaxScore ?? 0,
+        qualityWarnings: profile?.qualityWarnings ?? [],
+        qualityCritical: profile?.qualityCritical ?? false,
       });
       onClose();
     } catch (err) {
-      console.error("Auto improve save failed", err);
+      if (isQuotaExhaustedError(err)) {
+        setApplyNotice(
+          `You've used your ${FREE_AUTO_IMPROVE_PASSES} free Auto-Improve passes. Unlock this résumé for unlimited passes.`,
+        );
+      } else {
+        console.error("Auto improve save failed", err);
+        setApplyError("Couldn't save your changes. Please try again.");
+      }
     } finally {
       setIsApplying(false);
     }
@@ -278,7 +288,7 @@ export function DynamicAutoImproveWizard({
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="text-[10px] font-mono text-muted-foreground">
-                    {quota?.remaining ?? 2}/2 Free Uses Left
+                    {quota?.remaining ?? FREE_AUTO_IMPROVE_PASSES}/{FREE_AUTO_IMPROVE_PASSES} Free Uses Left
                   </Badge>
                 )}
               </div>
@@ -301,14 +311,18 @@ export function DynamicAutoImproveWizard({
             </div>
             <div className="max-w-md space-y-1.5">
               <h3 className="text-lg font-bold text-foreground">
-                Free Quota Limit Reached (2/2 Uses)
+                Free Limit Reached ({FREE_AUTO_IMPROVE_PASSES}/{FREE_AUTO_IMPROVE_PASSES} Uses)
               </h3>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                To protect system resources and prevent abuse, free browser sessions are limited to 2 AI auto-improvements. Upgrade to easyCV Pro ($14) for unlimited autonomous improvements, Vector PDF compiling, and LaTeX source code.
+                Free accounts get {FREE_AUTO_IMPROVE_PASSES} Auto-Improve passes. Unlock this résumé for {formatPriceWithInterval(RESUME_UNLOCK)} to get unlimited passes plus the PDF, plain-text and HTML exports, or{" "}
+                <Link href="/pricing" className="underline underline-offset-2 hover:text-foreground">
+                  get {PRO_MONTHLY.name} for {formatPriceWithInterval(PRO_MONTHLY)}
+                </Link>{" "}
+                to unlock every résumé.
               </p>
             </div>
             <div className="pt-2">
-              <CheckoutButton uploadId={uploadId} label="Unlock Unlimited Auto-Improvements ($14)" size="lg" />
+              <CheckoutButton uploadId={uploadId} label={`Unlock this résumé (${formatPrice(RESUME_UNLOCK)})`} size="lg" showLegalNote />
             </div>
           </div>
         ) : (
@@ -578,17 +592,17 @@ export function DynamicAutoImproveWizard({
                         <div className="space-y-1">
                           <div className="inline-flex items-center gap-1 text-[11px] font-bold text-primary uppercase tracking-wider">
                             <Sparkles className="size-3.5" />
-                            <span>Pro Vector PDF & LaTeX Unlock</span>
+                            <span>{RESUME_UNLOCK.name}</span>
                           </div>
                           <h3 className="text-base font-bold text-foreground">
-                            Unlock 100% Recruiter-Ready Vector PDF
+                            Download this résumé as a PDF
                           </h3>
                           <p className="text-xs text-muted-foreground">
-                            Get your compiled unwatermarked Vector PDF, unminified LaTeX source for Overleaf, and instant job keyword tailoring.
+                            {RESUME_UNLOCK.summary} Includes {RESUME_UNLOCK.unlocks.join(", ").toLowerCase()}.
                           </p>
                         </div>
                         <div className="flex flex-col items-end shrink-0">
-                          <span className="text-2xl font-extrabold text-foreground">$14</span>
+                          <span className="text-2xl font-extrabold text-foreground">{formatPrice(RESUME_UNLOCK)}</span>
                           <span className="text-[10px] text-muted-foreground">one-time</span>
                         </div>
                       </div>
@@ -596,24 +610,37 @@ export function DynamicAutoImproveWizard({
                       <div className="pt-3 border-t border-primary/20 flex flex-col sm:flex-row items-center justify-between gap-3">
                         <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono">
                           <span className="flex items-center gap-1 text-emerald-400">
-                            <CheckCircle2 className="size-3" /> Vector PDF
+                            <CheckCircle2 className="size-3" /> PDF
                           </span>
                           <span>&bull;</span>
                           <span className="flex items-center gap-1 text-emerald-400">
-                            <CheckCircle2 className="size-3" /> LaTeX (.tex)
+                            <CheckCircle2 className="size-3" /> Plain text
                           </span>
                           <span>&bull;</span>
                           <span className="flex items-center gap-1 text-emerald-400">
                             <CheckCircle2 className="size-3" /> HTML Bundle
                           </span>
                         </div>
-                        <CheckoutButton uploadId={uploadId} label="Unlock Everything ($14)" size="sm" />
+                        <CheckoutButton uploadId={uploadId} label={`Unlock this résumé (${formatPrice(RESUME_UNLOCK)})`} size="sm" showLegalNote />
                       </div>
                     </div>
                   )}
                 </div>
               )}
             </div>
+
+            <div role="status" aria-live="polite" className="px-4">
+              {applyNotice && (
+                <p className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-foreground" data-testid="auto-improve-limit">
+                  {applyNotice}
+                </p>
+              )}
+            </div>
+            {applyError && (
+              <p role="alert" className="mx-4 mt-3 rounded-md border border-destructive/40 bg-destructive/10 p-2.5 text-xs text-destructive">
+                {applyError}
+              </p>
+            )}
 
             {/* Footer Navigation */}
             <div className="flex items-center justify-between p-4 border-t border-border bg-muted/20">

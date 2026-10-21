@@ -132,9 +132,11 @@ export const listSessionUploads = query({
           status: u.status,
           createdAt: u.createdAt,
           name: profile?.name || files[0]?.filename || "Resume Document",
-          role: profile?.titles?.[0] || "Consolidated Profile",
+          role: profile?.titles?.[0] ?? null,
           filesCount: files.length,
-          qualityScore: profile?.qualityScore ?? 88,
+          // null until the résumé has actually been scored -- never a placeholder score.
+          qualityScore: profile?.qualityScore ?? null,
+          qualityMaxScore: profile?.qualityMaxScore ?? null,
           isPaid: Boolean(payment?.status === "paid"),
         };
       })

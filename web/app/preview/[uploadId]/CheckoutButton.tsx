@@ -6,20 +6,29 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { Alert, AlertDescription, Button } from "@bytecats/ui-kit";
 import { trackCheckoutStart, trackCheckoutDone, trackCheckoutFail } from "@/lib/tracker";
 import { usermon } from "@/lib/usermon";
+import { formatPrice, RESUME_UNLOCK } from "@/lib/catalog";
+import { CheckoutLegalNote } from "@/components/CheckoutLegalNote";
 
-// Its own small client component (PreviewClient, which renders this, is
-// also a client component now -- kept split out anyway since this is a
-// self-contained bit of interactivity/local state).
+/** Default button label ("Download PDF (<price>)"), price from lib/catalog.ts. */
+export const DEFAULT_CHECKOUT_LABEL = `Download PDF (${formatPrice(RESUME_UNLOCK)})`;
+
+/**
+ * Starts the one-time per-résumé unlock checkout (lib/catalog.ts
+ * RESUME_UNLOCK) for one upload. Pass `showLegalNote` where there is room for
+ * the "one-time payment · Terms · Privacy" line under the button.
+ */
 export function CheckoutButton({
   uploadId,
-  label = "Download PDF ($14)",
+  label = DEFAULT_CHECKOUT_LABEL,
   size = "default",
   className = "",
+  showLegalNote = false,
 }: {
   uploadId: string;
   label?: string;
   size?: "default" | "sm" | "lg";
   className?: string;
+  showLegalNote?: boolean;
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,11 +64,11 @@ export function CheckoutButton({
         });
         throw new Error(body.error ?? `Checkout failed (${res.status})`);
       }
-      trackCheckoutDone(uploadId, 1400);
+      trackCheckoutDone(uploadId, RESUME_UNLOCK.priceCents);
       usermon.trackRumEvent({
         type: "action",
         name: "checkout_redirect",
-        value: 1400,
+        value: RESUME_UNLOCK.priceCents,
         platform: "web",
         timestamp: Date.now(),
         metadata: { uploadId },
@@ -88,6 +97,12 @@ export function CheckoutButton({
           label
         )}
       </Button>
+      {showLegalNote && (
+        <CheckoutLegalNote
+          action={`paying (${formatPrice(RESUME_UNLOCK)} one-time, no subscription)`}
+          className="text-center"
+        />
+      )}
       {error && (
         <Alert variant="destructive" role="alert" className="text-left text-xs py-1.5">
           <AlertCircle className="size-3.5" />

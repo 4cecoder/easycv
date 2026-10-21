@@ -1,9 +1,12 @@
 /**
- * Anonymous Telemetry Session & Device Profile Utility
+ * Anonymous telemetry session id + coarse device profile for product analytics.
  *
- * Anonymous telemetry identifier + silent device telemetry collection.
- * Pairs every upload with rich device/browser data for product analytics.
+ * Opt-in only: both helpers return empty values and touch no cookies or
+ * storage unless the visitor accepted analytics (see lib/consent.ts). No
+ * canvas, WebGL-renderer or audio fingerprinting is performed.
  */
+
+import { hasAnalyticsConsent } from "./consent";
 
 const SESSION_STORAGE_KEY = "easycv_telemetry_session";
 const COOKIE_NAME = "easycv_telemetry_session";
@@ -83,15 +86,12 @@ function parseUA(ua: string) {
   return { browser, browserVersion: version, os, osVersion };
 }
 
+// Deliberately coarse: whether WebGL exists, never the unmasked GPU renderer
+// string (a well-known fingerprinting vector).
 function detectGPU(): string {
   try {
     const canvas = document.createElement("canvas");
-    const gl = canvas.getContext("webgl");
-    if (!gl) return "none";
-    const ext = gl.getExtension("WEBGL_debug_renderer_info");
-    if (!ext) return "webgl";
-    const info = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL);
-    return info || "unknown";
+    return canvas.getContext("webgl") ? "webgl" : "none";
   } catch {
     return "unknown";
   }
@@ -106,16 +106,19 @@ function detectWebGPU(): boolean {
 }
 
 function classifyTier(cores: number, memoryGb: number, gpu: string): DeviceProfile["tier"] {
-  const hasHighEndGpu = /RTX|GTX|Apple|Metal|Radeon|Adreno 7|Xclipse/.test(gpu);
-  if (cores >= 8 && memoryGb >= 8 && hasHighEndGpu) return "high";
+  if (cores >= 8 && memoryGb >= 8 && gpu === "webgl") return "high";
   if (cores >= 4 && memoryGb >= 4) return "mid";
   if (cores >= 2) return "budget";
   return "unknown";
 }
 
-/** Anonymous per-browser id used only for telemetry, never for data ownership. */
+/**
+ * Anonymous per-browser id used only for telemetry, never for data ownership.
+ * Returns "" (and stores nothing) without analytics consent.
+ */
 export function getTelemetrySessionId(): string {
   if (typeof window === "undefined") return "";
+  if (!hasAnalyticsConsent()) return "";
 
   let sessionId = localStorage.getItem(SESSION_STORAGE_KEY);
   if (!sessionId) {
@@ -140,11 +143,11 @@ export function getTelemetrySessionId(): string {
 export const getBrowserSessionId = getTelemetrySessionId;
 
 /**
- * Collect full device profile. Cached for 24h to avoid repeated detection.
- * Silent — no user interaction required.
+ * Collect a coarse device profile. Cached for 24h to avoid repeated detection.
+ * Returns an empty profile without analytics consent.
  */
 export async function collectDeviceProfile(): Promise<DeviceProfile> {
-  if (typeof window === "undefined") {
+  if (typeof window === "undefined" || !hasAnalyticsConsent()) {
     return emptyProfile("");
   }
 

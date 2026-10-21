@@ -31,6 +31,7 @@ vi.mock("../../../lib/seridian-convex", () => ({
 }));
 
 const { POST } = await import("./route");
+const { RESUME_UNLOCK } = await import("../../../lib/catalog");
 
 function makeRequest(
   body: unknown,
@@ -59,7 +60,7 @@ describe("checkout", () => {
     process.env.STRIPE_SECRET_KEY = "sk_test";
     process.env.STRIPE_PRICE_ID = "price_test";
     process.env.APP_URL = "https://trusted.example.com";
-    retrievePriceMock.mockResolvedValue({ unit_amount: 1500, currency: "usd" });
+    retrievePriceMock.mockResolvedValue({ unit_amount: RESUME_UNLOCK.priceCents, currency: "usd", recurring: null });
     createSessionMock.mockResolvedValue({
       id: "cs_test_123",
       url: "https://checkout.stripe.com/cs_test_123",
@@ -125,75 +126,54 @@ describe("checkout", () => {
     expect(createSessionMock).not.toHaveBeenCalled();
   });
 
-  test("creates a checkout session with mode 'subscription' and custom price ID when requested", async () => {
+  test("always sells the one-time unlock: client-supplied subscription mode/plan is ignored", async () => {
     process.env.STRIPE_PRO_PRICE_ID = "price_pro_14";
-    retrievePriceMock.mockResolvedValueOnce({ unit_amount: 1400, currency: "usd" });
-
-    const res = await POST(makeRequest({ uploadId: "upload1", mode: "subscription" }));
-    expect(res.status).toBe(200);
-    expect(createSessionMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        mode: "subscription",
-        line_items: [{ price: "price_pro_14", quantity: 1 }],
-        metadata: { uploadId: "upload1", mode: "subscription" },
-      }),
-    );
-    expect(retrievePriceMock).toHaveBeenCalledWith("price_pro_14");
-    expect(mutationMock).toHaveBeenCalledWith(
-      "payments:createPaymentRecord",
-      expect.objectContaining({
-        uploadId: "upload1",
-        sessionId: "seridian-owner-key",
-        amountCents: 1400,
-        currency: "usd",
-      }),
-    );
-  });
-
-  test("supports subscription mode via plan='pro'", async () => {
-    process.env.STRIPE_PRO_PRICE_ID = "price_pro_14";
-
-    const res = await POST(makeRequest({ uploadId: "upload1", plan: "pro" }));
-    expect(res.status).toBe(200);
-    expect(createSessionMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        mode: "subscription",
-        line_items: [{ price: "price_pro_14", quantity: 1 }],
-      }),
-    );
-  });
-
-  test("supports subscription mode configured via STRIPE_CHECKOUT_MODE env var", async () => {
     process.env.STRIPE_CHECKOUT_MODE = "subscription";
+    for (const extra of [{ mode: "subscription" }, { plan: "pro" }, { isSubscription: true }, {}]) {
+      createSessionMock.mockClear();
+      retrievePriceMock.mockClear();
+      const res = await POST(makeRequest({ uploadId: "upload1", ...extra }));
+      expect(res.status).toBe(200);
+      expect(createSessionMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mode: "payment",
+          line_items: [{ price: "price_test", quantity: 1 }],
+          metadata: { uploadId: "upload1", mode: "payment" },
+        }),
+      );
+      expect(retrievePriceMock).toHaveBeenCalledWith("price_test");
+    }
+    delete process.env.STRIPE_CHECKOUT_MODE;
+    delete process.env.STRIPE_PRO_PRICE_ID;
+  });
 
+  test("records the catalog amount for the payment", async () => {
     const res = await POST(makeRequest({ uploadId: "upload1" }));
     expect(res.status).toBe(200);
-    expect(createSessionMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        mode: "subscription",
-      }),
-    );
-    delete process.env.STRIPE_CHECKOUT_MODE;
-  });
-
-  test("falls back to STRIPE_PRICE_ID if STRIPE_PRO_PRICE_ID is not set for subscription mode", async () => {
-    delete process.env.STRIPE_PRO_PRICE_ID;
-
-    const res = await POST(makeRequest({ uploadId: "upload1", mode: "subscription" }));
-    expect(res.status).toBe(200);
-    expect(createSessionMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        mode: "subscription",
-        line_items: [{ price: "price_test", quantity: 1 }],
-      }),
+    expect(mutationMock).toHaveBeenCalledWith(
+      "payments:createPaymentRecord",
+      expect.objectContaining({ amountCents: RESUME_UNLOCK.priceCents, currency: "usd" }),
     );
   });
 
-  test("returns 500 when subscription mode is requested but no price ID is configured", async () => {
+  test("refuses (503) when the Stripe price amount drifts from the catalog -- never charges a different amount", async () => {
+    retrievePriceMock.mockResolvedValueOnce({ unit_amount: RESUME_UNLOCK.priceCents + 100, currency: "usd", recurring: null });
+    const res = await POST(makeRequest({ uploadId: "upload1" }));
+    expect(res.status).toBe(503);
+    expect(createSessionMock).not.toHaveBeenCalled();
+    expect(mutationMock).not.toHaveBeenCalled();
+  });
+
+  test("refuses when STRIPE_PRICE_ID points at a recurring price", async () => {
+    retrievePriceMock.mockResolvedValueOnce({ unit_amount: RESUME_UNLOCK.priceCents, currency: "usd", recurring: { interval: "month" } });
+    const res = await POST(makeRequest({ uploadId: "upload1" }));
+    expect(res.status).toBe(503);
+    expect(createSessionMock).not.toHaveBeenCalled();
+  });
+
+  test("returns 500 when no one-time price ID is configured", async () => {
     delete process.env.STRIPE_PRICE_ID;
-    delete process.env.STRIPE_PRO_PRICE_ID;
-
-    const res = await POST(makeRequest({ uploadId: "upload1", mode: "subscription" }));
+    const res = await POST(makeRequest({ uploadId: "upload1" }));
     expect(res.status).toBe(500);
     expect(createSessionMock).not.toHaveBeenCalled();
   });

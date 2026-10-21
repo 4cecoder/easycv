@@ -1,3 +1,8 @@
+/**
+ * Product-analytics events. Opt-in only: every helper is a no-op unless the
+ * visitor accepted analytics (lib/consent.ts).
+ */
+import { hasAnalyticsConsent } from "./consent";
 import { type DeviceProfile, getTelemetrySessionId } from "./fingerprint";
 import { usermon } from "./usermon";
 
@@ -18,7 +23,7 @@ export interface UploadCompletePayload {
 }
 
 export function trackUploadStarted(payload: UploadStartedPayload): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || !hasAnalyticsConsent()) return;
 
   const sessionId = getTelemetrySessionId();
   const body = {
@@ -54,7 +59,7 @@ export function trackUploadStarted(payload: UploadStartedPayload): void {
 }
 
 export function trackUploadComplete(payload: UploadCompletePayload): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || !hasAnalyticsConsent()) return;
 
   const sessionId = getTelemetrySessionId();
   const body = {
@@ -88,7 +93,7 @@ export function trackUploadComplete(payload: UploadCompletePayload): void {
 }
 
 export function trackEvent(name: string, properties?: Record<string, any>): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || !hasAnalyticsConsent()) return;
   const sessionId = getTelemetrySessionId();
 
   try {

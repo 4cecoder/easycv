@@ -48,18 +48,13 @@ export const uploadMetaSchema = z.object({
 
 // ─── Checkout Action ────────────────────────────────────────────────────────────
 
-/** Valid checkout plan identifiers. */
-export const checkoutPlanSchema = z.enum(["single", "pro", "subscription"]);
-
-/** Schema for checkout action input. */
+/** Schema for checkout action input (one-time per-résumé unlock only). */
 export const checkoutSchema = z.object({
   uploadId: z
     .string()
     .min(1, "uploadId is required")
     .max(128, "uploadId too long")
     .regex(/^[a-zA-Z0-9_-]+$/, "Invalid uploadId format"),
-  plan: checkoutPlanSchema.optional(),
-  isSubscription: z.boolean().optional(),
 });
 
 // ─── Job Match Action ───────────────────────────────────────────────────────────

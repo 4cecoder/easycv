@@ -6,6 +6,8 @@
  * and exceptions.
  */
 
+import { hasAnalyticsConsent } from "./consent";
+
 export const USERMON_ENDPOINT =
   process.env.NEXT_PUBLIC_USERMON_ENDPOINT ||
   "https://quirky-seal-916.convex.site/v1/ingest";
@@ -15,6 +17,16 @@ export const USERMON_KEY =
   "um_15cd8c8aeb43eb64e8f5fc6ed301281ae4d2ec4cbae16f6827a97d8cb68e8456131067c8";
 
 export const USERMON_RELEASE = "1.0.0";
+
+/**
+ * In the browser, telemetry is opt-in: nothing is queued or sent unless the
+ * visitor accepted analytics (and has no GPC / DNT signal). On the server
+ * (API route spans and server exceptions, which carry no visitor identifier)
+ * the queue always runs.
+ */
+function clientTelemetryBlocked(): boolean {
+  return typeof window !== "undefined" && !hasAnalyticsConsent();
+}
 
 export interface UserMonSession {
   sessionKey: string;
@@ -98,6 +110,7 @@ class UserMonQueue {
    * Enqueue a session event.
    */
   trackSession(session: UserMonSession): void {
+    if (clientTelemetryBlocked()) return;
     this.sessions.push(session);
     this.checkFlush();
   }
@@ -106,6 +119,7 @@ class UserMonQueue {
    * Enqueue a RUM event (e.g. Web Vital, page view, client timing).
    */
   trackRumEvent(event: UserMonRumEvent): void {
+    if (clientTelemetryBlocked()) return;
     this.rumEvents.push(event);
     this.checkFlush();
   }
@@ -114,6 +128,7 @@ class UserMonQueue {
    * Enqueue an API route span.
    */
   trackApiSpan(span: UserMonApiSpan): void {
+    if (clientTelemetryBlocked()) return;
     this.apiSpans.push(span);
     this.checkFlush();
   }
@@ -122,6 +137,7 @@ class UserMonQueue {
    * Enqueue an exception.
    */
   trackException(exception: UserMonException): void {
+    if (clientTelemetryBlocked()) return;
     this.exceptions.push(exception);
     this.checkFlush();
   }
@@ -152,6 +168,15 @@ class UserMonQueue {
     if (this.flushTimer) {
       clearTimeout(this.flushTimer);
       this.flushTimer = null;
+    }
+
+    if (clientTelemetryBlocked()) {
+      // Consent was withdrawn (or never given): drop anything still queued.
+      this.sessions.length = 0;
+      this.rumEvents.length = 0;
+      this.apiSpans.length = 0;
+      this.exceptions.length = 0;
+      return;
     }
 
     if (

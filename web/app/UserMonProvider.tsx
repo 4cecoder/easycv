@@ -4,19 +4,23 @@ import React, { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { getTelemetrySessionId } from "@/lib/fingerprint";
 import { usermon, USERMON_RELEASE } from "@/lib/usermon";
+import { useAnalyticsConsent } from "@/lib/useAnalyticsConsent";
 
 /**
  * UserMon Client Provider
  *
- * Injects client-side session registration, route RUM events,
- * unhandled exception / rejection listeners, and Web Vitals (LCP, FID, CLS, INP, TTFB).
+ * Opt-in only. After the visitor accepts analytics (and has no GPC / DNT
+ * signal) it registers a telemetry session, route RUM events, unhandled
+ * exception / rejection listeners, and Web Vitals (LCP, FID, CLS). Before
+ * that, and after consent is withdrawn, nothing is registered or sent.
  */
 export function UserMonProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const analyticsAllowed = useAnalyticsConsent();
 
-  // 1. Register Session on mount
+  // 1. Register Session once analytics consent is given
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !analyticsAllowed) return;
 
     const sessionKey = getTelemetrySessionId();
     if (sessionKey) {
@@ -148,11 +152,11 @@ export function UserMonProvider({ children }: { children: React.ReactNode }) {
       }
       void usermon.flush();
     };
-  }, []);
+  }, [analyticsAllowed]);
 
   // 2. Track Route navigation RUM event
   useEffect(() => {
-    if (!pathname) return;
+    if (!pathname || !analyticsAllowed) return;
     usermon.trackRumEvent({
       type: "navigation",
       name: "route_view",
@@ -161,7 +165,7 @@ export function UserMonProvider({ children }: { children: React.ReactNode }) {
       timestamp: Date.now(),
       metadata: { pathname },
     });
-  }, [pathname]);
+  }, [pathname, analyticsAllowed]);
 
   return <>{children}</>;
 }

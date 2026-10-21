@@ -39,6 +39,7 @@ import {
 } from "@bytecats/ui-kit";
 import { validateBulletSTE100 } from "../lib/ste100";
 import { CheckoutButton } from "../app/preview/[uploadId]/CheckoutButton";
+import { formatPrice, RESUME_UNLOCK } from "../lib/catalog";
 
 interface SmartCareerProfileWizardProps {
   uploadId: string;
@@ -686,17 +687,17 @@ export function SmartCareerProfileWizard({
                   <div className="space-y-1">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-primary uppercase tracking-wider">
                       <Sparkles className="size-3.5" />
-                      <span>Executive Compensation & ATS Package</span>
+                      <span>{RESUME_UNLOCK.name}</span>
                     </div>
                     <h3 className="text-sm font-bold text-foreground">
-                      Unlock Recruiter Benchmarking & Vector PDF Downloads
+                      Download this résumé as a PDF
                     </h3>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Upgrade to easyCV Pro to unlock unwatermarked Vector PDF, LaTeX source code, and priority keyword formatting tailored to your target {targetSalaryRange} band.
+                      {RESUME_UNLOCK.summary} Includes {RESUME_UNLOCK.unlocks.join(", ").toLowerCase()}.
                     </p>
                   </div>
                   <div className="shrink-0 flex flex-col items-end">
-                    <span className="text-lg font-extrabold text-foreground">$14</span>
+                    <span className="text-lg font-extrabold text-foreground">{formatPrice(RESUME_UNLOCK)}</span>
                     <span className="text-[10px] text-muted-foreground">one-time</span>
                   </div>
                 </div>
@@ -704,18 +705,18 @@ export function SmartCareerProfileWizard({
                 <div className="pt-2 border-t border-primary/20 flex flex-col sm:flex-row items-center justify-between gap-3">
                   <div className="flex items-center gap-3 text-[11px] text-muted-foreground font-mono">
                     <span className="flex items-center gap-1 text-emerald-400 font-semibold">
-                      <CheckCircle2 className="size-3" /> Vector PDF
+                      <CheckCircle2 className="size-3" /> PDF
                     </span>
                     <span>&bull;</span>
                     <span className="flex items-center gap-1 text-emerald-400 font-semibold">
-                      <CheckCircle2 className="size-3" /> LaTeX (.tex)
+                      <CheckCircle2 className="size-3" /> Plain text
                     </span>
                     <span>&bull;</span>
                     <span className="flex items-center gap-1 text-emerald-400 font-semibold">
                       <CheckCircle2 className="size-3" /> HTML Bundle
                     </span>
                   </div>
-                  <CheckoutButton uploadId={uploadId} label="Unlock Pro Package ($14)" size="sm" />
+                  <CheckoutButton uploadId={uploadId} label={`Unlock this résumé (${formatPrice(RESUME_UNLOCK)})`} size="sm" showLegalNote />
                 </div>
               </div>
             </div>

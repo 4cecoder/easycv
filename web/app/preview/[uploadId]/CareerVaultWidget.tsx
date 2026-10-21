@@ -11,10 +11,7 @@ import {
   CardHeader,
   Button,
   Badge,
-  Alert,
-  AlertDescription,
 } from "@bytecats/ui-kit";
-import { CheckoutButton } from "./CheckoutButton";
 
 export function CareerVaultWidget({
   uploadId,
@@ -33,7 +30,6 @@ export function CareerVaultWidget({
   const saveProfile = useMutation(api.profiles.saveStructuredProfile);
   
   const [experience, setExperience] = useState(profile?.experience || []);
-  const [latexTemplate, setLatexTemplate] = useState<"academic" | "industry" | "executive">("industry");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -94,7 +90,7 @@ export function CareerVaultWidget({
           <h2 className="text-lg font-semibold">Historical Career Vault</h2>
         </div>
         <p className="text-sm text-muted-foreground">
-          View your ingested source documents, reorganize your career history, and configure LaTeX export options.
+          View your ingested source documents and reorganize your career history.
         </p>
       </CardHeader>
       
@@ -162,34 +158,6 @@ export function CareerVaultWidget({
               </div>
             ))}
           </div>
-        </div>
-
-        {/* LaTeX Template Customization */}
-        <div className="flex flex-col gap-3">
-          <h3 className="text-sm font-semibold tracking-tight text-foreground">LaTeX Output Configuration</h3>
-          <div className="flex gap-2">
-            {(["industry", "academic", "executive"] as const).map((t) => (
-              <Button
-                key={t}
-                variant={latexTemplate === t ? "default" : "outline"}
-                size="sm"
-                onClick={() => setLatexTemplate(t)}
-                className="capitalize text-xs font-semibold"
-              >
-                {t} Template
-              </Button>
-            ))}
-          </div>
-          <Alert className="bg-primary/5 border-primary/20 mt-2 rounded-lg">
-            <AlertDescription className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <span className="text-xs text-foreground">
-                Compiled for <strong>{latexTemplate}</strong> single-column ATS LaTeX format.
-              </span>
-              <div className="shrink-0">
-                <CheckoutButton uploadId={uploadId} label="Unlock .tex & PDF ($14)" size="sm" />
-              </div>
-            </AlertDescription>
-          </Alert>
         </div>
       </CardContent>
     </Card>

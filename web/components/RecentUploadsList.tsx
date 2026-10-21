@@ -8,15 +8,25 @@ import {
   FileText,
   Clock,
   ChevronRight,
-  Sparkles,
   Lock,
   CheckCircle2,
-  Layers,
-  ArrowRight,
-  ShieldCheck,
-  UserPlus
 } from "lucide-react";
-import { Card, CardContent, CardHeader, Badge, Button } from "@bytecats/ui-kit";
+import { Badge } from "@bytecats/ui-kit";
+
+/** Human label for an upload that has no extracted job title yet. */
+function statusLabel(status: string): string {
+  switch (status) {
+    case "uploading":
+    case "queued":
+      return "Queued — processing will start soon";
+    case "processing":
+      return "Processing…";
+    case "error":
+      return "Processing failed";
+    default:
+      return "Résumé";
+  }
+}
 
 export function RecentUploadsList() {
   const sessionId = useOwnerSessionKey();
@@ -73,7 +83,7 @@ export function RecentUploadsList() {
                     </span>
                     {item.isPaid ? (
                       <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.2 rounded">
-                        <CheckCircle2 className="size-2.5" /> Pro
+                        <CheckCircle2 className="size-2.5" /> Unlocked
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.2 rounded border border-border">
@@ -82,7 +92,7 @@ export function RecentUploadsList() {
                     )}
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                    <span className="truncate">{item.role}</span>
+                    <span className="truncate">{item.role ?? statusLabel(item.status)}</span>
                     <span>&bull;</span>
                     <span className="font-mono text-[11px] shrink-0">{dateStr}</span>
                   </div>
@@ -90,42 +100,19 @@ export function RecentUploadsList() {
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
-                <div className="hidden sm:flex flex-col items-end">
-                  <span className="text-xs font-bold text-foreground font-mono">
-                    {item.qualityScore}/100
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">ATS Score</span>
-                </div>
+                {item.qualityScore !== null && item.qualityMaxScore !== null && (
+                  <div className="hidden sm:flex flex-col items-end">
+                    <span className="text-xs font-bold text-foreground font-mono">
+                      {item.qualityScore}/{item.qualityMaxScore}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">Quality score</span>
+                  </div>
+                )}
                 <ChevronRight className="size-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
               </div>
             </Link>
           );
         })}
-      </div>
-
-      {/* Account Signup Conversion Callout */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/[0.03] p-3.5 text-xs shadow-2xs mt-1">
-        <div className="flex items-center gap-2.5">
-          <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-xs shrink-0">
-            <UserPlus className="size-3.5" />
-          </div>
-          <div>
-            <span className="font-bold text-foreground">Save your career vault permanently</span>
-            <p className="text-muted-foreground text-[11px]">
-              Sync across devices and preserve all resume variations and job matches with a free easyCV account.
-            </p>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            alert("Account creation and multi-device sync is launching soon! Your resumes remain safely saved in this browser.");
-          }}
-          className="h-8 text-xs font-semibold border-primary/30 text-primary hover:bg-primary/10 shrink-0"
-        >
-          Create Free Account
-        </Button>
       </div>
     </div>
   );
