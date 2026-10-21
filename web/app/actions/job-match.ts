@@ -7,9 +7,19 @@ import { authenticatedConvexFromCookie, AuthenticationRequiredError } from "../.
 import { SESSION_COOKIE } from "../../lib/seridian-oidc";
 import { runHostedJobMatch } from "../../lib/hosted-job-match";
 import { sanitizeTextForLLM } from "../../lib/sanitizer";
+import { consumeServerLimit, retryAfterSeconds } from "../../lib/server-rate-limit";
 import { jobMatchSchema } from "./schemas";
 
-export type JobMatchResult = { success: boolean; result?: Record<string, unknown>; error?: string };
+/**
+ * Result of {@link matchJob}. When refused by the durable rate limit,
+ * `error` is the literal "rate_limited" and `retryAfter` is in seconds.
+ */
+export type JobMatchResult = {
+  success: boolean;
+  result?: Record<string, unknown>;
+  error?: string;
+  retryAfter?: number;
+};
 
 /** Server action: match an owned upload against a job description using the hosted LLM. */
 export async function matchJob(input: { uploadId: string; jobDescription: string }): Promise<JobMatchResult> {
@@ -32,6 +42,17 @@ export async function matchJob(input: { uploadId: string; jobDescription: string
     return { success: false, error: "Profile not found or access denied" };
   }
   if (!profile) return { success: false, error: "Profile not found or access denied" };
+
+  // Durable per-user + global LLM budget (EASYC-6): server actions bypass the
+  // /api middleware entirely, so this is the only limit on this path. Must
+  // run BEFORE the LLM call; refused or unreachable limiter => no LLM call.
+  try {
+    const limit = await consumeServerLimit(auth.convex, api.rateLimits.consumeJobMatch);
+    if (!limit.ok) return { success: false, error: "rate_limited", retryAfter: retryAfterSeconds(limit.retryAfterMs) };
+  } catch (error) {
+    console.error("[job match action] rate limiter unavailable", error);
+    return { success: false, error: "Service temporarily unavailable" };
+  }
 
   const cleanProfile = {
     name: profile.name, titles: profile.titles, summary: profile.summary, skills: profile.skills,

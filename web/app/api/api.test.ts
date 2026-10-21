@@ -68,6 +68,10 @@ vi.mock("../../convex/_generated/api", () => ({
     profiles: {
       getStructuredProfile: "profiles:getStructuredProfile",
     },
+    rateLimits: {
+      consumeJobMatch: "rateLimits:consumeJobMatch",
+      consumeUpload: "rateLimits:consumeUpload",
+    },
   },
 }));
 
@@ -154,6 +158,7 @@ describe("POST /api/upload", () => {
     );
 
     mutationMock
+      .mockResolvedValueOnce({ ok: true, retryAfterMs: 0 }) // rateLimits.consumeUpload
       .mockResolvedValueOnce("upload_id_abc") // createUpload
       .mockResolvedValueOnce(undefined) // addResumeFile
       .mockResolvedValueOnce(undefined); // finalizeUpload

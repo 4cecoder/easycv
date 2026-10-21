@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { ownedUpload, requireOwnerSession } from "./authz";
+import { UPLOAD_HARD_CAP_PER_24H } from "./rateLimits";
 import { requireWorkerSecret } from "./workerAuth";
 
 export const createUpload = mutation({
@@ -12,6 +13,19 @@ export const createUpload = mutation({
   },
   handler: async (ctx, { sessionId, jobDescription, jobLink, consolidationMetadata }) => {
     const owner = await requireOwnerSession(ctx, sessionId);
+    // Backstop (EASYC-6): the Next.js upload paths consume a
+    // rateLimits.consumeUpload token first, but this mutation is public on
+    // the Convex URL, so cap rows per owner here too (rolling 24h, indexed,
+    // bounded read) so a direct client call can't queue unlimited worker
+    // LLM consolidations.
+    const now = Date.now();
+    const recent = await ctx.db
+      .query("uploads")
+      .withIndex("by_session", (q) => q.eq("sessionId", owner).gte("createdAt", now - 24 * 60 * 60 * 1000))
+      .take(UPLOAD_HARD_CAP_PER_24H);
+    if (recent.length >= UPLOAD_HARD_CAP_PER_24H) {
+      throw new ConvexError({ code: "rate_limited", reason: "user_daily", retryAfterMs: Math.max(1, recent[0].createdAt + 24 * 60 * 60 * 1000 - now) });
+    }
     // Deliberately NOT "queued" yet -- the upload route creates this row
     // before it has finished attaching resumeFiles (each is its own
     // mutation + a Convex storage upload in between). "queued" is what
@@ -25,7 +39,7 @@ export const createUpload = mutation({
       sessionId: owner,
       status: "uploading",
       attempts: 0,
-      createdAt: Date.now(),
+      createdAt: now,
       jobDescription,
       jobLink,
       consolidationMetadata,

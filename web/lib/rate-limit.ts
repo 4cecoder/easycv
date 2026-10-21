@@ -1,12 +1,13 @@
 /**
- * Token-bucket rate limiter using a sliding-window counter.
+ * Fixed-window, IN-MEMORY rate limiter: a best-effort first line only.
  *
- * In-memory store — fine for a single Next.js instance. For multi-instance
- * deployments swap the Map for Redis (ioredis / @upstash/redis) or Convex
- * mutations; the interface stays the same.
+ * Each serverless instance (Netlify) has its own Map that resets on cold
+ * start, so this is NOT a security boundary. The durable, shared limits are
+ * in Convex (convex/rateLimits.ts, EASYC-6), keyed on the authenticated
+ * owner and enforced by the routes and server actions themselves.
  *
- * Keys are derived from (IP | session-id) so the same visitor is tracked
- * consistently across requests even when they carry a session cookie.
+ * Callers must pass a trusted IP (lib/client-ip.ts) -- never a client-set
+ * cookie or the first X-Forwarded-For entry, which are trivially rotated.
  */
 
 export interface RateLimitConfig {
@@ -107,8 +108,9 @@ function scheduleCleanup(): void {
  *
  * @param label   A unique identifier for the rate-limit bucket (e.g. "upload").
  * @param config  Max requests and window duration.
- * @param ip      Client IP (from X-Forwarded-For or socket).
- * @param sessionId  Optional session cookie value.
+ * @param ip      Trusted client IP (see lib/client-ip.ts).
+ * @param sessionId  Optional extra key part; must be server-derived, never a
+ *                   client-set cookie.
  */
 export function checkRateLimit(
   label: string,

@@ -1,8 +1,9 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { requireOwnerSession } from "./authz";
 
-const MAX_FREE_AUTO_IMPROVES = 2;
+/** Free auto-improve applications per owner (lifetime). */
+export const MAX_FREE_AUTO_IMPROVES = 2;
 
 export const getAutoImproveQuota = query({
   args: {
@@ -39,6 +40,13 @@ export const consumeAutoImproveQuota = mutation({
       .query("usageQuotas")
       .withIndex("by_session", (q) => q.eq("sessionId", owner))
       .first();
+
+    // Server-enforced (EASYC-6): refuse once the free allowance is spent
+    // instead of counting past it. Throws so callers' flows stop; the
+    // success shape below is unchanged.
+    if ((existing?.autoImproveCount ?? 0) >= MAX_FREE_AUTO_IMPROVES) {
+      throw new ConvexError({ code: "quota_exhausted", quota: "autoImprove", remaining: 0 });
+    }
 
     if (existing) {
       const newCount = existing.autoImproveCount + 1;

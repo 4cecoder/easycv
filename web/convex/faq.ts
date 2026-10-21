@@ -1,5 +1,5 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { requireAdmin, requireOwnerSession } from "./authz";
 
 export const recordFaqQuery = mutation({
@@ -47,7 +47,8 @@ export const listRecentFaqFeedback = query({
   },
 });
 
-const MAX_FREE_SAMPLES = 2;
+/** Free FAQ sample views per owner (lifetime). */
+export const MAX_FREE_SAMPLES = 2;
 
 export const getSampleQuota = query({
   args: {
@@ -84,6 +85,12 @@ export const consumeSampleQuota = mutation({
       .query("usageQuotas")
       .withIndex("by_session", (q) => q.eq("sessionId", owner))
       .first();
+
+    // Server-enforced (EASYC-6): refuse once the free samples are spent
+    // instead of counting past it. The success shape below is unchanged.
+    if ((existing?.sampleViewCount ?? 0) >= MAX_FREE_SAMPLES) {
+      throw new ConvexError({ code: "quota_exhausted", quota: "sample", remaining: 0 });
+    }
 
     if (existing) {
       const newCount = (existing.sampleViewCount ?? 0) + 1;
