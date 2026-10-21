@@ -1,7 +1,10 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { v, type ObjectType } from "convex/values";
 import { contact, skills, experienceEntry, educationEntry } from "./schema";
 import { ownedUpload, requireOwnerSession } from "./authz";
+import { requireWorkerSecret } from "./workerAuth";
+import type { MutationCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 
 // All structuredProfiles fields except uploadId (the lookup key) and
 // pdfStorageId (set separately by setProfilePdf once a PDF has been compiled).
@@ -22,16 +25,11 @@ const profileFields = {
   qualityCritical: v.boolean(),
 };
 
-export const saveStructuredProfile = mutation({
-  args: {
-    sessionId: v.string(),
-    uploadId: v.id("uploads"),
-    ...profileFields,
-  },
-  handler: async (ctx, { sessionId, uploadId, ...fields }) => {
-    await requireOwnerSession(ctx, sessionId);
-    const upload = await ownedUpload(ctx.db, uploadId, sessionId);
-    if (!upload) throw new Error("Upload not found or not owned by this session");
+async function upsertStructuredProfile(
+  ctx: MutationCtx,
+  uploadId: Id<"uploads">,
+  fields: ObjectType<typeof profileFields>,
+) {
     const existing = await ctx.db
       .query("structuredProfiles")
       .withIndex("by_upload", (q) => q.eq("uploadId", uploadId))
@@ -61,6 +59,63 @@ export const saveStructuredProfile = mutation({
     }
 
     return await ctx.db.insert("structuredProfiles", { uploadId, ...fields });
+}
+
+async function attachProfilePdf(ctx: MutationCtx, uploadId: Id<"uploads">, pdfStorageId: Id<"_storage">) {
+    const existing = await ctx.db
+      .query("structuredProfiles")
+      .withIndex("by_upload", (q) => q.eq("uploadId", uploadId))
+      .first();
+    if (!existing) {
+      throw new Error(`No structuredProfile found for uploadId ${uploadId}`);
+    }
+    await ctx.db.patch(existing._id, { pdfStorageId });
+    return existing._id;
+}
+
+/**
+ * Worker-only variants (backend/worker.py). Since the OIDC cutover the
+ * owner-gated mutations need the end user's identity, which the worker never
+ * has. These require the shared worker secret and only touch an upload the
+ * worker has claimed (status "processing"), so a leaked secret still cannot
+ * rewrite finished uploads.
+ */
+async function requireClaimedUpload(ctx: MutationCtx, uploadId: Id<"uploads">) {
+  const upload = await ctx.db.get(uploadId);
+  if (!upload || upload.status !== "processing") {
+    throw new Error("Upload is not being processed by a worker");
+  }
+}
+
+export const workerSaveStructuredProfile = mutation({
+  args: { workerSecret: v.string(), uploadId: v.id("uploads"), ...profileFields },
+  handler: async (ctx, { workerSecret, uploadId, ...fields }) => {
+    requireWorkerSecret(workerSecret);
+    await requireClaimedUpload(ctx, uploadId);
+    return await upsertStructuredProfile(ctx, uploadId, fields);
+  },
+});
+
+export const workerSetProfilePdf = mutation({
+  args: { workerSecret: v.string(), uploadId: v.id("uploads"), pdfStorageId: v.id("_storage") },
+  handler: async (ctx, { workerSecret, uploadId, pdfStorageId }) => {
+    requireWorkerSecret(workerSecret);
+    await requireClaimedUpload(ctx, uploadId);
+    return await attachProfilePdf(ctx, uploadId, pdfStorageId);
+  },
+});
+
+export const saveStructuredProfile = mutation({
+  args: {
+    sessionId: v.string(),
+    uploadId: v.id("uploads"),
+    ...profileFields,
+  },
+  handler: async (ctx, { sessionId, uploadId, ...fields }) => {
+    await requireOwnerSession(ctx, sessionId);
+    const upload = await ownedUpload(ctx.db, uploadId, sessionId);
+    if (!upload) throw new Error("Upload not found or not owned by this session");
+    return await upsertStructuredProfile(ctx, uploadId, fields);
   },
 });
 
@@ -74,15 +129,7 @@ export const setProfilePdf = mutation({
     await requireOwnerSession(ctx, sessionId);
     const upload = await ownedUpload(ctx.db, uploadId, sessionId);
     if (!upload) throw new Error("Upload not found or not owned by this session");
-    const existing = await ctx.db
-      .query("structuredProfiles")
-      .withIndex("by_upload", (q) => q.eq("uploadId", uploadId))
-      .first();
-    if (!existing) {
-      throw new Error(`No structuredProfile found for uploadId ${uploadId}`);
-    }
-    await ctx.db.patch(existing._id, { pdfStorageId });
-    return existing._id;
+    return await attachProfilePdf(ctx, uploadId, pdfStorageId);
   },
 });
 

@@ -16,7 +16,19 @@
 // actually at risk on this surface -- not a claim that it's unbypassable.
 export function requireWorkerSecret(secret: string) {
   const expected = process.env.WORKER_SECRET;
-  if (!expected || secret !== expected) {
+  if (!expected || !constantTimeEqual(secret, expected)) {
     throw new Error("Invalid or missing worker secret");
   }
+}
+
+/** Length-independent timing for the shared-secret comparison. */
+function constantTimeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const x = enc.encode(a);
+  const y = enc.encode(b);
+  let diff = x.length ^ y.length;
+  for (let i = 0; i < Math.max(x.length, y.length); i += 1) {
+    diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
+  }
+  return diff === 0;
 }
