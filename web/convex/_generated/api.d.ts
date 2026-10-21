@@ -26,6 +26,7 @@ import type * as jobPostings from "../jobPostings.js";
 import type * as payments from "../payments.js";
 import type * as profiles from "../profiles.js";
 import type * as quotas from "../quotas.js";
+import type * as rateLimits from "../rateLimits.js";
 import type * as resumeFiles from "../resumeFiles.js";
 import type * as seed from "../seed.js";
 import type * as telemetry from "../telemetry.js";
@@ -57,6 +58,7 @@ declare const fullApi: ApiFromModules<{
   payments: typeof payments;
   profiles: typeof profiles;
   quotas: typeof quotas;
+  rateLimits: typeof rateLimits;
   resumeFiles: typeof resumeFiles;
   seed: typeof seed;
   telemetry: typeof telemetry;
@@ -92,4 +94,5 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   stripe: import("@convex-dev/stripe/_generated/component.js").ComponentApi<"stripe">;
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
 };

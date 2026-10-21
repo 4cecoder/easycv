@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { getTrustedClientIp, UNKNOWN_CLIENT_IP } from "./lib/client-ip";
 import {
   checkRateLimit,
   RATE_LIMITS,
@@ -33,29 +34,24 @@ function resolveLabel(pathname: string): RateLimitLabel {
 }
 
 // ---------------------------------------------------------------------------
-// IP extraction
+// IP extraction -- see lib/client-ip.ts. Uses Netlify's
+// x-nf-client-connection-ip (then x-real-ip), never the spoofable first
+// X-Forwarded-For entry.
 // ---------------------------------------------------------------------------
-
-/**
- * Derive a stable client IP. Vercel / Netlify / Cloudflare inject
- * `X-Forwarded-For`; fall back to `x-real-ip`, then to a sentinel.
- */
-function getClientIp(request: NextRequest): string {
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim();
-
-  const realIp = request.headers.get("x-real-ip");
-  if (realIp) return realIp.trim();
-
-  // Should never hit this in production behind a reverse proxy, but keeps
-  // the type happy and makes local dev work without spoofing headers.
-  return "127.0.0.1";
-}
 
 // ---------------------------------------------------------------------------
 // Middleware entry-point
 // ---------------------------------------------------------------------------
 
+/**
+ * BEST-EFFORT FIRST LINE ONLY. This limiter is an in-memory Map, so on
+ * Netlify (serverless) every function instance has its own counters that
+ * vanish on cold start; it merely blunts naive floods per instance. The
+ * authoritative, durable limits are server-side in Convex
+ * (convex/rateLimits.ts), keyed on the authenticated owner and enforced by
+ * the job-match/upload routes AND server actions (which this middleware
+ * never sees, since it only matches /api/*).
+ */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -67,10 +63,14 @@ export function middleware(request: NextRequest) {
   const label = resolveLabel(pathname);
   const config: RateLimitConfig = RATE_LIMITS[label];
 
-  const ip = getClientIp(request);
-  const sessionId = request.cookies.get("easycv_telemetry_session")?.value;
-
-  const result = checkRateLimit(label, config, ip, sessionId);
+  // Keyed on the trusted IP only. The old key also mixed in a client-set
+  // telemetry cookie, which let a caller mint a fresh bucket per request.
+  const ip = getTrustedClientIp(request.headers);
+  // No trusted IP header (local dev, or a host that isn't Netlify): don't
+  // lump every visitor into one shared bucket and 429 them all -- the
+  // durable Convex limits still apply.
+  if (ip === UNKNOWN_CLIENT_IP) return NextResponse.next();
+  const result = checkRateLimit(label, config, ip, undefined);
 
   if (!result.allowed) {
     const response = NextResponse.json(

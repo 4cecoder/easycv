@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@bytecats/ui-kit": "github:seridian-dev/ui-kit-archive#59cc62439425bd26b703fe2bc9ed04b40b6614f9",
+    "@convex-dev/rate-limiter": "^0.4.2",
     "@convex-dev/stripe": "^0.1.6",
     "@huggingface/transformers": "^4.2.0",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.221.0",
@@ -29,7 +30,7 @@
     "@opentelemetry/semantic-conventions": "^1.43.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "convex": "^1.42.3",
+    "convex": "^1.43.0",
     "jose": "^6.2.6",
     "lucide-react": "^1.25.0",
     "next": "16.3.8",

@@ -21,7 +21,8 @@ import { ConvexHttpClient } from "convex/browser";
 
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { authenticatedConvexFromCookie } from "../../lib/seridian-convex";
+import { authenticatedConvexFromCookie, AuthenticationRequiredError } from "../../lib/seridian-convex";
+import { consumeServerLimit, refusalFromConvexError, retryAfterSeconds } from "../../lib/server-rate-limit";
 import { SESSION_COOKIE } from "../../lib/seridian-oidc";
 import {
   validateMagicBytes,
@@ -122,9 +123,13 @@ async function prepareFile(
 
 // ─── Action Result Types ────────────────────────────────────────────────────────
 
+/**
+ * Result of {@link uploadFiles}. When refused by the durable rate limit,
+ * `error` is the literal "rate_limited" and `retryAfter` is in seconds.
+ */
 export type UploadActionResult =
   | { success: true; uploadId: string }
-  | { success: false; error: string };
+  | { success: false; error: string; retryAfter?: number };
 
 // ─── Action ─────────────────────────────────────────────────────────────────────
 
@@ -177,12 +182,31 @@ export async function uploadFiles(formData: FormData): Promise<UploadActionResul
       };
     }
 
-    // ── 4. Prepare (validate magic bytes, sanitise) each file ─────────────────
+    // ── 4. Authenticate + durable per-user upload limit (EASYC-6) ─────────────
+    // Server actions bypass the /api middleware, so this is the limit on this
+    // path. Runs BEFORE sanitising, storing, and queueing LLM consolidation.
+    const cookieStore = await cookies();
+    let auth;
+    try {
+      auth = await authenticatedConvexFromCookie(cookieStore.get(SESSION_COOKIE)?.value);
+    } catch (error) {
+      if (error instanceof AuthenticationRequiredError) return { success: false, error: "Authentication required" };
+      throw error;
+    }
+    const { convex, ownerSessionKey: sessionId } = auth;
+    let limit;
+    try {
+      limit = await consumeServerLimit(convex, api.rateLimits.consumeUpload);
+    } catch (error) {
+      console.error("[upload action] rate limiter unavailable", error);
+      return { success: false, error: "Service temporarily unavailable" };
+    }
+    if (!limit.ok) return { success: false, error: "rate_limited", retryAfter: retryAfterSeconds(limit.retryAfterMs) };
+
+    // ── 5. Prepare (validate magic bytes, sanitise) each file ─────────────────
     const preparedFiles = await Promise.all(rawFiles.map(prepareFile));
 
-    // ── 5. Create upload record in Convex ─────────────────────────────────────
-    const cookieStore = await cookies();
-    const { convex, ownerSessionKey: sessionId } = await authenticatedConvexFromCookie(cookieStore.get(SESSION_COOKIE)?.value);
+    // ── 6. Create upload record in Convex ─────────────────────────────────────
 
     const uploadId = await convex.mutation(api.uploads.createUpload, {
       sessionId,
@@ -190,7 +214,7 @@ export async function uploadFiles(formData: FormData): Promise<UploadActionResul
       jobLink: jobLink || undefined,
     });
 
-    // ── 6. Upload each file to Convex storage and attach to the upload ────────
+    // ── 7. Upload each file to Convex storage and attach to the upload ────────
     for (const item of preparedFiles) {
       const storageId = await uploadBytesToConvexStorage(
         convex,
@@ -208,11 +232,14 @@ export async function uploadFiles(formData: FormData): Promise<UploadActionResul
       });
     }
 
-    // ── 7. Finalise the upload (makes it visible to the worker) ───────────────
+    // ── 8. Finalise the upload (makes it visible to the worker) ───────────────
     await convex.mutation(api.uploads.finalizeUpload, { uploadId, sessionId });
 
     return { success: true, uploadId };
   } catch (err) {
+    // uploads.createUpload's own rolling-24h backstop.
+    const refusal = refusalFromConvexError(err);
+    if (refusal) return { success: false, error: "rate_limited", retryAfter: retryAfterSeconds(refusal.retryAfterMs) };
     console.error("[upload action] failed", err);
     // Never leak internals – return a generic message.
     return { success: false, error: "Upload failed. Please try again." };

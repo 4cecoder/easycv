@@ -7,6 +7,13 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { authenticatedConvexFromRequest, AuthenticationRequiredError } from "../../../lib/seridian-convex";
 import { withUserMonSpan } from "../../../lib/usermon-server";
+import {
+  consumeServerLimit,
+  rateLimitedResponse,
+  RateLimiterUnavailableError,
+  rateLimiterUnavailableResponse,
+  refusalFromConvexError,
+} from "../../../lib/server-rate-limit";
 
 // Mirrors pipeline.py's SUPPORTED_EXTRACT_EXT (pipeline.py:70) -- the actual
 // extractable subset of VALID_EXT. Deliberately NOT .docx/.doc/.pages:
@@ -127,6 +134,20 @@ export const POST = withUserMonSpan("/api/upload", async (request: NextRequest) 
       );
     }
 
+    // Durable per-user upload limit (EASYC-6). After the cheap shape checks
+    // above (so malformed requests don't burn a token) and BEFORE the
+    // sanitization, storage writes, and the worker's LLM consolidation.
+    try {
+      const limit = await consumeServerLimit(convex, api.rateLimits.consumeUpload);
+      if (!limit.ok) return rateLimitedResponse(limit);
+    } catch (error) {
+      if (error instanceof RateLimiterUnavailableError) {
+        console.error("upload rate limiter unavailable", error.cause);
+        return rateLimiterUnavailableResponse();
+      }
+      throw error;
+    }
+
     // 3. Process, Verify Magic Bytes, and Sanitize Files
     const preparedFiles: {
       name: string;
@@ -196,6 +217,9 @@ export const POST = withUserMonSpan("/api/upload", async (request: NextRequest) 
 
     return NextResponse.json({ uploadId });
   } catch (err) {
+    // uploads.createUpload's own rolling-24h backstop.
+    const refusal = refusalFromConvexError(err);
+    if (refusal) return rateLimitedResponse(refusal);
     console.error("upload failed", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Upload failed" },
