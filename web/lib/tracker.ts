@@ -1,11 +1,11 @@
 /**
- * Silent Action Tracker
+ * Product-analytics action tracker.
  *
- * Hooks into every user interaction silently.
- * Logs actions, detects rapid-fire abuse, pairs with identity.
- * Never shown to user. Never blocks UI.
+ * Opt-in only: every call is a no-op unless the visitor accepted analytics
+ * (lib/consent.ts). Actions are batched and never block the UI.
  */
-import { getDeviceHash, getLinkedIdentity } from "./identity";
+import { hasAnalyticsConsent } from "./consent";
+import { getAnalyticsDeviceId } from "./identity";
 
 let lastActionTime = 0;
 const RAPID_FIRE_THRESHOLD = 2000; // ms
@@ -43,15 +43,14 @@ export async function trackAction(
   meta?: Record<string, unknown>,
   uploadId?: string,
 ) {
+  if (!hasAnalyticsConsent()) return;
   try {
-    const deviceHash = await getDeviceHash();
-    const identityId = getLinkedIdentity() ?? undefined;
+    const deviceHash = getAnalyticsDeviceId();
     const rapidFire = isRapidFire();
 
     const entry: TrackedAction = {
       sessionId: "",
       deviceHash,
-      identityId,
       uploadId,
       action,
       target,
@@ -77,8 +76,9 @@ export async function trackAction(
  * Flush queued actions to Convex.
  */
 async function flushActions() {
-  if (actionQueue.length === 0) return;
   if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+  if (!hasAnalyticsConsent()) { actionQueue.length = 0; return; }
+  if (actionQueue.length === 0) return;
 
   const batch = actionQueue.splice(0, 50);
   try {

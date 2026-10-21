@@ -292,7 +292,7 @@ describe("FAQAssistantChat", () => {
     });
     expect(screen.getByText("How to download?")).toBeInTheDocument();
     expect(screen.getByText("Fit on 1 page")).toBeInTheDocument();
-    expect(screen.getByText("What is Pro ($14)?")).toBeInTheDocument();
+    expect(screen.getByText("How much does it cost?")).toBeInTheDocument();
   });
 
   it("has an input field for typing questions", async () => {

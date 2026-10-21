@@ -34,9 +34,9 @@ import {
 } from "@bytecats/ui-kit";
 
 import { detectJobUrls } from "@/lib/jobUrlDetector";
-import { LoadingSplashScreen } from "@/components/LoadingSplashScreen";
+import { FAIR_USE_LIMITS, limitMessageForResponse } from "@/lib/limits";
 import { RecentUploadsList } from "@/components/RecentUploadsList";
-import { collectDeviceProfile } from "@/lib/fingerprint";
+import { formatPriceWithInterval, PRO_MONTHLY } from "@/lib/catalog";
 import { trackUploadStarted, trackUploadComplete } from "@/lib/analytics";
 import { trackSampleLoad, trackFileRemove } from "@/lib/tracker";
 
@@ -127,6 +127,7 @@ export default function UploadPage() {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [limitNotice, setLimitNotice] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [jobDescription, setJobDescription] = useState("");
@@ -179,11 +180,11 @@ export default function UploadPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setLimitNotice(null);
     setPending(true);
 
     // Grab form data FIRST — event.currentTarget is null after any await
     const formData = new FormData(event.currentTarget);
-    const device = await collectDeviceProfile();
     const fileTypes = files.map((f) => f.name.split(".").pop() || "");
     const totalSizeKb = files.reduce((sum, f) => sum + f.size / 1024, 0);
 
@@ -193,13 +194,18 @@ export default function UploadPage() {
       totalSizeKb,
       hasJobDescription: Boolean(jobDescription.trim()),
       hasJobUrl: detectedJobInfo.hasUrl,
-      device,
     });
 
     const t0 = Date.now();
     try {
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       const body = await res.json().catch(() => ({}));
+      const limitMessage = res.ok ? null : limitMessageForResponse("upload", res, body);
+      if (limitMessage) {
+        setLimitNotice(limitMessage);
+        setPending(false);
+        return;
+      }
       if (!res.ok) {
         throw new Error(body.error ?? `Upload failed (${res.status})`);
       }
@@ -208,7 +214,6 @@ export default function UploadPage() {
         uploadId: body.uploadId,
         processingTimeMs: Date.now() - t0,
         fileCount: files.length,
-        device,
       });
 
       usermon.trackRumEvent({
@@ -244,11 +249,11 @@ export default function UploadPage() {
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold tracking-tight text-foreground">easyCV Pro</span>
-                  <span className="rounded bg-primary/15 px-1.5 py-0.2 text-[10px] font-bold text-primary">$14/mo</span>
+                  <span className="text-sm font-semibold tracking-tight text-foreground">{PRO_MONTHLY.name}</span>
+                  <span className="rounded bg-primary/15 px-1.5 py-0.2 text-[10px] font-bold text-primary">{formatPriceWithInterval(PRO_MONTHLY)}</span>
               </div>
               <span className="text-xs text-muted-foreground">
-                Unlimited exports, scoring, and job matching.
+                Every résumé unlocked and unlimited Auto-Improve. Renews monthly until you cancel.
               </span>
             </div>
           </div>
@@ -259,7 +264,7 @@ export default function UploadPage() {
               className="h-8 text-xs font-semibold px-4 rounded-md shadow-xs transition-all active:scale-95"
               asChild
             >
-              <Link href="/pricing">Go Pro Now</Link>
+              <Link href="/pricing">See pricing</Link>
             </Button>
             <button
               type="button"
@@ -284,7 +289,7 @@ export default function UploadPage() {
             Build your resume
           </h1>
           <p className="max-w-2xl text-balance text-sm text-muted-foreground font-normal">
-            Upload your CVs. Get a clean, professional resume in seconds.
+            Upload your CVs and get one clean, professional résumé.
           </p>
         </div>
 
@@ -321,7 +326,7 @@ export default function UploadPage() {
           </div>
         </div>
 
-        {/* Persistent Browser-Fingerprinted Recent Documents */}
+        {/* Recent uploads saved to the signed-in account */}
         <RecentUploadsList />
 
         {/* Main Upload / Job Requisition Card */}
@@ -463,8 +468,8 @@ export default function UploadPage() {
                 >
                   {pending ? (
                     <>
-                      <Loader2 className="size-4 animate-spin" />
-                      <span>Consolidating Master Resume...</span>
+                      <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                      <span>Uploading…</span>
                     </>
                   ) : (
                     <>
@@ -476,8 +481,27 @@ export default function UploadPage() {
                 </Button>
               </div>
 
+              <p className="text-[11px] leading-relaxed text-muted-foreground -mt-3" data-testid="upload-legal-note">
+                Sign-in required; up to {FAIR_USE_LIMITS.uploadsPerDay} uploads per day. Your files are saved to your account and processed with AI. By uploading you agree to our{" "}
+                <Link href="/terms" className="underline underline-offset-2 hover:text-foreground">Terms</Link>; the{" "}
+                <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">Privacy Policy</Link>{" "}
+                explains who processes your files and how to delete them.
+              </p>
+
+              <div role="status" aria-live="polite">
+                {limitNotice && (
+                  <p
+                    className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-foreground"
+                    data-testid="upload-limit"
+                  >
+                    <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+                    <span><strong className="font-semibold">Upload limit reached.</strong> {limitNotice}</span>
+                  </p>
+                )}
+              </div>
+
               {error && (
-                <Alert variant="destructive" className="rounded-md border-destructive/40">
+                <Alert variant="destructive" role="alert" className="rounded-md border-destructive/40">
                   <AlertCircle className="size-4" />
                   <AlertTitle className="text-xs font-semibold">Upload Failed</AlertTitle>
                   <AlertDescription className="text-xs">{error}</AlertDescription>
@@ -492,10 +516,10 @@ export default function UploadPage() {
           <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3 shadow-2xs">
             <div className="flex items-center gap-2 text-primary font-semibold text-xs">
               <Shield className="size-3.5" />
-              <span>Private</span>
+              <span>Your data</span>
             </div>
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Deleted after processing.
+              Kept in your account until you ask us to delete it.
             </p>
           </div>
 
@@ -512,10 +536,10 @@ export default function UploadPage() {
           <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3 shadow-2xs">
             <div className="flex items-center gap-2 text-primary font-semibold text-xs">
               <Clock className="size-3.5" />
-              <span>Fast</span>
+              <span>Job match</span>
             </div>
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Done in under a minute.
+              Compare your résumé to a job posting.
             </p>
           </div>
 
@@ -525,14 +549,10 @@ export default function UploadPage() {
               <span>PDF Export</span>
             </div>
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Download or share instantly.
+              Download a PDF once unlocked.
             </p>
           </div>
         </div>
-
-        {pending && (
-          <LoadingSplashScreen />
-        )}
 
       </main>
     </div>

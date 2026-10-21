@@ -121,16 +121,16 @@ export async function sendProPurchaseEmail(
         <div class="container">
           <div class="logo">easyCV <span class="logo-badge">PRO</span></div>
           <h1>Thank you for your order${candidateName ? `, ${candidateName}` : ""}!</h1>
-          <p>Your easyCV Pro package is ready. Your unwatermarked high-resolution Vector PDF and source files are compiled and available for immediate download.</p>
+          <p>Your résumé is unlocked. Your PDF is ready to download.</p>
           
           <div class="btn-box">
-            <a href="${downloadUrl}" class="btn">Download Recruiter-Ready PDF</a>
+            <a href="${downloadUrl}" class="btn">Download PDF</a>
           </div>
 
           <div class="features">
-            <div class="feature-item">&bull; 100% Unwatermarked Vector PDF</div>
-            <div class="feature-item">&bull; Modular Document Source (.tex)</div>
-            <div class="feature-item">&bull; Unlimited Autonomous Auto-Improvements</div>
+            <div class="feature-item">&bull; PDF download</div>
+            <div class="feature-item">&bull; Plain-text and HTML exports</div>
+            <div class="feature-item">&bull; Unlimited Auto-Improve passes on this résumé</div>
           </div>
 
           <p style="font-size: 12px; color: #71717a;">You can re-download this resume anytime using your link.</p>

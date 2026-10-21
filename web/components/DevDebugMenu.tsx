@@ -34,7 +34,17 @@ interface LogEntry {
   message: string;
 }
 
+/**
+ * Local-development inspector. In production builds it renders nothing and,
+ * because the panel is a separate component, none of its effects run either
+ * (no probes to 127.0.0.1, /api/dev/*, or the Convex URL).
+ */
 export const DevDebugMenu: React.FC = () => {
+  if (process.env.NODE_ENV === "production") return null;
+  return <DevDebugPanel />;
+};
+
+const DevDebugPanel: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"system" | "edge_llm" | "logs">("system");
   const [hardware, setHardware] = useState<HardwareProfile | null>(null);
@@ -198,11 +208,6 @@ export const DevDebugMenu: React.FC = () => {
     if (logFilter === "ALL") return true;
     return l.level === logFilter;
   });
-
-  // Only render in local development
-  if (process.env.NODE_ENV === "production") {
-    return null;
-  }
 
   return (
     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 font-sans text-xs select-none">

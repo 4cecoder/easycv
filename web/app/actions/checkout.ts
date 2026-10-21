@@ -22,6 +22,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { authenticatedConvexFromCookie, AuthenticationRequiredError } from "../../lib/seridian-convex";
 import { SESSION_COOKIE } from "../../lib/seridian-oidc";
+import { RESUME_UNLOCK, stripePriceMatchesCatalog } from "../../lib/catalog";
 import { checkoutSchema } from "./schemas";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
@@ -51,21 +52,19 @@ export type CheckoutActionResult =
 // ─── Action ─────────────────────────────────────────────────────────────────────
 
 /**
- * Create a Stripe checkout session for a given upload.
+ * Create a Stripe checkout session for the one-time per-résumé unlock
+ * (lib/catalog.ts RESUME_UNLOCK). The Pro subscription is sold separately via
+ * convex/billing.ts createSubscriptionCheckout.
  *
  * The caller must have an active Seridian session whose owner key owns the upload.
  *
  * Input:
  *   • uploadId  – Convex upload document ID (validated format)
- *   • plan      – "single" | "pro" | "subscription" (optional)
- *   • isSubscription – boolean shortcut (optional)
  *
  * Returns `{ url }` on success or `{ error }` on failure.
  */
 export async function createCheckout(input: {
   uploadId: string;
-  plan?: string;
-  isSubscription?: boolean;
 }): Promise<CheckoutActionResult> {
   try {
     // ── 1. Validate input with Zod ───────────────────────────────────────────
@@ -75,7 +74,7 @@ export async function createCheckout(input: {
       return { success: false, error: msg };
     }
 
-    const { uploadId, plan, isSubscription: subFlag } = parsed.data;
+    const { uploadId } = parsed.data;
 
     // ── 2. Session ownership verification ─────────────────────────────────────
     // Derive the owner key from the verified Seridian identity; never accept it from input.
@@ -97,25 +96,8 @@ export async function createCheckout(input: {
       return { success: false, error: "Upload not found or access denied" };
     }
 
-    // ── 3. Determine checkout mode ───────────────────────────────────────────
-    const isSubscription =
-      plan === "pro" ||
-      plan === "subscription" ||
-      subFlag === true ||
-      (plan === undefined &&
-        subFlag === undefined &&
-        process.env.STRIPE_CHECKOUT_MODE === "subscription");
-
-    const checkoutMode: Stripe.Checkout.SessionCreateParams.Mode = isSubscription
-      ? "subscription"
-      : "payment";
-
-    const priceId = isSubscription
-      ? (process.env.STRIPE_PRO_PRICE_ID ||
-          process.env.STRIPE_SUBSCRIPTION_PRICE_ID ||
-          process.env.STRIPE_PRICE_ID)
-      : (process.env.STRIPE_PRICE_ID || process.env.STRIPE_SINGLE_PRICE_ID);
-
+    // ── 3. One-time unlock price from the catalog ─────────────────────────────
+    const priceId = process.env[RESUME_UNLOCK.stripePriceEnv];
     if (!priceId) {
       return { success: false, error: "Payment service is not configured" };
     }
@@ -124,12 +106,19 @@ export async function createCheckout(input: {
     const stripe = getStripe();
     const origin = getAppOrigin();
 
+    // Charge exactly what the UI shows (lib/catalog.ts).
+    const price = await stripe.prices.retrieve(priceId);
+    if (!stripePriceMatchesCatalog(RESUME_UNLOCK, price)) {
+      console.error("[checkout action] Stripe price does not match catalog");
+      return { success: false, error: "Payment is temporarily unavailable. Please try again later." };
+    }
+
     const session = await stripe.checkout.sessions.create({
-      mode: checkoutMode,
+      mode: "payment",
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${origin}/preview/${uploadId}?paid=1`,
       cancel_url: `${origin}/preview/${uploadId}`,
-      metadata: { uploadId, mode: checkoutMode },
+      metadata: { uploadId, mode: "payment" },
     });
 
     if (!session.url) {
@@ -137,8 +126,6 @@ export async function createCheckout(input: {
     }
 
     // ── 5. Record the payment in Convex ──────────────────────────────────────
-    const price = await stripe.prices.retrieve(priceId);
-
     await convex.mutation(api.payments.createPaymentRecord, {
       uploadId: uploadId as Id<"uploads">,
       sessionId,

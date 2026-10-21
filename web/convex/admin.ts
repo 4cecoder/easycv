@@ -114,7 +114,7 @@ export const bypassPayment = mutation({
       await ctx.db.insert("payments", {
         uploadId,
         stripeSessionId: `bypass-${crypto.randomUUID()}`,
-        amountCents: 1500, // standard price $15
+        amountCents: 0, // admin bypass: nothing was charged
         currency: "usd",
         status: "paid",
         createdAt: Date.now(),

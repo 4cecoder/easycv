@@ -17,6 +17,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { Button, Badge } from "@bytecats/ui-kit";
+import { formatPriceWithInterval, FREE_AUTO_IMPROVE_PASSES, PRO_MONTHLY, RESUME_UNLOCK } from "../lib/catalog";
 
 interface ChatMessage {
   id: string;
@@ -37,42 +38,42 @@ const FAQ_KNOWLEDGE_BASE = [
     keywords: ["start", "upload", "how to use", "begin", "create", "make", "help", "work"],
     question: "How do I create my resume with easyCV?",
     answer:
-      "Simply drag and drop your existing resume files into the upload box on the home page. You can also paste a target job description to match your skills. In seconds, easyCV organizes everything into a clean workspace where you can edit and download.",
+      "Sign in, then drag and drop your existing resume files into the upload box on the home page. You can also paste a target job description. Once processing finishes, easyCV organizes everything into a workspace where you can review, edit and download. Processing can take a while; the page updates on its own.",
   },
   {
     category: "edit_text",
     keywords: ["edit", "change", "modify", "name", "phone", "email", "type", "text", "update"],
     question: "How do I edit my name, phone number, or text?",
     answer:
-      "In your preview workspace, click on any section (like your name, summary, or job bullets) to type and edit your details directly on the screen.",
+      "In your preview workspace, open 'AI Profile Form Sorter'. You can edit your name, contact details, summary, roles, skills and education there, then save.",
   },
   {
     category: "add_role",
     keywords: ["add", "new", "job", "role", "experience", "position", "company"],
     question: "How do I add a new job or experience?",
     answer:
-      "In your preview workspace under the Experience section, click the '+ Add Experience' button to add a new job title, company name, dates, and bullet points.",
+      "Open 'AI Profile Form Sorter' in your preview workspace and click 'Add Position' to add a job title, company and dates.",
   },
   {
     category: "delete_item",
     keywords: ["delete", "remove", "erase", "trash", "bullet", "job", "cut"],
     question: "How do I remove or delete a job or bullet point?",
     answer:
-      "In your preview workspace, hover over any bullet point or experience entry and click the remove/trash icon next to it to delete it instantly.",
+      "Open 'AI Profile Form Sorter' in your preview workspace and click the trash icon next to the role or skill you want to remove, then save.",
   },
   {
     category: "download",
     keywords: ["download", "pdf", "get", "file", "save", "export"],
     question: "How do I download my finished resume?",
     answer:
-      "In your preview workspace, click the 'Download PDF' button in the top action bar. Your resume will download immediately as a clean, high-resolution PDF ready to send to employers.",
+      "In your preview workspace, click 'Download PDF' in the top action bar. Downloads need a one-time unlock for that résumé or an active Pro subscription.",
   },
   {
     category: "pricing",
-    keywords: ["cost", "price", "pro", "pay", "upgrade", "14", "dollar", "buy", "subscription", "fee"],
-    question: "What comes with easyCV Pro ($14)?",
+    keywords: ["cost", "price", "pro", "pay", "upgrade", "dollar", "buy", "subscription", "fee", "cancel", "refund"],
+    question: "How much does easyCV cost?",
     answer:
-      "easyCV Pro is a $14 one-time upgrade (never a recurring subscription). It unlocks unlimited AI auto-improvements, unwatermarked PDF downloads, complete document files, and instant job match scoring.",
+      `There are two separate options. ${RESUME_UNLOCK.name}: ${formatPriceWithInterval(RESUME_UNLOCK)} for one résumé (${RESUME_UNLOCK.unlocks.join(", ").toLowerCase()}); no subscription. ${PRO_MONTHLY.name}: ${formatPriceWithInterval(PRO_MONTHLY)}, unlocks every résumé while active and renews monthly until you cancel. Cancel any time from the Pricing page ('Manage or cancel subscription').`,
     hasUpgradeCta: true,
   },
   {
@@ -80,7 +81,7 @@ const FAQ_KNOWLEDGE_BASE = [
     keywords: ["improve", "auto-improve", "fix", "bullets", "missing", "gaps", "score", "enhance"],
     question: "How does the Auto-Improve button work?",
     answer:
-      "Click 'Auto-Improve' in your workspace header. easyCV scans for missing contact details, sparse roles, and wordy phrasing, then lets you add strong accomplishment bullets and smooth out sentences in 1 click.",
+      `Click 'Auto-Improve' in your workspace header. easyCV scans for missing contact details, sparse roles, and wordy phrasing, then suggests fixes you can accept. Free accounts get ${FREE_AUTO_IMPROVE_PASSES} passes. AI suggestions can be wrong, so review them before you use them.`,
   },
   {
     category: "multiple_files",
@@ -94,14 +95,14 @@ const FAQ_KNOWLEDGE_BASE = [
     keywords: ["job", "match", "tailor", "description", "target", "keywords", "requisition", "posting"],
     question: "How do I tailor my resume for a specific job?",
     answer:
-      "Paste the job posting text or URL into the Job Requisition field before creating your resume. The workspace will highlight required skills, suggest relevant keywords, and show your match score.",
+      "Open the Job Match tab in your preview workspace and paste the job posting. easyCV uses AI to show matched and missing keywords and a match score. It's guidance only; it can't predict how an employer's screening system will rank you.",
   },
   {
     category: "font_size",
     keywords: ["font", "size", "fit", "page", "1 page", "one page", "length", "spacing", "small", "large"],
     question: "How do I change font size or fit everything on 1 page?",
     answer:
-      "In your preview workspace toolbar, select Small, Normal, or Large font size. easyCV automatically recalculates line spacing to help your resume fit neatly onto 1 or 2 pages.",
+      "In your preview workspace toolbar, choose a smaller font size and trim older roles or bullets to keep your resume to one or two pages.",
   },
   {
     category: "color_theme",
@@ -115,14 +116,14 @@ const FAQ_KNOWLEDGE_BASE = [
     keywords: ["print", "paper", "printer", "hard copy"],
     question: "How do I print my resume?",
     answer:
-      "Click the 'Print' button in your workspace toolbar, or download your PDF and open it with your device's standard printer preview.",
+      "Download your PDF and print it from your PDF viewer.",
   },
   {
     category: "free_preview",
     keywords: ["free", "trial", "test", "before pay", "charge", "preview"],
     question: "Is easyCV free to try before paying?",
     answer:
-      "Yes! You can upload your files, build your resume, edit all sections, and preview your full formatted layout completely free before choosing to upgrade to Pro ($14) for unwatermarked downloads.",
+      `Yes. After signing in you can upload files, preview and edit your resume, and use job matching for free. Downloads need a one-time unlock (${formatPriceWithInterval(RESUME_UNLOCK)}) or ${PRO_MONTHLY.name} (${formatPriceWithInterval(PRO_MONTHLY)}).`,
   },
   {
     category: "file_types",
@@ -136,14 +137,14 @@ const FAQ_KNOWLEDGE_BASE = [
     keywords: ["account", "sign in", "login", "email", "save", "sync", "device", "phone", "access"],
     question: "How do I access my saved resumes on another computer or phone?",
     answer:
-      "Click 'Sign In / Sync' in the top navigation and enter your email address. We will send you a fast 6-digit login code so you can access your saved resumes on any computer or phone.",
+      "Click 'Login with Seridian' in the top navigation. Your uploads are saved to your account, so you can sign in on any computer or phone to see them.",
   },
   {
     category: "privacy",
     keywords: ["private", "privacy", "secure", "security", "data", "safe", "delete"],
     question: "Is my personal career information private and secure?",
     answer:
-      "Yes. Your documents and contact information are processed securely with enterprise-grade encryption. We never sell your personal data or share your documents with third parties.",
+      "We never sell your data. Your files and résumé are stored in your account until you ask us to delete them. To provide the service we share data with a few providers, such as OpenAI for AI job matching (without your email, phone or address) and Stripe for payments. Data is encrypted in transit (HTTPS). The Privacy Policy lists every provider and explains how to request a copy or deletion.",
   },
   {
     category: "start_over",
@@ -207,7 +208,7 @@ export function FAQAssistantChat() {
     }
 
     return {
-      text: "easyCV helps you build clean, professional resumes ready for job applications. You can upload past files, edit details directly on screen, auto-improve your bullet points, and download your final PDF with Pro ($14).",
+      text: "easyCV helps you build clean, professional resumes ready for job applications. You can upload past files, edit your details, auto-improve your bullet points, and download a PDF after unlocking it. Ask about pricing, downloads, or privacy.",
       category: "general",
       hasUpgradeCta: false,
     };
@@ -252,7 +253,7 @@ export function FAQAssistantChat() {
           category: match.category,
           queryId,
           actionButton: match.hasUpgradeCta
-            ? { label: "Unlock easyCV Pro ($14)" }
+            ? { label: "See pricing", href: "/pricing" }
             : undefined,
         },
       ]);
@@ -328,7 +329,7 @@ export function FAQAssistantChat() {
               "How to edit text?",
               "How to download?",
               "Fit on 1 page",
-              "What is Pro ($14)?",
+              "How much does it cost?",
               "How to add a job?",
               "Change colors",
             ].map((chip) => (

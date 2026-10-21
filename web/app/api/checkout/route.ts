@@ -4,6 +4,7 @@ import Stripe from "stripe";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { authenticatedConvexFromRequest, AuthenticationRequiredError } from "../../../lib/seridian-convex";
+import { RESUME_UNLOCK, stripePriceMatchesCatalog } from "../../../lib/catalog";
 import { withUserMonSpan } from "../../../lib/usermon-server";
 
 function getStripe(): Stripe {
@@ -28,12 +29,7 @@ export const POST = withUserMonSpan("/api/checkout", async (request: NextRequest
   try {
     let body;
     try {
-      body = (await request.json()) as {
-        uploadId?: string;
-        mode?: "payment" | "subscription" | "single" | "pro";
-        plan?: "single" | "pro" | "subscription";
-        isSubscription?: boolean;
-      };
+      body = (await request.json()) as { uploadId?: string };
     } catch {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
@@ -64,35 +60,16 @@ export const POST = withUserMonSpan("/api/checkout", async (request: NextRequest
       return NextResponse.json({ error: "Unauthorized or invalid upload" }, { status: 403 });
     }
 
-    // Determine checkout mode: "subscription" ($14/mo Pro membership) vs "payment" (single unlock)
-    const isSubscription =
-      body.mode === "subscription" ||
-      body.mode === "pro" ||
-      body.plan === "pro" ||
-      body.plan === "subscription" ||
-      body.isSubscription === true ||
-      (body.mode === undefined &&
-        body.plan === undefined &&
-        body.isSubscription === undefined &&
-        process.env.STRIPE_CHECKOUT_MODE === "subscription");
-
-    const checkoutMode: Stripe.Checkout.SessionCreateParams.Mode = isSubscription
-      ? "subscription"
-      : "payment";
-
-    const priceId = isSubscription
-      ? (process.env.STRIPE_PRO_PRICE_ID ||
-          process.env.STRIPE_SUBSCRIPTION_PRICE_ID ||
-          process.env.STRIPE_PRICE_ID)
-      : (process.env.STRIPE_PRICE_ID || process.env.STRIPE_SINGLE_PRICE_ID);
-
+    // This route only sells the one-time per-résumé unlock (lib/catalog.ts
+    // RESUME_UNLOCK). The Pro subscription is a separate product sold via
+    // convex/billing.ts createSubscriptionCheckout, which links the Stripe
+    // customer to the account so it can be managed and cancelled; any
+    // client-supplied mode/plan is ignored so a one-time checkout can never
+    // turn into an unlinked subscription.
+    const priceId = process.env[RESUME_UNLOCK.stripePriceEnv];
     if (!priceId) {
       return NextResponse.json(
-        {
-          error: isSubscription
-            ? "Server is not configured with STRIPE_PRO_PRICE_ID or STRIPE_PRICE_ID"
-            : "Server is not configured with STRIPE_PRICE_ID",
-        },
+        { error: "Server is not configured with STRIPE_PRICE_ID" },
         { status: 500 },
       );
     }
@@ -100,12 +77,29 @@ export const POST = withUserMonSpan("/api/checkout", async (request: NextRequest
     const stripe = getStripe();
     const origin = getAppOrigin();
 
+    // Charge exactly what the UI shows: refuse if the Stripe price drifted
+    // from the catalog amount (or is recurring) instead of silently charging
+    // a different amount.
+    const price = await stripe.prices.retrieve(priceId);
+    if (!stripePriceMatchesCatalog(RESUME_UNLOCK, price)) {
+      console.error("checkout refused: Stripe price does not match catalog", {
+        expectedCents: RESUME_UNLOCK.priceCents,
+        actualCents: price.unit_amount,
+        currency: price.currency,
+        recurring: Boolean(price.recurring),
+      });
+      return NextResponse.json(
+        { error: "Payment is temporarily unavailable. Please try again later." },
+        { status: 503 },
+      );
+    }
+
     const session = await stripe.checkout.sessions.create({
-      mode: checkoutMode,
+      mode: "payment",
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${origin}/preview/${uploadId}?paid=1`,
       cancel_url: `${origin}/preview/${uploadId}`,
-      metadata: { uploadId, mode: checkoutMode },
+      metadata: { uploadId, mode: "payment" },
     });
 
     if (!session.url) {
@@ -114,9 +108,6 @@ export const POST = withUserMonSpan("/api/checkout", async (request: NextRequest
         { status: 502 },
       );
     }
-
-    // Retrieve the price object to record an accurate amountCents/currency snapshot.
-    const price = await stripe.prices.retrieve(priceId);
 
     await convex.mutation(api.payments.createPaymentRecord, {
       uploadId: uploadId as Id<"uploads">,

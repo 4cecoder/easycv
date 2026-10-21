@@ -26,12 +26,14 @@ import {
   CheckCircle2,
   Lock,
   Wand2,
-  Zap
+  Zap,
+  Clock
 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { useOwnerSessionKey } from "../../../lib/useOwnerSessionKey";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { CheckoutButton } from "./CheckoutButton";
+import { CheckoutLegalNote } from "../../../components/CheckoutLegalNote";
 import { QualitySuggestions } from "./QualitySuggestions";
 import { JobMatchWidget } from "./JobMatchWidget";
 import { STE100BulletWidget } from "./STE100BulletWidget";
@@ -39,6 +41,9 @@ import { CareerVaultWidget } from "./CareerVaultWidget";
 import { SmartCareerProfileWizard } from "../../../components/SmartCareerProfileWizard";
 import { DynamicAutoImproveWizard } from "../../../components/DynamicAutoImproveWizard";
 import { exportHtmlResume } from "./exportHtml";
+import { formatPrice, formatPriceWithInterval, PRO_MONTHLY, RESUME_UNLOCK } from "../../../lib/catalog";
+
+const UNLOCK_PRICE = formatPrice(RESUME_UNLOCK);
 import { analyzeProfileBulletsSTE100, validateBulletSTE100 } from "../../../lib/ste100";
 import {
   Alert,
@@ -67,91 +72,42 @@ const ENGAGEMENT_TIPS = [
   "Keep it clean and easy to scan.",
 ];
 
-const STAGE_MESSAGES = [
-  "Reading documents...",
-  "Extracting skills...",
-  "Scoring resume...",
-  "Building PDF...",
-];
-
-function LoadingEngagementWidget({ status }: { status: "queued" | "processing" }) {
-  const [tipIndex, setTipIndex] = useState(0);
-  const [stageIndex, setStageIndex] = useState(0);
-  const [elapsed, setElapsed] = useState(0);
-  
-  useEffect(() => {
-    const tipInterval = setInterval(() => {
-      setTipIndex((prev) => (prev + 1) % ENGAGEMENT_TIPS.length);
-    }, 4000);
-
-    const stageInterval = setInterval(() => {
-      setStageIndex((prev) => (prev + 1) % STAGE_MESSAGES.length);
-    }, 2800);
-    
-    const timeInterval = setInterval(() => {
-      setElapsed((prev) => prev + 1);
-    }, 1000);
-    
-    return () => {
-      clearInterval(tipInterval);
-      clearInterval(stageInterval);
-      clearInterval(timeInterval);
-    };
-  }, []);
-
-  const estimatedTotal = 45; // seconds
-  const remaining = Math.max(0, estimatedTotal - elapsed);
-  const progressPercent = Math.min(96, Math.floor((elapsed / estimatedTotal) * 100));
-
+/**
+ * Honest status for uploads that have no résumé yet. "queued" means the files
+ * are saved but processing has not started, so there is no spinner, progress
+ * bar or countdown; "processing" shows an indeterminate indicator only.
+ */
+export function UploadStatusPanel({ status }: { status: "queued" | "processing" }) {
+  const queued = status === "queued";
   return (
-    <Card className="overflow-hidden border-primary/30 shadow-md bg-card/90">
-      <CardHeader className="bg-primary/[0.04] pb-6 border-b border-border">
-        <div className="flex flex-col items-center gap-4 text-center">
-          <div className="flex items-center justify-center p-3 rounded-full bg-primary/10 text-primary">
-            <Loader2 className="size-8 animate-spin text-primary" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <h3 className="font-bold text-lg tracking-tight text-foreground transition-all duration-300">
-              {STAGE_MESSAGES[stageIndex]}
-            </h3>
-            <p className="text-xs text-muted-foreground max-w-sm">
-              {status === "queued"
-                ? "Waiting to start... This page updates on its own — no need to refresh."
-                : "Consolidating your resume with AI..."}
-            </p>
-          </div>
-        </div>
-      </CardHeader>
-      
-      <CardContent className="flex flex-col gap-5 pt-6">
-        <div className="flex flex-col gap-2">
-          <div className="flex justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            <span>Compilation Progress</span>
-            {remaining > 0 ? (
-              <span className="text-primary font-mono font-bold">~{remaining}s remaining</span>
+    <Card className="overflow-hidden border-border shadow-sm bg-card" data-testid="upload-status-panel">
+      <CardHeader className="pb-5 border-b border-border">
+        <div className="flex flex-col items-center gap-3 text-center" role="status" aria-live="polite">
+          <div className="flex items-center justify-center p-3 rounded-full bg-muted text-muted-foreground">
+            {queued ? (
+              <Clock className="size-7" aria-hidden="true" />
             ) : (
-              <span className="text-emerald-600 dark:text-emerald-400 font-bold">Finalizing Master Profile...</span>
+              <Loader2 className="size-7 animate-spin motion-reduce:animate-none text-primary" aria-hidden="true" />
             )}
           </div>
-          <div className="h-2 w-full bg-muted overflow-hidden rounded-full p-0.5 border border-border">
-            <div 
-              className="h-full bg-primary transition-all duration-1000 ease-linear rounded-full"
-              style={{ width: `${status === "queued" ? 8 : Math.max(12, progressPercent)}%` }}
-            />
-          </div>
-        </div>
-
-        <div className="rounded-lg bg-muted/40 p-4 border border-border flex flex-col gap-1.5 shadow-2xs">
-          <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-primary">
-            <div className="flex items-center gap-1.5">
-              <Sparkles className="size-3.5" />
-              <span>Score</span>
-            </div>
-            <span className="text-muted-foreground font-normal">Tip {tipIndex + 1}/{ENGAGEMENT_TIPS.length}</span>
-          </div>
-          <p className="text-xs text-foreground/90 leading-relaxed font-medium transition-all duration-500 animate-in fade-in" key={tipIndex}>
-            {ENGAGEMENT_TIPS[tipIndex]}
+          <h2 className="font-bold text-lg tracking-tight text-foreground">
+            {queued ? "Queued — processing will start soon" : "Processing your résumé…"}
+          </h2>
+          <p className="text-xs text-muted-foreground max-w-md leading-relaxed">
+            {queued
+              ? "Your files are uploaded and saved to your account. Processing hasn't started yet. This page updates on its own when it does, so you can close it and come back later from Recent uploads."
+              : "Your files are being read and combined into one résumé. This page updates on its own when it's ready."}
           </p>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-5">
+        <div className="rounded-lg bg-muted/40 p-4 border border-border flex flex-col gap-2">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">While you wait</span>
+          <ul className="list-disc pl-5 text-xs text-foreground/90 leading-relaxed space-y-1">
+            {ENGAGEMENT_TIPS.map((tip) => (
+              <li key={tip}>{tip}</li>
+            ))}
+          </ul>
         </div>
       </CardContent>
     </Card>
@@ -217,7 +173,13 @@ export function PreviewClient({
   }
 
   if (!sessionId) {
-    return <div className="mx-auto max-w-lg p-8 text-center"><p className="mb-4 text-sm text-muted-foreground">Sign in with Seridian Auth to view this upload.</p><a className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground" href="/api/auth/login">Sign in</a></div>;
+    return (
+      <div className="mx-auto max-w-lg p-8 text-center">
+        <p className="mb-4 text-sm text-muted-foreground">Sign in with Seridian Auth to view this upload.</p>
+        <a className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground" href="/api/auth/login">Sign in</a>
+        <CheckoutLegalNote action="signing in" className="mt-4" />
+      </div>
+    );
   }
 
   if (upload === undefined) {
@@ -252,10 +214,10 @@ export function PreviewClient({
     );
   }
 
-  if (upload.status === "queued" || upload.status === "processing") {
+  if (upload.status === "uploading" || upload.status === "queued" || upload.status === "processing") {
     return (
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-12 sm:px-6">
-        <LoadingEngagementWidget status={upload.status} />
+        <UploadStatusPanel status={upload.status === "processing" ? "processing" : "queued"} />
       </div>
     );
   }
@@ -378,9 +340,9 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
               <div className="flex items-center gap-2.5">
                 <span className="hidden md:flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
                   <Lock className="size-3 text-muted-foreground" />
-                  <span>ATS-Optimized Vector PDF</span>
+                  <span>PDF download locked</span>
                 </span>
-                <CheckoutButton uploadId={uploadId} label="Unlock Official PDF ($14)" size="sm" />
+                <CheckoutButton uploadId={uploadId} label={`Unlock PDF (${UNLOCK_PRICE})`} size="sm" />
               </div>
             )}
           </div>
@@ -596,11 +558,11 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
                   <div>
                     <span className="font-bold text-foreground">Interactive Preview Mode</span>
                     <p className="text-muted-foreground text-[11px]">
-                      Tweak fonts, colors & templates in real-time. Unlock Pro to download the recruiter-ready vector PDF & LaTeX source.
+                      Tweak fonts, colors & templates in real-time. Unlock this résumé to download the PDF and plain-text/HTML exports.
                     </p>
                   </div>
                 </div>
-                <CheckoutButton uploadId={uploadId} label="Unlock PDF & LaTeX ($14)" size="sm" />
+                <CheckoutButton uploadId={uploadId} label={`Unlock this résumé (${UNLOCK_PRICE})`} size="sm" />
               </div>
             )}
 
@@ -811,8 +773,8 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="size-5 text-emerald-500" />
                     <div>
-                      <h3 className="text-base font-bold text-foreground">easyCV Pro Package Unlocked</h3>
-                      <p className="text-xs text-muted-foreground">Download your vector PDF and export source code below.</p>
+                      <h3 className="text-base font-bold text-foreground">Résumé unlocked</h3>
+                      <p className="text-xs text-muted-foreground">Download your PDF or export plain text and HTML below.</p>
                     </div>
                   </div>
                 </CardHeader>
@@ -821,9 +783,9 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
                     <div>
                       <div className="flex items-center gap-2 text-primary font-bold text-sm">
                         <FileText className="size-4" />
-                        <span>Recruiter-Ready Vector PDF</span>
+                        <span>PDF résumé</span>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">Single-column ATS optimized PDF compiled with TeX engine.</p>
+                      <p className="text-xs text-muted-foreground mt-1">Single-column PDF typeset with LaTeX.</p>
                     </div>
                     <Button asChild size="sm" className="w-full font-bold">
                       <a href={`/api/download/${paymentStatus.downloadToken}`}>
@@ -837,18 +799,18 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
                     <div>
                       <div className="flex items-center gap-2 text-foreground font-bold text-sm">
                         <Code className="size-4" />
-                        <span>LaTeX Source (.tex)</span>
+                        <span>Plain-text résumé</span>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">Full source code ready for Overleaf, TeXLive, or custom editing.</p>
+                      <p className="text-xs text-muted-foreground mt-1">Your résumé as plain text, for pasting into online application forms.</p>
                     </div>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleCopyText(plainTextResume, "tex")}
+                      onClick={() => handleCopyText(plainTextResume, "plaintext")}
                       className="w-full font-semibold"
                     >
-                      <Copy className="size-3.5 mr-1.5" />
-                      Copy LaTeX Source
+                      {copiedSection === "plaintext" ? <Check className="size-3.5 mr-1.5" /> : <Copy className="size-3.5 mr-1.5" />}
+                      {copiedSection === "plaintext" ? "Copied" : "Copy plain text"}
                     </Button>
                   </div>
 
@@ -878,21 +840,28 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
                   <div className="space-y-2">
                     <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/20 px-3 py-1 text-xs font-bold text-primary uppercase tracking-wider">
                       <Sparkles className="size-3.5" />
-                      <span>Pro Unlock</span>
+                      <span>{RESUME_UNLOCK.name}</span>
                     </div>
                     <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-                      Unlock Full ATS Resume Package
+                      Unlock this résumé
                     </h2>
                     <p className="text-xs sm:text-sm text-muted-foreground max-w-xl">
-                      Get instant access to your recruiter-ready vector PDF, unminified LaTeX source (.tex) for Overleaf, and unlimited job-tailored variations.
+                      {RESUME_UNLOCK.summary} Includes {RESUME_UNLOCK.unlocks.join(", ").toLowerCase()}.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Working on several résumés?{" "}
+                      <Link href="/pricing" className="underline underline-offset-2 hover:text-foreground">
+                        {PRO_MONTHLY.name} is {formatPriceWithInterval(PRO_MONTHLY)}
+                      </Link>{" "}
+                      and unlocks all of them.
                     </p>
                   </div>
                   <div className="flex flex-col items-center sm:items-end gap-1 shrink-0 w-full sm:w-auto">
                     <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-extrabold text-foreground">$14</span>
+                      <span className="text-3xl font-extrabold text-foreground">{UNLOCK_PRICE}</span>
                       <span className="text-xs text-muted-foreground">one-time</span>
                     </div>
-                    <CheckoutButton uploadId={uploadId} label="Unlock Everything ($14)" size="lg" className="w-full sm:w-auto" />
+                    <CheckoutButton uploadId={uploadId} label={`Unlock this résumé (${UNLOCK_PRICE})`} size="lg" className="w-full sm:w-auto" showLegalNote />
                   </div>
                 </div>
 
@@ -900,30 +869,30 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-foreground font-bold text-sm">
                       <FileCheck className="size-4 text-emerald-500" />
-                      <span>Vector PDF Download</span>
+                      <span>PDF download</span>
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Pixel-perfect ATS-compliant document guaranteed to pass Taleo, Greenhouse, and Workday filters.
+                      A clean single-column layout with standard section headings, the format most applicant tracking systems read best. We can&apos;t guarantee how any particular employer&apos;s system will parse or rank it.
                     </p>
                   </div>
 
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-foreground font-bold text-sm">
                       <Code className="size-4 text-primary" />
-                      <span>LaTeX Source (.tex)</span>
+                      <span>Plain-text &amp; HTML exports</span>
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Editable modular source code formatted with clean packages, custom slots, and deterministic macros.
+                      Copy your résumé as plain text for online application forms, or download a self-contained HTML version.
                     </p>
                   </div>
 
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-foreground font-bold text-sm">
                       <Layers className="size-4 text-primary" />
-                      <span>Job Match & Vault</span>
+                      <span>Unlimited Auto-Improve</span>
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Remix your career history for different job descriptions with smart skill taxonomy prioritization.
+                      Run Auto-Improve on this résumé as often as you like (free accounts get 2 passes).
                     </p>
                   </div>
                 </CardContent>
@@ -939,8 +908,8 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
               <Sparkles className="size-4" />
             </div>
             <div className="flex flex-col">
-              <span className="text-xs font-bold text-foreground">ATS Quality Validated</span>
-              <span className="text-[10px] text-muted-foreground font-mono">STE-100 Compliant • Single Column</span>
+              <span className="text-xs font-bold text-foreground">Résumé ready</span>
+              <span className="text-[10px] text-muted-foreground font-mono">Single-column layout</span>
             </div>
           </div>
 
@@ -953,7 +922,7 @@ ${(profile.education || []).map((e) => `${e.degree ?? ""} - ${e.school ?? ""} ($
                 </a>
               </Button>
             ) : (
-              <CheckoutButton uploadId={uploadId} label="Download PDF ($14)" size="sm" className="h-9" />
+              <CheckoutButton uploadId={uploadId} label={`Download PDF (${UNLOCK_PRICE})`} size="sm" className="h-9" />
             )}
           </div>
         </div>
