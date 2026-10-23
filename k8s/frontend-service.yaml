@@ -1,3 +1,15 @@
+# =============================================================================
+# easyCV Frontend Service — ClusterIP (Traefik handles external traffic)
+# =============================================================================
+#
+# Traefik is the ingress controller and handles LoadBalancer exposure.
+# This service is ClusterIP — Traefik routes to it internally.
+#
+# Apply:
+#   kubectl apply -f k8s/frontend-service.yaml -n easycv
+#
+# =============================================================================
+
 apiVersion: v1
 kind: Service
 metadata:
@@ -7,14 +19,12 @@ metadata:
     app: easycv-frontend
     app.kubernetes.io/part-of: easycv
     app.kubernetes.io/component: frontend
-  annotations:
-    service.beta.kubernetes.io/vultr-loadbalancer-protocol: "tcp"
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   selector:
     app: easycv-frontend
   ports:
     - name: http
       protocol: TCP
       port: 80
-      targetPort: http
+      targetPort: 3000
